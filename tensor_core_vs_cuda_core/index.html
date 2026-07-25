@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>7.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core - GPU 图形与 AI 推理知识手册</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "7.1 Tensor Core: \u4e13\u7528\u77e9\u9635\u4e58\u5355\u5143 vs CUDA Core";
+        var mkdocs_page_input_path = "tensor_core_vs_cuda_core.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GPU 图形与 AI 推理知识手册
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">首页</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">1. 图形渲染管线与 GPU 硬件基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 渲染管线与硬件单元 (SM, TMU, ROP)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_passes_and_sync/">1.4 图形管线中的 Pass 与同步 (RenderPass, Barrier)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">2. GPU 并发模型与系统思维</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../cpu_gpu_async_pipeline/">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../command_buffer_ring_buffer/">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../multithreaded_rendering_and_pools/">2.3 多线程渲染与资源池管理</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_to_ai_first_principles/">2.4 从图形管线到 AI 推理的第一性原理映射</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">3. AI 模型与算子基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../model_structures_inference_view/">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../operator_taxonomy/">3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../convolution_math_implementation/">3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">4. AI 推理优化核心策略</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 为何图形做多 Pass，AI 做单 Pass Tiling</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention (类比 DX12 资源池 / 伙伴分配器)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../thread_block_grid_mapping/">5.1 线程模型 (Thread, Block, Grid) 与映射</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../explicit_memory_shared_vs_cache/">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../warp_simd_simt_divergence/">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../synchronization_primitives/">5.4 同步原语: __syncthreads, __syncwarp, 内存屏障</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../reduce_tree_implementation/">6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../scan_stream_compaction/">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../radix_sort_as_stream_compaction/">6.3 基数排序 (Radix Sort) = 逐位流压缩</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">7. 专用硬件加速单元</span></p>
+              <ul class="current">
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">7.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#_1">概述</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#cuda-core-alu">CUDA Core：通用标量 ALU</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_2">本质</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_3">灵活性</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#tensor-core">Tensor Core：专用矩阵乘加单元</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_4">本质</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#warp-level">工作方式：warp-level 矩阵乘</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#tensor-core_1">为什么 Tensor Core 如此之快</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_5">图形渲染中的等价类比</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#tensor-core_2">没有 Tensor Core 时 → 没有纹理采样器时</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#gpu">现代 GPU 中的混合执行流程</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_6">核心对比表</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_7">关键结论</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">7.2 RT Core: BVH 遍历专用电路 (压缩解决随机访问，专用电路解决分支分歧)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">7.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">8. GPU 软件栈与驱动开发</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">8.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">8.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">8.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">8.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 职业发展与工程实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">9.1 四个核心岗位对比: 算子开发 / 推理框架 / 编译器 / 驱动</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">9.2 简历技能清单 (基于我们对话的认知总结)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">9.3 关键知识点自检清单 (MkDocs 版)</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GPU 图形与 AI 推理知识手册</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">7. 专用硬件加速单元</li>
+      <li class="breadcrumb-item active">7.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="71-tensor-core-vs-cuda-core-alu">7.1 Tensor Core vs CUDA Core：专用矩阵乘单元与通用 ALU 的分工</h1>
+<h2 id="_1">概述</h2>
+<p>现代 GPU 的 SM（流式多处理器）内部并非只有一种计算单元，而是包含两种分工截然不同的核心：<strong>CUDA Core</strong> 和 <strong>Tensor Core</strong>。理解它们的区别和协作方式，是理解 AI 推理性能的关键。</p>
+<blockquote>
+<p>用你的渲染思维来翻译：就像图形管线里既有通用的 Pixel Shader ALU，又有专用的纹理采样器（TMU），两者在同一 Shader 程序中交替执行，各司其职。</p>
+</blockquote>
+<h2 id="cuda-core-alu">CUDA Core：通用标量 ALU</h2>
+<h3 id="_2">本质</h3>
+<p>CUDA Core 本质上是一个完整的<strong>整数/浮点算术逻辑单元（ALU）</strong>，支持所有常规指令：</p>
+<ul>
+<li>加减乘除（ADD, SUB, MUL, DIV）</li>
+<li>比较与选择（CMP, SEL）</li>
+<li>类型转换（F2I, I2F）</li>
+<li>分支跳转（BRA, CALL, RET）</li>
+<li>逻辑运算（AND, OR, XOR）</li>
+</ul>
+<p>每一个 CUDA Core 在每一个时钟周期处理一个<strong>标量</strong>操作——即一次只处理一个数值。</p>
+<h3 id="_3">灵活性</h3>
+<p>CUDA Core 是"万能工"，可以执行任何你能想到的计算逻辑：</p>
+<pre><code class="language-cpp">// ReLU：一次比较 + 一次选择 → CUDA Core 执行
+float relu(float x) {
+    return x &gt; 0 ? x : 0;
+}
+
+// Sigmoid：指数 + 除法 → CUDA Core 执行
+float sigmoid(float x) {
+    return 1.0f / (1.0f + expf(-x));
+}
+
+// GELU：乘加 + tanh + 乘加 → CUDA Core 执行
+float gelu(float x) {
+    const float sqrt_2_over_pi = 0.7978845608028654f;
+    return 0.5f * x * (1.0f + tanhf(sqrt_2_over_pi * (x + 0.044715f * x * x * x)));
+}
+</code></pre>
+<p>这些指令在 Tensor Core 的硬件逻辑里<strong>根本不存在</strong>。</p>
+<h2 id="tensor-core">Tensor Core：专用矩阵乘加单元</h2>
+<h3 id="_4">本质</h3>
+<p>Tensor Core 是一条"死脑筋"的专用流水线——它只认识一个操作：<strong>矩阵乘加（D = A × B + C）</strong>。</p>
+<p>但它的可怕之处在于吞吐量：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">属性</th>
+<th style="text-align: left;">CUDA Core</th>
+<th style="text-align: left;">Tensor Core</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">单次操作粒度</td>
+<td style="text-align: left;">1 个标量（1×1×1）</td>
+<td style="text-align: left;">一个矩阵块（如 16×16×16）</td>
+</tr>
+<tr>
+<td style="text-align: left;">单次乘加次数</td>
+<td style="text-align: left;">1 次 FMA</td>
+<td style="text-align: left;">4096 次 FMA（16×16×16）</td>
+</tr>
+<tr>
+<td style="text-align: left;">数据访问模式</td>
+<td style="text-align: left;">逐元素随机访问</td>
+<td style="text-align: left;">规则块状加载</td>
+</tr>
+<tr>
+<td style="text-align: left;">硬件代价</td>
+<td style="text-align: left;">面积小，灵活</td>
+<td style="text-align: left;">面积大，吞吐极高</td>
+</tr>
+<tr>
+<td style="text-align: left;">指令集</td>
+<td style="text-align: left;">完整（数百条指令）</td>
+<td style="text-align: left;">唯一（<code>mma.sync</code> 系列）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="warp-level">工作方式：warp-level 矩阵乘</h3>
+<p>Tensor Core 的操作粒度是 <strong>warp 级</strong> 的，不是 thread 级的。一个 warp（32 个线程）协同工作，一次性完成一个矩阵块的乘加。</p>
+<p>标准流程如下（使用 CUDA <code>wmma</code> 命名空间）：</p>
+<pre><code class="language-cpp">#include &lt;cuda_fp16.h&gt;
+#include &lt;mma.h&gt;
+
+using namespace nvcuda;
+
+// 定义矩阵维度：16×16×16 (m16n16k16)
+wmma::fragment&lt;wmma::matrix_a, 16, 16, 16, half, wmma::row_major&gt; a_frag;
+wmma::fragment&lt;wmma::matrix_b, 16, 16, 16, half, wmma::col_major&gt; b_frag;
+wmma::fragment&lt;wmma::accumulator, 16, 16, 16, float&gt; c_frag;
+wmma::fragment&lt;wmma::accumulator, 16, 16, 16, float&gt; d_frag;
+
+// 1. 加载数据到寄存器（从 Shared Memory 加载）
+wmma::load_matrix_sync(a_frag, shared_A, 16);  // A: [16, 128]
+wmma::load_matrix_sync(b_frag, shared_B, 128); // B: [128, 16]
+wmma::fill_fragment(c_frag, 0.0f);             // C 初始化为 0
+
+// 2. 矩阵乘加：D = A × B + C
+// 一条指令，完成 16×128 × 128×16 → 16×16，即 4096 次乘加
+wmma::mma_sync(d_frag, a_frag, b_frag, c_frag);
+
+// 3. 存储结果
+wmma::store_matrix_sync(shared_C, d_frag, 16, wmma::mem_row_major);
+</code></pre>
+<blockquote>
+<p>关键：不需要循环累加 128 次——Tensor Core <strong>在一个时钟周期内</strong>就把 4096 次乘加全部算完。</p>
+</blockquote>
+<h3 id="tensor-core_1">为什么 Tensor Core 如此之快</h3>
+<p>Tensor Core 的快，不是因为频率高，而是因为<strong>并行度高</strong>：</p>
+<ul>
+<li>同一个 warp 内的 32 个线程协同工作</li>
+<li>每个线程负责计算输出矩阵块的一部分</li>
+<li>硬件电路将乘加操作固化为一条流水线，消除了指令调度的开销</li>
+<li>结果是：<strong>Memory bandwidth becomes the bottleneck</strong>——Tensor Core 算得实在太快，数据搬运速度跟不上它的消耗速度</li>
+</ul>
+<p>这就是为什么 Tiling 和 Shared Memory 管理在 AI Kernel 中如此关键：你需要确保数据搬运的速度能喂饱 Tensor Core。</p>
+<h2 id="_5">图形渲染中的等价类比</h2>
+<h3 id="tensor-core_2">没有 Tensor Core 时 → 没有纹理采样器时</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">场景</th>
+<th style="text-align: left;">手动实现</th>
+<th style="text-align: left;">硬件加速</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">图像模糊</td>
+<td style="text-align: left;">像素循环读 9 个邻居，算 9 次乘加</td>
+<td style="text-align: left;">硬件一次完成整个块的计算</td>
+</tr>
+<tr>
+<td style="text-align: left;">双线性插值</td>
+<td style="text-align: left;">手动用 float4 算插值</td>
+<td style="text-align: left;">用 <code>tex2D</code> 硬件一步完成</td>
+</tr>
+<tr>
+<td style="text-align: left;">矩阵乘</td>
+<td style="text-align: left;">逐元素循环 128 次累加</td>
+<td style="text-align: left;">Tensor Core 一次性算完 16×16×16</td>
+</tr>
+</tbody>
+</table>
+<p>图形里最接近 Tensor Core 的等价物是 <strong>TMU（纹理采样单元）</strong> 中的 <strong>固定功能纹理采样器</strong>：</p>
+<pre><code>Pixel Shader 中的 tex2D()  →  硬件纹理采样器（TMU）一次性完成采样 + 插值
+CUDA Kernel 中的 mma_sync →  Tensor Core 一次性完成矩阵乘加
+</code></pre>
+<p>两者都是：
+- 把频繁使用的计算模式固化为<strong>专用硬件电路</strong>
+- 用户通过<strong>特定的指令/API</strong>调用，而不是手动实现算法
+- 在同一个程序中和通用 ALU <strong>交替执行</strong>，由硬件调度器自动路由</p>
+<h3 id="gpu">现代 GPU 中的混合执行流程</h3>
+<pre><code>输入 → [矩阵乘 (Tensor Core)] → [激活函数 (CUDA Core)] → [矩阵乘 (Tensor Core)] → ...
+
+图形等价：
+纹理采样 (TMU) → [ALU 运算 (CUDA Core)] → 纹理采样 (TMU) → [ALU 运算 (CUDA Core)]
+</code></pre>
+<p>Tensor Core 和 CUDA Core 在 SM 内部<strong>无缝交替执行</strong>，由硬件调度器在<strong>指令级</strong>自动切换：</p>
+<ol>
+<li>编译器生成指令：矩阵乘指令 → Tensor Core；标量运算指令 → CUDA Core</li>
+<li>Warp Scheduler 看到 <code>mma.sync</code>，将 warp 调度到 Tensor Core</li>
+<li>看到普通 ALU 指令，调度到 CUDA Core</li>
+<li>切换在纳秒级完成，无感知</li>
+</ol>
+<h2 id="_6">核心对比表</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">维度</th>
+<th style="text-align: left;">CUDA Core</th>
+<th style="text-align: left;">Tensor Core</th>
+<th style="text-align: left;">图形等价物</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">本质</td>
+<td style="text-align: left;">通用标量 ALU</td>
+<td style="text-align: left;">专用矩阵乘加单元</td>
+<td style="text-align: left;">Pixel Shader ALU vs TMU</td>
+</tr>
+<tr>
+<td style="text-align: left;">计算粒度</td>
+<td style="text-align: left;">1 次 FMA/周期/核</td>
+<td style="text-align: left;">4096 次 FMA/周期/warp</td>
+<td style="text-align: left;">单像素 vs 4×4 纹理块</td>
+</tr>
+<tr>
+<td style="text-align: left;">数据模式</td>
+<td style="text-align: left;">逐元素，随机</td>
+<td style="text-align: left;">规则矩阵块</td>
+<td style="text-align: left;">任意 UV 坐标 vs 块状纹理</td>
+</tr>
+<tr>
+<td style="text-align: left;">适用场景</td>
+<td style="text-align: left;">激活函数、归一化、控制流</td>
+<td style="text-align: left;">GEMM、卷积、Attention</td>
+<td style="text-align: left;">漫反射计算 vs 纹理采样</td>
+</tr>
+<tr>
+<td style="text-align: left;">硬件代价</td>
+<td style="text-align: left;">面积小，灵活</td>
+<td style="text-align: left;">面积大，吞吐极高</td>
+<td style="text-align: left;">通用单元 vs 专用单元</td>
+</tr>
+<tr>
+<td style="text-align: left;">程序员控制</td>
+<td style="text-align: left;">间接（数据类型、API 选择）</td>
+<td style="text-align: left;">间接（同左）</td>
+<td style="text-align: left;">不控制，硬件自动路由</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_7">关键结论</h2>
+<ol>
+<li><strong>Tensor Core 是专用电路，不是加速版的 CUDA Core</strong>——它只做矩阵乘加，做不了 ReLU</li>
+<li><strong>CUDA Core 是通用 ALU</strong>——它什么都能做，但单次吞吐远低于 Tensor Core</li>
+<li><strong>两者在 SM 内部交替执行</strong>，由硬件调度器在指令级自动路由，程序员无感知</li>
+<li><strong>图形中最接近 Tensor Core 的等价物是 TMU 纹理采样器</strong>——都是固定功能硬件单元</li>
+<li><strong>Tensor Core 算得实在太快，以至于显存带宽成为瓶颈</strong>——这就是 Tiling 和 Shared Memory 优化如此重要的根本原因</li>
+</ol>
+<blockquote>
+<p>就像你的 GPU 在跑 Pixel Shader 时，纹理采样（TMU）和 ALU 计算（CUDA Core）自动交替一样——AI 推理中，Tensor Core 和 CUDA Core 也在同一 Kernel 内部无缝协作，各司其职。</p>
+</blockquote>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../flashattention_case_study/" class="btn btn-neutral float-left" title="6.4 FlashAttention: Online Softmax + Tiling 的经典案例"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../rt_core_bvh_traversal/" class="btn btn-neutral float-right" title="7.2 RT Core: BVH 遍历专用电路 (压缩解决随机访问，专用电路解决分支分歧)">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../flashattention_case_study/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../rt_core_bvh_traversal/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

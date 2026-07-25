@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊 - GPU 图形与 AI 推理知识手册</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "3.3 \u5377\u79ef (Conv2d) \u6570\u5b66\u4e0e\u5b9e\u73b0: \u591a\u901a\u9053 vs \u56fe\u5f62\u6a21\u7cca";
+        var mkdocs_page_input_path = "convolution_math_implementation.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GPU 图形与 AI 推理知识手册
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">首页</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">1. 图形渲染管线与 GPU 硬件基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 渲染管线与硬件单元 (SM, TMU, ROP)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_passes_and_sync/">1.4 图形管线中的 Pass 与同步 (RenderPass, Barrier)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">2. GPU 并发模型与系统思维</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../cpu_gpu_async_pipeline/">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../command_buffer_ring_buffer/">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../multithreaded_rendering_and_pools/">2.3 多线程渲染与资源池管理</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_to_ai_first_principles/">2.4 从图形管线到 AI 推理的第一性原理映射</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">3. AI 模型与算子基础</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../model_structures_inference_view/">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../operator_taxonomy/">3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#_1">概述</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_2">一、标准卷积公式</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_3">单通道卷积（图形视角）</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#ai-conv2d">多通道卷积（AI Conv2d 完整公式）</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_4">逐层理解</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_5">计算量对比</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#vs-ai">二、图形 vs AI：为什么实现方式完全不同？</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#pass">图形：多 Pass 分步卷积</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#ai-pass-tiling">AI：单 Pass + Tiling</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#vs">结论：直接原因 vs 根本原因</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#vs_1">三、权重局部性 vs 输入局部性</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#ai">为什么 AI 不用纹理缓存？</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#shared-memory">Shared Memory 的作用</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#im2col-gemmai">四、im2col + GEMM：AI 卷积的实际实现</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#im2col">im2col 操作</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#gemm">GEMM 操作</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#two-step">完整的 two-step 流程</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#im2col-gemm">为什么 im2col + GEMM 是标准做法？</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#tensor-core">Tensor Core 加速</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_6">五、总结对比表</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_7">速记公式</a>
+    </li>
+        </ul>
+    </li>
+    </ul>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">4. AI 推理优化核心策略</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 为何图形做多 Pass，AI 做单 Pass Tiling</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention (类比 DX12 资源池 / 伙伴分配器)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../thread_block_grid_mapping/">5.1 线程模型 (Thread, Block, Grid) 与映射</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../explicit_memory_shared_vs_cache/">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../warp_simd_simt_divergence/">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../synchronization_primitives/">5.4 同步原语: __syncthreads, __syncwarp, 内存屏障</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../reduce_tree_implementation/">6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../scan_stream_compaction/">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../radix_sort_as_stream_compaction/">6.3 基数排序 (Radix Sort) = 逐位流压缩</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">7. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">7.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">7.2 RT Core: BVH 遍历专用电路 (压缩解决随机访问，专用电路解决分支分歧)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">7.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">8. GPU 软件栈与驱动开发</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">8.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">8.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">8.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">8.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 职业发展与工程实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">9.1 四个核心岗位对比: 算子开发 / 推理框架 / 编译器 / 驱动</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">9.2 简历技能清单 (基于我们对话的认知总结)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">9.3 关键知识点自检清单 (MkDocs 版)</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GPU 图形与 AI 推理知识手册</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">3. AI 模型与算子基础</li>
+      <li class="breadcrumb-item active">3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="33-conv2d-vs-im2col-gemm-tensor-core">3.3 卷积 (Conv2d) 数学与实现 — 多通道 vs 图形模糊，im2col + GEMM 与 Tensor Core</h1>
+<h2 id="_1">概述</h2>
+<p>图形图像卷积（高斯模糊、边缘检测）和 AI Conv2d 在数学公式上<strong>完全一致</strong>，但在实现上面临截然不同的约束条件。理解这个差异，是打通图形渲染和 AI 推理认知的关键。</p>
+<p>核心结论：
+- <strong>图形卷积</strong>是"带宽优化"问题——少采样纹理是王道，哪怕多走一个 Pass
+- <strong>AI 卷积</strong>是"算力 + 带宽双重优化"问题——避免重复计算 + 手动分块 (Tiling)</p>
+<hr />
+<h2 id="_2">一、标准卷积公式</h2>
+<h3 id="_3">单通道卷积（图形视角）</h3>
+<p>这是你熟悉的图形图像卷积（比如 3x3 高斯模糊）：</p>
+<pre><code>Output(x, y) = Σᵢ Σⱼ Input(x+i, y+j) × Kernel(i, j)
+</code></pre>
+<ul>
+<li><strong>图形</strong>：Kernel 是固定的（高斯核、Sobel 核），Input 是纹理图片</li>
+<li><strong>AI</strong>：Kernel 是通过训练学出来的随机权重值，Input 是上一层的特征图</li>
+</ul>
+<h3 id="ai-conv2d">多通道卷积（AI Conv2d 完整公式）</h3>
+<p>AI 的卷积是多通道融合的，远复杂于单通道：</p>
+<pre><code>Output[c_out, y, x] = Σ_{c_in=0}^{C_in-1} Σ_{i=0}^{K_h-1} Σ_{j=0}^{K_w-1}
+    Input[c_in, y+i, x+j] × Weight[c_out, c_in, i, j]
+</code></pre>
+<p><strong>参数含义：</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">参数</th>
+<th style="text-align: left;">含义</th>
+<th style="text-align: left;">典型值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>C_in</code></td>
+<td style="text-align: left;">输入通道数</td>
+<td style="text-align: left;">RGB=3, 或上一层 64/128/256</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>C_out</code></td>
+<td style="text-align: left;">输出通道数（卷积核个数）</td>
+<td style="text-align: left;">64/128/256...</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>K_h, K_w</code></td>
+<td style="text-align: left;">卷积核高宽</td>
+<td style="text-align: left;">通常 3×3, 1×1, 5×5</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>H_in, W_in</code></td>
+<td style="text-align: left;">输入特征图高宽</td>
+<td style="text-align: left;">取决于网络层</td>
+</tr>
+</tbody>
+</table>
+<h3 id="_4">逐层理解</h3>
+<p><strong>Step 1：单个位置的点积</strong></p>
+<p>对于输出位置 (y, x) 和单个输出通道：</p>
+<pre><code class="language-python"># 伪代码：3x3 卷积核单点计算
+output[y][x] = 0
+for i in range(K_h):           # 卷积核行
+    for j in range(K_w):       # 卷积核列
+        for c in range(C_in):  # 所有输入通道
+            output[y][x] += input[y+i][x+j][c] * weight[i][j][c]
+</code></pre>
+<p><strong>Step 2：多输出通道</strong></p>
+<p>有 <code>C_out</code> 组不同的权重，每组生成一个输出通道：</p>
+<pre><code class="language-python">for c_out in range(C_out):
+    output[c_out][y][x] = sum_over_all(input * weight[c_out])
+</code></pre>
+<p><strong>Step 3：整个特征图</strong></p>
+<p>把上面的操作滑动遍历整个 [H_in, W_in] 平面，就是完整的 Conv2d。</p>
+<h3 id="_5">计算量对比</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">维度</th>
+<th style="text-align: left;">图形模糊（3×3 高斯）</th>
+<th style="text-align: left;">AI 卷积（Conv2d）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">输入</td>
+<td style="text-align: left;">单通道灰度图</td>
+<td style="text-align: left;">多通道特征图（如 64 通道）</td>
+</tr>
+<tr>
+<td style="text-align: left;">权重</td>
+<td style="text-align: left;">固定值（如 1/16, 2/16...）</td>
+<td style="text-align: left;">训练出来的随机值</td>
+</tr>
+<tr>
+<td style="text-align: left;">一次卷积循环</td>
+<td style="text-align: left;"><code>for i in 3: for j in 3: sum += ...</code></td>
+<td style="text-align: left;">外层还要套 <code>for c in range(64)</code> 和 <code>for c_out in range(128)</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">每个像素计算量</td>
+<td style="text-align: left;">9 次乘加</td>
+<td style="text-align: left;">9 × 64 × 128 ≈ <strong>7 万次乘加</strong></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>这就是 AI 算力需求爆炸的根本原因：图形做一次 3×3 卷积，每个像素算 9 次乘加；AI 做一次 3×3 卷积，每个像素算约 7 万次乘加（假设 C_in=64, C_out=128）。</p>
+</blockquote>
+<hr />
+<h2 id="vs-ai">二、图形 vs AI：为什么实现方式完全不同？</h2>
+<h3 id="pass">图形：多 Pass 分步卷积</h3>
+<p>以高斯模糊为例：</p>
+<pre><code>Pass 1 (水平模糊):  Input → [1×5 卷积核] → Temp Buffer
+Pass 2 (垂直模糊):  Temp Buffer → [5×1 卷积核] → Output
+</code></pre>
+<p><strong>为什么这么做？</strong></p>
+<ul>
+<li><strong>可分离卷积核</strong>：高斯核 <code>G(x,y) = G(x) × G(y)</code>，一个 5×5 可拆成 1×5 + 5×1</li>
+<li><strong>带宽优化</strong>：纹理采样从 25 次降到 10 次（每像素）</li>
+<li><strong>算访比权衡</strong>：宁愿多一个 Pass（Render Target 切换），也要少读纹理</li>
+</ul>
+<h3 id="ai-pass-tiling">AI：单 Pass + Tiling</h3>
+<p>AI 的 Conv2d 是一个 Kernel 直接完成所有通道的卷积：</p>
+<pre><code class="language-cuda">// 伪代码：AI Conv2d Kernel (单 Pass)
+__global__ void conv2d_kernel(float* input, float* weight, float* output,
+                               int C_in, int C_out, int H, int W, int K) {
+    // 1. 分块加载 (Tiling): 把当前 Tile 的输入和权重搬进 Shared Memory
+    __shared__ float tile_input[TILE_SIZE + K-1][TILE_SIZE + K-1][...];
+    __shared__ float tile_weight[...];
+
+    load_tile_to_shared(input + ...);
+    load_weight_to_shared(weight);
+    __syncthreads();
+
+    // 2. 在 Shared Memory 内完成所有通道的乘累加
+    float acc = 0;
+    for (int ci = 0; ci &lt; C_in; ci++)
+        for (int i = 0; i &lt; K; i++)
+            for (int j = 0; j &lt; K; j++)
+                acc += tile_input[ty+i][tx+j][ci] * tile_weight[co][ci][i][j];
+
+    // 3. 写回 Global Memory
+    output[co * H_out * W_out + y * W_out + x] = acc;
+}
+</code></pre>
+<p><strong>为什么不拆成两个 Pass？</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">角度</th>
+<th style="text-align: left;">图形</th>
+<th style="text-align: left;">AI</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>直接原因</strong></td>
+<td style="text-align: left;">卷积核可分离（高斯核）</td>
+<td style="text-align: left;">卷积核<strong>不可分离</strong>（随机训练权重）</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>计算量变化</strong></td>
+<td style="text-align: left;">拆后计算不变（反而省 15 次采样）</td>
+<td style="text-align: left;">拆后计算量暴增约 50%</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>带宽变化</strong></td>
+<td style="text-align: left;">少采样（省带宽）</td>
+<td style="text-align: left;">多一次中间结果读写（翻倍带宽）</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>根本原因</strong></td>
+<td style="text-align: left;">瓶颈在纹理采样带宽</td>
+<td style="text-align: left;">瓶颈在计算（Tensor Core）+ 带宽双受限</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>权衡</strong></td>
+<td style="text-align: left;">多算一点，少读显存</td>
+<td style="text-align: left;">多读显存（一次性全加载），避免重复计算</td>
+</tr>
+</tbody>
+</table>
+<h3 id="vs">结论：直接原因 vs 根本原因</h3>
+<ul>
+<li><strong>直接原因</strong>：AI 的卷积核不可分离，拆分会导致计算量暴增</li>
+<li><strong>根本原因</strong>：AI 推理的计算量太大，算力（Tensor Core）成了短板；同时显存带宽也吃紧，所以既不能多算（因为算力不够），也不能多读写（因为带宽不够）</li>
+</ul>
+<blockquote>
+<p><strong>图形</strong>：我宁可多算一点（拆成两个 Pass），也要少读显存（纹理采样）
+<strong>AI</strong>：我宁可多读显存（一次性把所有输入读进来），也要少算（避免重复计算）</p>
+</blockquote>
+<hr />
+<h2 id="vs_1">三、权重局部性 vs 输入局部性</h2>
+<h3 id="ai">为什么 AI 不用纹理缓存？</h3>
+<p>Conv2d 的局部性特征和图形纹理采样的局部性完全不同：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">维度</th>
+<th style="text-align: left;">图形（纹理采样）</th>
+<th style="text-align: left;">AI（Conv2d 权重）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">局部性类型</td>
+<td style="text-align: left;"><strong>采样局部性</strong>：相邻像素采相邻纹素</td>
+<td style="text-align: left;"><strong>计算局部性</strong>：同一权重被不同位置反复使用</td>
+</tr>
+<tr>
+<td style="text-align: left;">瓶颈</td>
+<td style="text-align: left;">TMU 延迟</td>
+<td style="text-align: left;">显存带宽 + 乘加次数</td>
+</tr>
+<tr>
+<td style="text-align: left;">硬件加速</td>
+<td style="text-align: left;">纹理 Cache 命中率极高</td>
+<td style="text-align: left;">纹理 Cache 无用——权重是随机值，无空间连续性</td>
+</tr>
+<tr>
+<td style="text-align: left;">解决方案</td>
+<td style="text-align: left;">靠硬件 Cache 自动搞定</td>
+<td style="text-align: left;"><strong>必须手动用 Shared Memory 做 Tiling</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="shared-memory">Shared Memory 的作用</h3>
+<p><strong>没有 Shared Memory 的情况：</strong></p>
+<p>对于 1024×1024 输入，每个输出位置都要从 Global Memory 读取 3×3 权重。这需要约 100 万次权重读取——带宽爆炸。</p>
+<p><strong>用了 Shared Memory：</strong></p>
+<p>将整个 3×3 权重（仅 9 个数）加载进 Shared Memory，只读一次 Global Memory，所有像素位置从 Shared Memory 取这 9 个数——带宽开销降低 100 万倍。</p>
+<blockquote>
+<p>权重在显存里的布局是连续的（<code>[C_out, C_in, K_h, K_w]</code> 严格 row-major），但<strong>访问模式是跳跃的</strong>——同一个权重被反复使用，硬件 Cache 无法预判，只有程序员能预判"这个权重会被反复用"，所以手动缓存。</p>
+</blockquote>
+<hr />
+<h2 id="im2col-gemmai">四、im2col + GEMM：AI 卷积的实际实现</h2>
+<p>现代 AI 框架（PyTorch、TensorRT）不会像上面那样写多层嵌套循环，而是用 <strong>im2col + GEMM</strong> 将卷积转换成矩阵乘法，从而利用 Tensor Core 加速。</p>
+<h3 id="im2col">im2col 操作</h3>
+<p>im2col（Image to Column）将输入特征图的每个滑动窗口<strong>拉直成一列</strong>：</p>
+<pre><code>输入形状: [C_in, H_in, W_in]
+
+im2col 之后:
+一个窗口 (K_h × K_w × C_in 个元素) → 一列
+
+结果矩阵形状: [K_h × K_w × C_in, H_out × W_out]
+</code></pre>
+<p><strong>可视化理解：</strong></p>
+<pre><code>输入特征图 (C_in=3, H=4, W=4)       im2col 输出矩阵 (K_h×K_w×C_in, H_out×W_out)
+┌──────────────┐                    ┌──────────────────────────────────┐
+│  [通道1]     │                    │ 窗口1(拉直) │ 窗口2(拉直) │ ...  │
+│  a11 a12 ... │                    │  a11 a12 ... │  a12 a13 ... │     │
+│  [通道2]     │                    │  a11 a12 ... │  a12 a13 ... │     │
+│  b11 b12 ... │   ─── im2col ──→   │  b11 b12 ... │  b12 b13 ... │     │
+│  [通道3]     │                    │  ...         │  ...         │     │
+│  c11 c12 ... │                    └──────────────────────────────────┘
+└──────────────┘
+</code></pre>
+<p>每一列对应输入特征图上一个滑动窗口的所有值（所有通道 × 所有空间位置）。</p>
+<h3 id="gemm">GEMM 操作</h3>
+<p>将权重视为矩阵，im2col 结果作为另一个矩阵，直接做矩阵乘：</p>
+<pre><code>Weight [C_out, K_h × K_w × C_in] × im2col_Matrix [K_h × K_w × C_in, H_out × W_out]
+    → Output [C_out, H_out × W_out]
+</code></pre>
+<h3 id="two-step">完整的 two-step 流程</h3>
+<pre><code class="language-python"># Step 1: im2col
+im2col_matrix = im2col(input, kernel_size=3, stride=1, padding=1)
+# 形状: [C_in * 3 * 3, H_out * W_out]
+
+# Step 2: GEMM (使用 Tensor Core 加速)
+output = weight.reshape(C_out, -1) @ im2col_matrix
+# 形状: [C_out, H_out * W_out]
+
+# Step 3: 重排回特征图
+output = output.reshape(C_out, H_out, W_out)
+</code></pre>
+<h3 id="im2col-gemm">为什么 im2col + GEMM 是标准做法？</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">方案</th>
+<th style="text-align: left;">优点</th>
+<th style="text-align: left;">缺点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">直接嵌套循环</td>
+<td style="text-align: left;">无需额外显存</td>
+<td style="text-align: left;">无法利用 Tensor Core，需手动管理 Tiling</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>im2col + GEMM</strong></td>
+<td style="text-align: left;"><strong>可利用 Tensor Core</strong>，几十倍加速</td>
+<td style="text-align: left;">im2col 矩阵占用额外显存（约 K² 倍膨胀）</td>
+</tr>
+<tr>
+<td style="text-align: left;">Winograd</td>
+<td style="text-align: left;">进一步减少乘加次数</td>
+<td style="text-align: left;">仅适用于特定核大小（3×3），预处理复杂</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>核心洞察</strong>：im2col + GEMM 的本质，是把"<strong>不规则的滑动窗口访问</strong>"转化成了"<strong>规则的矩阵连续访问</strong>"。代价是显存膨胀（im2col 矩阵），换来的收益是可以直接在 Tensor Core 上做矩阵乘——这条换是 AI 推理中最重要的性能权衡之一。</p>
+</blockquote>
+<h3 id="tensor-core">Tensor Core 加速</h3>
+<p>Tensor Core 是 NVIDIA 从 Volta 架构开始引入的专用矩阵乘单元。它在一个时钟周期内完成 <code>D = A × B + C</code> 的操作：</p>
+<pre><code class="language-cuda">// 使用 CUDA wmma API 调用 Tensor Core
+#include &lt;mma.h&gt;
+using namespace nvcuda;
+
+wmma::fragment&lt;wmma::matrix_a, 16, 16, 16, half, wmma::row_major&gt; a_frag;
+wmma::fragment&lt;wmma::matrix_b, 16, 16, 16, half, wmma::col_major&gt; b_frag;
+wmma::fragment&lt;wmma::accumulator, 16, 16, 16, float&gt; c_frag;
+
+// 加载 16×16 分块到寄存器
+wmma::load_matrix_sync(a_frag, A, 16);
+wmma::load_matrix_sync(b_frag, B, 16);
+wmma::load_matrix_sync(c_frag, C, 16, wmma::mem_row_major);
+
+// 一次 Tensor Core 矩阵乘
+wmma::mma_sync(c_frag, a_frag, b_frag, c_frag);
+
+// 写回
+wmma::store_matrix_sync(C, c_frag, 16, wmma::mem_row_major);
+</code></pre>
+<p><strong>Tensor Core 的核心限制：</strong></p>
+<ol>
+<li>只能做<strong>矩阵乘</strong>——这是为什么 im2col 把卷积转成 GEMM 是必须的</li>
+<li>需要特定数据类型（FP16, BF16, INT8 等）</li>
+<li>输入矩阵的分块维度必须对齐（通常是 16 的倍数）</li>
+</ol>
+<hr />
+<h2 id="_6">五、总结对比表</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">维度</th>
+<th style="text-align: left;">图形卷积（高斯模糊）</th>
+<th style="text-align: left;">AI 卷积（Conv2d）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">卷积核</td>
+<td style="text-align: left;">可分离（固定值）</td>
+<td style="text-align: left;"><strong>不可分离</strong>（训练随机值）</td>
+</tr>
+<tr>
+<td style="text-align: left;">实现方式</td>
+<td style="text-align: left;">多 Pass（水平 + 垂直）</td>
+<td style="text-align: left;"><strong>单 Pass + Tiling</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">瓶颈</td>
+<td style="text-align: left;">纹理采样带宽</td>
+<td style="text-align: left;">计算（Tensor Core）+ 显存带宽</td>
+</tr>
+<tr>
+<td style="text-align: left;">缓存方式</td>
+<td style="text-align: left;">纹理 Cache (TMU)</td>
+<td style="text-align: left;"><strong>Shared Memory 手动 Tiling</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">核心加速器</td>
+<td style="text-align: left;">纹理单元</td>
+<td style="text-align: left;">Tensor Core</td>
+</tr>
+<tr>
+<td style="text-align: left;">数据复用</td>
+<td style="text-align: left;">输入数据复用</td>
+<td style="text-align: left;"><strong>权重复用</strong>（一个权重被滑窗反复使用）</td>
+</tr>
+<tr>
+<td style="text-align: left;">计算密度</td>
+<td style="text-align: left;">低（每像素几十次乘加）</td>
+<td style="text-align: left;"><strong>极高</strong>（每像素数万次乘加）</td>
+</tr>
+<tr>
+<td style="text-align: left;">底层实现</td>
+<td style="text-align: left;">固定 Shader 程序</td>
+<td style="text-align: left;"><strong>im2col + GEMM</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">显存膨胀</td>
+<td style="text-align: left;">无额外开销</td>
+<td style="text-align: left;">im2col 膨胀约 K² 倍</td>
+</tr>
+</tbody>
+</table>
+<h3 id="_7">速记公式</h3>
+<p>只需记住这一行，就能推导出所有 Conv2d 相关计算：</p>
+<blockquote>
+<p><strong>输出位置 (y, x, c_out) 的值 = 所有输入通道 c_in 在窗口 (y, x) 内的值，与权重 Weight[c_out, c_in, :, :] 做点积后累加</strong></p>
+</blockquote>
+<p>而 im2col + GEMM 的核心思想是：</p>
+<blockquote>
+<p><strong>把卷积的滑窗访问变成矩阵乘的连续访问，让 Tensor Core 来加速</strong></p>
+</blockquote>
+<p>这就是从图形模糊到 AI 卷积的完整认知升级。</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../operator_taxonomy/" class="btn btn-neutral float-left" title="3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../operator_fusion/" class="btn btn-neutral float-right" title="4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../operator_taxonomy/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../operator_fusion/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

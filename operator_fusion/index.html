@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想) - GPU 图形与 AI 推理知识手册</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "4.1 \u7b97\u5b50\u878d\u5408 (Conv+BN+ReLU, FlashAttention \u7684\u601d\u60f3)";
+        var mkdocs_page_input_path = "operator_fusion.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GPU 图形与 AI 推理知识手册
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">首页</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">1. 图形渲染管线与 GPU 硬件基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 渲染管线与硬件单元 (SM, TMU, ROP)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_passes_and_sync/">1.4 图形管线中的 Pass 与同步 (RenderPass, Barrier)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">2. GPU 并发模型与系统思维</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../cpu_gpu_async_pipeline/">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../command_buffer_ring_buffer/">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../multithreaded_rendering_and_pools/">2.3 多线程渲染与资源池管理</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_to_ai_first_principles/">2.4 从图形管线到 AI 推理的第一性原理映射</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">3. AI 模型与算子基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../model_structures_inference_view/">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../operator_taxonomy/">3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../convolution_math_implementation/">3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">4. AI 推理优化核心策略</span></p>
+              <ul class="current">
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#_1">概述</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_2">为什么需要算子融合？</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_3">融合前的问题</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_4">融合后的效果</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#convbn">Conv+BN 融合的数学原理</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#conv">Conv 的计算</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#bn">BN 的计算（推理时）</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_5">融合推导</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#pytorch">PyTorch 实现</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_6">图形渲染的完美类比</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#convbn-draw-call">Conv+BN 融合 = 合并两个 Draw Call</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_7">但注意本质差异</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_8">更多算子融合的模式</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-convbnrelu">1. Conv+BN+ReLU 三段融合</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-attention-qkv">2. Attention 中的 QKV 投影融合</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-flashattention-attention">3. FlashAttention（融合 Attention 的全部步骤）</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_9">你何时需要算子融合？</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_10">你的认知固化</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 为何图形做多 Pass，AI 做单 Pass Tiling</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention (类比 DX12 资源池 / 伙伴分配器)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../thread_block_grid_mapping/">5.1 线程模型 (Thread, Block, Grid) 与映射</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../explicit_memory_shared_vs_cache/">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../warp_simd_simt_divergence/">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../synchronization_primitives/">5.4 同步原语: __syncthreads, __syncwarp, 内存屏障</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../reduce_tree_implementation/">6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../scan_stream_compaction/">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../radix_sort_as_stream_compaction/">6.3 基数排序 (Radix Sort) = 逐位流压缩</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">7. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">7.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">7.2 RT Core: BVH 遍历专用电路 (压缩解决随机访问，专用电路解决分支分歧)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">7.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">8. GPU 软件栈与驱动开发</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">8.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">8.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">8.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">8.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 职业发展与工程实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">9.1 四个核心岗位对比: 算子开发 / 推理框架 / 编译器 / 驱动</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">9.2 简历技能清单 (基于我们对话的认知总结)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">9.3 关键知识点自检清单 (MkDocs 版)</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GPU 图形与 AI 推理知识手册</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">4. AI 推理优化核心策略</li>
+      <li class="breadcrumb-item active">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="41-convbnrelu-flashattention">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</h1>
+<h2 id="_1">概述</h2>
+<p><strong>算子融合</strong>是 AI 推理优化中最经典、最立竿见影的技术。它的核心思想很简单：</p>
+<blockquote>
+<p><strong>把多个连续的小 Kernel 合并成一个大的 Kernel，减少中间结果在显存（HBM）中的读写次数。</strong></p>
+</blockquote>
+<p>对于搞渲染的你来说，这跟你<strong>合并两个 Draw Call 成一个 Pass</strong> 的逻辑完全一致。</p>
+<hr />
+<h2 id="_2">为什么需要算子融合？</h2>
+<h3 id="_3">融合前的问题</h3>
+<p>假设推理时需要依次执行 Conv → BN → ReLU：</p>
+<pre><code>Conv(input) → output_mid
+                ↓ (写回显存)
+BN(output_mid) → output_mid2
+                ↓ (写回显存)
+ReLU(output_mid2) → output_final
+</code></pre>
+<p><strong>问题</strong>：中间结果 <code>output_mid</code> 和 <code>output_mid2</code> 都需要完整地写回 HBM，再读出来。每次读写 HBM 都是几百个 cycle 的延迟。</p>
+<h3 id="_4">融合后的效果</h3>
+<pre><code>FusedKernel(input) → output_final
+</code></pre>
+<p><strong>收益</strong>：中间结果留在寄存器 / Shared Memory 中，不写回 HBM。显存访问量减半，推理速度提升 10%~20%，且<strong>精度完全无损</strong>。</p>
+<hr />
+<h2 id="convbn">Conv+BN 融合的数学原理</h2>
+<p>这是推理优化里最经典、最立竿见影的操作。</p>
+<h3 id="conv">Conv 的计算</h3>
+<pre><code>Y = W * X + B
+</code></pre>
+<ul>
+<li>W：卷积权重</li>
+<li>X：输入特征图</li>
+<li>B：偏置</li>
+</ul>
+<h3 id="bn">BN 的计算（推理时）</h3>
+<p>推理时，BN 的行为变成了<strong>固定线性变换</strong>：</p>
+<pre><code>Y_norm = (Y - mean) / sqrt(var + eps) * gamma + beta
+</code></pre>
+<p>因为推理时 mean、var、gamma、beta 都是<strong>训练好之后固定不变</strong>的值。</p>
+<h3 id="_5">融合推导</h3>
+<p>把 BN 公式展开，代入 Conv 公式：</p>
+<pre><code>融合后的权重 W' = W * gamma / sqrt(var + eps)
+融合后的偏置 B' = (B - mean) * gamma / sqrt(var + eps) + beta
+</code></pre>
+<p><strong>融合后，推理时直接只跑 Conv（用 W' 和 B'），把 BN 层彻底丢弃。</strong></p>
+<h3 id="pytorch">PyTorch 实现</h3>
+<pre><code class="language-python">import torch
+
+def fuse_conv_bn(conv, bn):
+    # 1. 提取 BN 系数
+    gamma = bn.weight
+    beta = bn.bias
+    mean = bn.running_mean
+    var = bn.running_var
+    eps = bn.eps
+
+    # 2. 计算缩放因子
+    std = torch.sqrt(var + eps)
+    scale = gamma / std
+
+    # 3. 融合进 Conv 的 weight 和 bias
+    fused_weight = conv.weight * scale.view(-1, 1, 1, 1)
+
+    if conv.bias is not None:
+        fused_bias = beta + (conv.bias - mean) * scale
+    else:
+        fused_bias = beta - mean * scale
+
+    return fused_weight, fused_bias
+</code></pre>
+<hr />
+<h2 id="_6">图形渲染的完美类比</h2>
+<h3 id="convbn-draw-call">Conv+BN 融合 = 合并两个 Draw Call</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">渲染操作</th>
+<th style="text-align: left;">AI 算子融合</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">两个连续的 Draw Call</td>
+<td style="text-align: left;">两个连续的 Kernel（Conv + BN）</td>
+</tr>
+<tr>
+<td style="text-align: left;">中间结果写入 RT</td>
+<td style="text-align: left;">中间结果写入 HBM</td>
+</tr>
+<tr>
+<td style="text-align: left;">合并成一个 Pass</td>
+<td style="text-align: left;">融合成一个 Kernel</td>
+</tr>
+<tr>
+<td style="text-align: left;">省掉 RT 切换开销</td>
+<td style="text-align: left;">省掉中间结果 HBM 读写</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>你的直觉完全正确</strong>：Conv+BN 融合就是把 Scale 和 Bias 直接算进采样系数里，一次 Pass 搞定——这跟你把矩阵乘法和颜色校正合并到一个 Pass 里，避免多 RenderTarget 写回，逻辑完全一致。</p>
+</blockquote>
+<h3 id="_7">但注意本质差异</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">维度</th>
+<th style="text-align: left;">图形 Pass 合并</th>
+<th style="text-align: left;">AI 算子融合</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>主要目的</strong></td>
+<td style="text-align: left;">减少 Pipeline Stall（状态切换）</td>
+<td style="text-align: left;"><strong>减少显存带宽压力</strong>（中间结果读写）</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>瓶颈类型</strong></td>
+<td style="text-align: left;">同步等待</td>
+<td style="text-align: left;">带宽占用</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>合并后的收益</strong></td>
+<td style="text-align: left;">GPU 利用率提升</td>
+<td style="text-align: left;">显存访问量减半</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="_8">更多算子融合的模式</h2>
+<h3 id="1-convbnrelu">1. Conv+BN+ReLU 三段融合</h3>
+<p>最常见的融合模式，将三个 Kernel 合并成一个：</p>
+<pre><code class="language-cuda">// 伪代码：融合后的 Kernel
+__global__ void fused_conv_bn_relu_kernel(/*...*/) {
+    // 1. 加载输入 Tile 到 Shared Memory
+    // 2. 做卷积（乘加）
+    // 3. 应用 BN 系数（scale + bias）
+    // 4. 应用 ReLU（max(0, x)）
+    // 5. 写回结果到 Global Memory
+    // 注意：中间结果不出 Shared Memory！
+}
+</code></pre>
+<h3 id="2-attention-qkv">2. Attention 中的 QKV 投影融合</h3>
+<p>Transformer 中的 Q、K、V 三个投影矩阵乘可以合并成一个：</p>
+<pre><code class="language-python"># 融合前
+Q = x @ W_q    # 单独矩阵乘
+K = x @ W_k    # 单独矩阵乘
+V = x @ W_v    # 单独矩阵乘
+
+# 融合后
+# 将 W_q, W_k, W_v 拼接成一个大矩阵
+W_qkv = torch.cat([W_q, W_k, W_v], dim=1)
+QKV = x @ W_qkv      # 一次矩阵乘
+Q, K, V = split(QKV)  # 切分结果
+</code></pre>
+<h3 id="3-flashattention-attention">3. FlashAttention（融合 Attention 的全部步骤）</h3>
+<p>FlashAttention 本质上就是一个<strong>极致的大融合 Kernel</strong>：</p>
+<ul>
+<li>分块计算 Q×K^T</li>
+<li>Online Softmax 归一化</li>
+<li>乘以 V 并累加</li>
+</ul>
+<p>全部在 Shared Memory 内完成，中间矩阵 S 不写回 HBM。详见 <a href="../flashattention_case_study/">6.4 FlashAttention</a>。</p>
+<hr />
+<h2 id="_9">你何时需要算子融合？</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">场景</th>
+<th style="text-align: left;">是否值得融合</th>
+<th style="text-align: left;">原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Conv + BN + ReLU</td>
+<td style="text-align: left;"><strong>✅ 绝对值得</strong></td>
+<td style="text-align: left;">经典组合，精度无损，速度提升明显</td>
+</tr>
+<tr>
+<td style="text-align: left;">Conv + Conv（连续两层卷积）</td>
+<td style="text-align: left;"><strong>⚠️ 看情况</strong></td>
+<td style="text-align: left;">收益取决于计算密度和中间结果大小</td>
+</tr>
+<tr>
+<td style="text-align: left;">Elementwise + Elementwise</td>
+<td style="text-align: left;"><strong>✅ 无脑合</strong></td>
+<td style="text-align: left;">极轻量，融合后 Kernel Launch 开销省掉</td>
+</tr>
+<tr>
+<td style="text-align: left;">Attention 全步骤</td>
+<td style="text-align: left;"><strong>✅ FlashAttention</strong></td>
+<td style="text-align: left;">显存读写减半，速度提升 2~4 倍</td>
+</tr>
+<tr>
+<td style="text-align: left;">不同尺寸的 Kernel</td>
+<td style="text-align: left;"><strong>❌ 不要合</strong></td>
+<td style="text-align: left;">合并后线程利用率会下降</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="_10">你的认知固化</h2>
+<blockquote>
+<p><strong>算子融合是在 GPU 内部，用更少的显存搬运来换取速度。</strong><br />
+<strong>CUDA Graph 是在 CPU 和 GPU 之间，用更少的提交次数来换取速度。</strong></p>
+</blockquote>
+<p>这两个优化是正交且互补的：</p>
+<ol>
+<li><strong>先用算子融合</strong>：把能合并的 Kernel 都捏成一个，减少显存访问次数</li>
+<li><strong>再用 CUDA Graph</strong>：把融合后剩下的大段固定流程录成 Graph，减少 CPU 和 GPU 的交互次数</li>
+</ol>
+<p>在真正的 AI 推理引擎中（如 TensorRT、vLLM），这两个优化通常是<strong>同时应用</strong>的。</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../convolution_math_implementation/" class="btn btn-neutral float-left" title="3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../tiling_locality_analysis/" class="btn btn-neutral float-right" title="4.2 分块 (Tiling) 与局部性: 为何图形做多 Pass，AI 做单 Pass Tiling">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../convolution_math_implementation/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../tiling_locality_analysis/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

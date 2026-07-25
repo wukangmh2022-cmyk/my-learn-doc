@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样) - GPU 图形与 AI 推理知识手册</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "6.1 \u5f52\u7ea6 (Reduce) \u7684\u6811\u5f62\u5b9e\u73b0 (\u7c7b\u6bd4 Hi-Z / Bloom \u4e0b\u91c7\u6837)";
+        var mkdocs_page_input_path = "reduce_tree_implementation.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GPU 图形与 AI 推理知识手册
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">首页</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">1. 图形渲染管线与 GPU 硬件基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 渲染管线与硬件单元 (SM, TMU, ROP)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_passes_and_sync/">1.4 图形管线中的 Pass 与同步 (RenderPass, Barrier)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">2. GPU 并发模型与系统思维</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../cpu_gpu_async_pipeline/">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../command_buffer_ring_buffer/">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../multithreaded_rendering_and_pools/">2.3 多线程渲染与资源池管理</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_to_ai_first_principles/">2.4 从图形管线到 AI 推理的第一性原理映射</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">3. AI 模型与算子基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../model_structures_inference_view/">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../operator_taxonomy/">3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../convolution_math_implementation/">3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">4. AI 推理优化核心策略</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 为何图形做多 Pass，AI 做单 Pass Tiling</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention (类比 DX12 资源池 / 伙伴分配器)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../thread_block_grid_mapping/">5.1 线程模型 (Thread, Block, Grid) 与映射</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../explicit_memory_shared_vs_cache/">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../warp_simd_simt_divergence/">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../synchronization_primitives/">5.4 同步原语: __syncthreads, __syncwarp, 内存屏障</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
+              <ul class="current">
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#_1">概述</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#hi-z-cuda-reduce">Hi-Z 生成 → CUDA Reduce：完全同构</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#hi-z">你写 Hi-Z 时的肌肉记忆</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#pass">多 Pass 树形归约（傻瓜版）</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#pass-shared-memory">单 Pass Shared Memory 树形归约（高手版）</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#grid">处理任意长度 + Grid 级汇总</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#a-kernel">方案 A：两次 Kernel</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#b">方案 B：原子操作</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#warp-shuffle">进阶：Warp Shuffle 树形归约</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#reduce">Reduce 的其他变体</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_2">关键启示</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_3">实战建议</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../scan_stream_compaction/">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../radix_sort_as_stream_compaction/">6.3 基数排序 (Radix Sort) = 逐位流压缩</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">7. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">7.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">7.2 RT Core: BVH 遍历专用电路 (压缩解决随机访问，专用电路解决分支分歧)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">7.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">8. GPU 软件栈与驱动开发</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">8.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">8.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">8.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">8.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 职业发展与工程实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">9.1 四个核心岗位对比: 算子开发 / 推理框架 / 编译器 / 驱动</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">9.2 简历技能清单 (基于我们对话的认知总结)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">9.3 关键知识点自检清单 (MkDocs 版)</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GPU 图形与 AI 推理知识手册</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">6. 高性能算子实现模式</li>
+      <li class="breadcrumb-item active">6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="61-reduce">6.1 归约 (Reduce) 的树形实现</h1>
+<h2 id="_1">概述</h2>
+<p>归约（Reduce）是将一组数据通过某种二元操作（求和、取最大值、取最小值等）合并为一个标量的过程。它在 AI 推理中无处不在：Loss 计算、Batch Normalization 的均值/方差、Attention 中的 Softmax 分母计算，无一不需要 Reduce。</p>
+<p>如果你有图形渲染的背景（特别是 Hi-Z 生成的经历），你会发现 Reduce 的树形实现与你熟悉的 Mipmap 生成流程<strong>完全同构</strong>。</p>
+<h2 id="hi-z-cuda-reduce">Hi-Z 生成 → CUDA Reduce：完全同构</h2>
+<p>你在写 Hi-Z（Hierarchical Z）生成时，本质上就是在做一个<strong>树形归约</strong>：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">维度</th>
+<th style="text-align: left;">Hi-Z 生成（图形）</th>
+<th style="text-align: left;">CUDA Reduce（AI）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">输入</td>
+<td style="text-align: left;">全分辨率深度图（如 1024x1024）</td>
+<td style="text-align: left;">一维/二维张量（如 Loss 向量或 Attention 分数矩阵）</td>
+</tr>
+<tr>
+<td style="text-align: left;">操作</td>
+<td style="text-align: left;">每 2x2 像素块取最小值/最大值，生成下一级 Mip</td>
+<td style="text-align: left;">每 N 个元素取 Sum/Max/Min</td>
+</tr>
+<tr>
+<td style="text-align: left;">输出</td>
+<td style="text-align: left;">一系列逐级缩小的深度图（Mip 链）</td>
+<td style="text-align: left;">一个标量（全局归约结果）</td>
+</tr>
+<tr>
+<td style="text-align: left;">Pass 数量</td>
+<td style="text-align: left;">O(log₂(N)) 个 Pass（1024→512→256→...→1）</td>
+<td style="text-align: left;">O(log₂(N)) 个 Kernel Launch，或单 Kernel 内树形归约</td>
+</tr>
+<tr>
+<td style="text-align: left;">同步方式</td>
+<td style="text-align: left;">每个 Pass 结束后切换纹理状态（等同于 Barrier）</td>
+<td style="text-align: left;">每个 Kernel 结束后隐式同步，或 <code>__syncthreads()</code> 在 Block 内同步</td>
+</tr>
+<tr>
+<td style="text-align: left;">性能瓶颈</td>
+<td style="text-align: left;">显存带宽（读写每一级 Mip）</td>
+<td style="text-align: left;">显存带宽（读写中间结果）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="hi-z">你写 Hi-Z 时的肌肉记忆</h3>
+<p>你过去写 Hi-Z 时，脑子里想的是：</p>
+<blockquote>
+<p>"我先把 1024x1024 的深度图 Render 到一个 Pass，输出 512x512；然后再开一个 Pass，输入 512x512，输出 256x256……直到只剩 1 个像素（最大值/最小值）。"</p>
+</blockquote>
+<p>现在写 CUDA 的 Reduce Sum，思路完全一致：</p>
+<ul>
+<li><strong>Pass 1 (Kernel 1)</strong>：启动 512 个线程，每个线程读 2 个元素，相加，写回 512 个元素的中间数组。</li>
+<li><strong>Pass 2 (Kernel 2)</strong>：启动 256 个线程，每个线程读 2 个元素，相加，写回 256 个元素的中间数组。</li>
+<li><strong>...以此类推</strong>，直到只剩 1 个元素。</li>
+</ul>
+<p>唯一的区别：图形里的 Hi-Z 是固定 2x2 合并（因为纹理压缩标准），而 CUDA 的 Reduce 你可以选任意合并因子（4x、8x 甚至完全在一个 Kernel 内做完）。</p>
+<h2 id="pass">多 Pass 树形归约（傻瓜版）</h2>
+<p>最直观的 Reduce 实现就是仿照 Hi-Z 的多 Pass 流水线。这里以对一个长度为 N 的数组求和为例：</p>
+<pre><code class="language-cpp">// Kernel: 对输入数组做一步树形归约，相邻 2 个元素相加
+__global__ void reduce_step(const float* input, float* output, int n) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx * 2 + 1 &lt; n) {
+        output[idx] = input[idx * 2] + input[idx * 2 + 1];
+    } else if (idx * 2 &lt; n) {
+        output[idx] = input[idx * 2]; // 处理奇数长度
+    }
+}
+
+// 主循环: 多 Pass 归约，相当于 Hi-Z 生成 mip 链
+float reduce_tree_kernel_launch(const float* d_input, int n) {
+    float* d_current = d_input;
+    int current_len = n;
+
+    while (current_len &gt; 1) {
+        int out_len = (current_len + 1) / 2;
+        float* d_output;
+        cudaMalloc(&amp;d_output, out_len * sizeof(float));
+
+        int threads = 256;
+        int blocks = (out_len + threads - 1) / threads;
+        reduce_step&lt;&lt;&lt;blocks, threads&gt;&gt;&gt;(d_current, d_output, current_len);
+
+        if (d_current != d_input) cudaFree(d_current);
+        d_current = d_output;
+        current_len = out_len;
+    }
+
+    float result;
+    cudaMemcpy(&amp;result, d_current, sizeof(float), cudaMemcpyDeviceToHost);
+    if (d_current != d_input) cudaFree(d_current);
+    return result;
+}
+</code></pre>
+<p>这个版本的优点是<strong>概念直白</strong>——每个 Pass 对应 Hi-Z 的一级 Mip。缺点是它读写显存 O(log N) 次，带宽利用率低。</p>
+<h2 id="pass-shared-memory">单 Pass Shared Memory 树形归约（高手版）</h2>
+<p>你写 Hi-Z 时肯定知道，现代 GPU 驱动不一定真的生成每一级 Mip 纹理，而是通过 Compute Shader 在单个 Dispatch 里用 Shared Memory 做完所有级别的归约。</p>
+<p>这个思维平移过来，就是 <strong>CUDA 的 Reduce 融合</strong>：</p>
+<ul>
+<li><strong>傻瓜版</strong>：每个级别开一个 Kernel（多 Pass Hi-Z）。</li>
+<li><strong>高手版</strong>：一个 Kernel 内分块归约：每个 Block 先把数据加载到 Shared Memory，在 Shared Memory 内做树形归约，最后只写回一个值。</li>
+</ul>
+<pre><code class="language-cpp">// 单 Kernel 树形归约: 利用 Shared Memory 在一个 Block 内完成所有归约步骤
+#define BLOCK_SIZE 256
+
+__global__ void reduce_shared_memory(const float* input, float* output, int n) {
+    __shared__ float shared[BLOCK_SIZE];
+
+    int tid = threadIdx.x;
+    int global_idx = blockIdx.x * blockDim.x + tid;
+
+    // 1. 加载数据到 Shared Memory
+    shared[tid] = (global_idx &lt; n) ? input[global_idx] : 0.0f;
+    __syncthreads();
+
+    // 2. 树形归约: 在 Shared Memory 内做 (类似 Hi-Z 的 2x2 合并，但这里是 1D)
+    for (int stride = blockDim.x / 2; stride &gt; 0; stride &gt;&gt;= 1) {
+        if (tid &lt; stride) {
+            shared[tid] += shared[tid + stride];
+        }
+        __syncthreads(); // 每步同步，确保上一级归约完成
+    }
+
+    // 3. Block 0 的线程 0 写回结果
+    // 注意: 这里只处理了单个 Block 的情况
+    // 对于多 Block，需要 atomicAdd 或第二个 Kernel 汇总
+    if (blockIdx.x == 0 &amp;&amp; tid == 0) {
+        *output = shared[0];
+    }
+}
+</code></pre>
+<p>这个版本<strong>只读一次显存、只写一次显存</strong>，相比多 Pass 版的 O(log N) 次读写，带宽利用率大幅提升。</p>
+<h2 id="grid">处理任意长度 + Grid 级汇总</h2>
+<p>当输入长度超过一个 Block 的容量时，你需要处理两个问题：
+1. 每个 Block 先各自归约出一个值。
+2. 把这些 Block 级的结果汇总为最终标量。</p>
+<p>汇总方式可以用两种方案：</p>
+<h3 id="a-kernel">方案 A：两次 Kernel</h3>
+<p>第一个 Kernel 让每个 Block 归约出部分和，第二个 Kernel 对部分和再做一次归约（或者直接用 CPU 串行相加）。</p>
+<h3 id="b">方案 B：原子操作</h3>
+<p>使用 <code>atomicAdd</code> 在全局内存上直接累加：</p>
+<pre><code class="language-cpp">__global__ void reduce_atomic(const float* input, float* output, int n) {
+    __shared__ float shared[BLOCK_SIZE];
+
+    int tid = threadIdx.x;
+    int global_idx = blockIdx.x * blockDim.x + tid;
+
+    shared[tid] = (global_idx &lt; n) ? input[global_idx] : 0.0f;
+    __syncthreads();
+
+    for (int stride = blockDim.x / 2; stride &gt; 0; stride &gt;&gt;= 1) {
+        if (tid &lt; stride) {
+            shared[tid] += shared[tid + stride];
+        }
+        __syncthreads();
+    }
+
+    if (tid == 0) {
+        atomicAdd(output, shared[0]); // 每个 Block 的 0 号线程原子累加
+    }
+}
+</code></pre>
+<p>这种模式在图形中的对应物是 <strong>Blend State 的原子累加</strong>——多个 Pixel Shader 输出到同一个 UAV 时的 Accumulate 操作。</p>
+<h2 id="warp-shuffle">进阶：Warp Shuffle 树形归约</h2>
+<p>对于 Warp（32 个线程）内部的操作，可以使用 Shuffle 指令直接在寄存器间交换数据，跳过 Shared Memory，速度更快：</p>
+<pre><code class="language-cpp">// 单个 Warp 内的树形归约 (使用 Warp Shuffle)
+__device__ float warp_reduce_sum(float val) {
+    for (int stride = 16; stride &gt; 0; stride &gt;&gt;= 1) {
+        val += __shfl_xor_sync(0xFFFFFFFF, val, stride);
+    }
+    return val;
+}
+
+// Block 级归约: 每个 Warp 先 Shuffle 归约，再写入 Shared Memory 汇总
+__global__ void reduce_warp_shuffle(const float* input, float* output, int n) {
+    __shared__ float warp_partial[32]; // 最多 32 个 Warp
+
+    int tid = threadIdx.x;
+    int global_idx = blockIdx.x * blockDim.x + tid;
+    int warp_id = tid / 32;
+    int lane_id = tid % 32;
+
+    float val = (global_idx &lt; n) ? input[global_idx] : 0.0f;
+
+    // 1. 每个 Warp 内做 Shuffle 归约
+    val = warp_reduce_sum(val);
+
+    // 2. 每个 Warp 的 0 号线程写结果到 Shared Memory
+    if (lane_id == 0) {
+        warp_partial[warp_id] = val;
+    }
+    __syncthreads();
+
+    // 3. 第一个 Warp 汇总所有 Warp 的部分和
+    if (warp_id == 0) {
+        val = (lane_id &lt; blockDim.x / 32) ? warp_partial[lane_id] : 0.0f;
+        val = warp_reduce_sum(val);
+
+        if (tid == 0) {
+            atomicAdd(output, val);
+        }
+    }
+}
+</code></pre>
+<p>Warp Shuffle 在图形中的直接对应是 <strong>Subgroup 操作</strong>（Vulkan 的 <code>SubgroupShuffle</code>、DX12 的 <code>WaveActiveSum</code>）。</p>
+<h2 id="reduce">Reduce 的其他变体</h2>
+<p>除了求和，树形归约的模式可以扩展到任意满足结合律的二元操作：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">操作</th>
+<th style="text-align: left;">CUDA 函数</th>
+<th style="text-align: left;">图形对应物</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Sum</td>
+<td style="text-align: left;"><code>a + b</code></td>
+<td style="text-align: left;">Blend State 的加法混合</td>
+</tr>
+<tr>
+<td style="text-align: left;">Max</td>
+<td style="text-align: left;"><code>fmaxf(a, b)</code></td>
+<td style="text-align: left;">Hi-Z 的深度最大值</td>
+</tr>
+<tr>
+<td style="text-align: left;">Min</td>
+<td style="text-align: left;"><code>fminf(a, b)</code></td>
+<td style="text-align: left;">Hi-Z 的深度最小值</td>
+</tr>
+<tr>
+<td style="text-align: left;">L2 Norm</td>
+<td style="text-align: left;"><code>a*a + b*b</code></td>
+<td style="text-align: left;">光照计算中的归一化</td>
+</tr>
+<tr>
+<td style="text-align: left;">LogSumExp</td>
+<td style="text-align: left;"><code>log(exp(a) + exp(b))</code></td>
+<td style="text-align: left;">Softmax 分母计算</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_2">关键启示</h2>
+<blockquote>
+<p><strong>"写 Hi-Z 的时候用过多 Pass 归约，也用过 Single Pass Shared Memory 归约，所以写 CUDA Reduce 时，我知道怎么用 <code>__syncthreads()</code> 和 Shared Memory 来避免显存带宽瓶颈。"</strong></p>
+</blockquote>
+<p>这个思维迁移的本质是：<strong>多 Pass vs 单 Pass 是带宽和并行度之间的权衡</strong>。你在图形渲染中积累的"如何减少 Pass 数量、减少带宽占用"的直觉，正是写高性能 AI Kernel 所需要的核心思维。</p>
+<h2 id="_3">实战建议</h2>
+<p>既然你有 Hi-Z 的经验，CUDA 的 Reduce 对你来说就是 <strong>"1D Hi-Z 生成"</strong>。建议挑战：</p>
+<ol>
+<li>用 CUDA 实现一个 Reduce Sum，支持任意长度（不是 2 的幂）。</li>
+<li>使用 Shared Memory 做树形归约。</li>
+<li>使用 <code>__syncthreads()</code> 做 Block 内同步。</li>
+<li>使用 Grid 级别的原子操作（<code>atomicAdd</code>）做最终汇总。</li>
+<li>进阶：用 Warp Shuffle 替代 Shared Memory 做 Warp 内归约，对比性能。</li>
+</ol>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../warp_shuffle/" class="btn btn-neutral float-left" title="5.5 通信加速: Warp Shuffle (寄存器级数据交换)"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../scan_stream_compaction/" class="btn btn-neutral float-right" title="6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../warp_shuffle/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../scan_stream_compaction/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

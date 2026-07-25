@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>6.4 FlashAttention: Online Softmax + Tiling 的经典案例 - GPU 图形与 AI 推理知识手册</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "6.4 FlashAttention: Online Softmax + Tiling \u7684\u7ecf\u5178\u6848\u4f8b";
+        var mkdocs_page_input_path = "flashattention_case_study.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GPU 图形与 AI 推理知识手册
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">首页</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">1. 图形渲染管线与 GPU 硬件基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 渲染管线与硬件单元 (SM, TMU, ROP)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_passes_and_sync/">1.4 图形管线中的 Pass 与同步 (RenderPass, Barrier)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">2. GPU 并发模型与系统思维</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../cpu_gpu_async_pipeline/">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../command_buffer_ring_buffer/">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../multithreaded_rendering_and_pools/">2.3 多线程渲染与资源池管理</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_to_ai_first_principles/">2.4 从图形管线到 AI 推理的第一性原理映射</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">3. AI 模型与算子基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../model_structures_inference_view/">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../operator_taxonomy/">3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../convolution_math_implementation/">3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">4. AI 推理优化核心策略</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 为何图形做多 Pass，AI 做单 Pass Tiling</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention (类比 DX12 资源池 / 伙伴分配器)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../thread_block_grid_mapping/">5.1 线程模型 (Thread, Block, Grid) 与映射</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../explicit_memory_shared_vs_cache/">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../warp_simd_simt_divergence/">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../synchronization_primitives/">5.4 同步原语: __syncthreads, __syncwarp, 内存屏障</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../reduce_tree_implementation/">6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../scan_stream_compaction/">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../radix_sort_as_stream_compaction/">6.3 基数排序 (Radix Sort) = 逐位流压缩</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#_1">概述</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#attention">Attention 的标准实现：带宽灾难</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_2">标准实现的问题</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#flashattention-tbdr">FlashAttention 的解决思路：TBDR 的完美映射</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_3">关键对应关系</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#online-softmax">Online Softmax：核心创新</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#softmax">标准 Softmax</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#online-softmax_1">Online Softmax（逐步更新）</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#cuda-dx12-compute-shader">CUDA 与 DX12 Compute Shader 对照</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#cuda-attention">CUDA 代码骨架：分块 Attention</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#dx12-compute-shader">DX12 Compute Shader 代码骨架</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#c-dx12">C++ DX12 应用骨架</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#tbdr-flashattention">从 TBDR 视角重读 FlashAttention 论文</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_4">落地的关键教训</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_5">总结</a>
+    </li>
+    </ul>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">7. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">7.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">7.2 RT Core: BVH 遍历专用电路 (压缩解决随机访问，专用电路解决分支分歧)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">7.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">8. GPU 软件栈与驱动开发</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">8.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">8.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">8.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">8.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 职业发展与工程实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">9.1 四个核心岗位对比: 算子开发 / 推理框架 / 编译器 / 驱动</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">9.2 简历技能清单 (基于我们对话的认知总结)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">9.3 关键知识点自检清单 (MkDocs 版)</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GPU 图形与 AI 推理知识手册</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">6. 高性能算子实现模式</li>
+      <li class="breadcrumb-item active">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <hr />
+<p>title: 6.4 FlashAttention: Online Softmax + Tiling 的经典案例
+tags: [flashattention, tiling, online-softmax, tbd, shared-memory, attention]
+description: FlashAttention 作为 Tiling + Online Softmax 的完美案例——如何用 TBDR 思维解决 Attention 的带宽瓶颈</p>
+<hr />
+<h1 id="64-flashattention-online-softmax-tiling">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</h1>
+<h2 id="_1">概述</h2>
+<p>FlashAttention 是<strong>算子融合（Operator Fusion）</strong>和<strong>分块计算（Tiling）</strong>思想在 Attention 上的极致应用。<strong>它本质上就是把一个 TBDR (Tile-Based Deferred Rendering) 渲染器写成了 CUDA Kernel。</strong></p>
+<p>如果你搞过移动端 GPU 的 TBDR 优化，读到 FlashAttention 的论文时会发现——公式不用看，光看图就能猜出数据流向。</p>
+<h2 id="attention">Attention 的标准实现：带宽灾难</h2>
+<p>标准 Attention 的计算公式：</p>
+<pre><code>O = Softmax(Q * K^T) * V
+</code></pre>
+<p>其中 Q、K、V 的形状都是 <code>[N, d]</code>（N 为序列长度，d 为 Head Dim）。</p>
+<h3 id="_2">标准实现的问题</h3>
+<pre><code>Step 1: S = Q @ K^T        → 结果 S 形状 [N, N]，写入 HBM
+Step 2: P = Softmax(S)     → 从 HBM 读 S，算 Softmax，写回 HBM
+Step 3: O = P @ V          → 从 HBM 读 P 和 V，算结果
+</code></pre>
+<p><strong>中间矩阵 S (N × N) 被完整写入 HBM 再读出来</strong>，总显存读写量是 O(N² + N d)。当 N 是 4K、8K、甚至 128K 时，这个中间结果的带宽开销占据了压倒性的主导地位。</p>
+<p>这就像你在渲染时，把 GBuffer（深度、法线、颜色）全部写回显存，下个 Pass 再读出来——你肯定知道这有多浪费。</p>
+<h2 id="flashattention-tbdr">FlashAttention 的解决思路：TBDR 的完美映射</h2>
+<p>你当时在聊天中精准地指出：</p>
+<blockquote>
+<p><strong>"FlashAttention 类似于 TBDR (Tile-Based Deferred Rendering)"</strong></p>
+</blockquote>
+<p>这个类比完全正确，而且比"Tiled Deferred Shading"更贴切：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">层级</th>
+<th style="text-align: left;">TBDR（移动端 GPU 渲染）</th>
+<th style="text-align: left;">FlashAttention（AI 推理）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">分块策略</td>
+<td style="text-align: left;">把屏幕分成若干 Tile（如 32x32 像素）</td>
+<td style="text-align: left;">把注意力矩阵分成若干 Block（如 128x128）</td>
+</tr>
+<tr>
+<td style="text-align: left;">片上内存</td>
+<td style="text-align: left;">Tile Buffer（片上 SRAM，极快）</td>
+<td style="text-align: left;">Shared Memory（SM 内的 SRAM）</td>
+</tr>
+<tr>
+<td style="text-align: left;">避免的操作</td>
+<td style="text-align: left;">避免反复读写 Frame Buffer</td>
+<td style="text-align: left;">避免反复读写 HBM（中间矩阵 Q × K^T）</td>
+</tr>
+<tr>
+<td style="text-align: left;">核心收益</td>
+<td style="text-align: left;">减少带宽占用，省电</td>
+<td style="text-align: left;">减少带宽占用，加速</td>
+</tr>
+</tbody>
+</table>
+<h3 id="_3">关键对应关系</h3>
+<ol>
+<li>
+<p><strong>Tile Buffer ≈ Shared Memory</strong>：两者都是容量有限（128KB 级别）但速度极快的片上内存。数据分块加载进去，在片上完成所有计算后只写回最终结果。</p>
+</li>
+<li>
+<p><strong>解决 Overdraw ≈ Online Softmax 重计算</strong>：TBDR 通过 Early-Z 和 Tile 内排序来解决 Overdraw（同一像素被多次写入）；FlashAttention 通过<strong>Online Softmax</strong>——不存完整的 S 矩阵，而是每次加载一个新的 K/V Block 时，重新读取之前算过的部分统计量（<code>m</code> 和 <code>l</code>）并更新——本质上就是在<strong>用重计算换带宽</strong>。</p>
+</li>
+<li>
+<p><strong>分块加载所有光源 ≈ 分块加载所有 K/V Block</strong>：TBDR 中每个 Tile 加载该 Tile 覆盖的所有光源列表；FlashAttention 中每个 Q Block 循环加载所有 K/V Block，在片上计算部分 Softmax 再累加结果。</p>
+</li>
+</ol>
+<h2 id="online-softmax">Online Softmax：核心创新</h2>
+<p>Online Softmax 是整个 FlashAttention 的灵魂。它允许你不存储完整的 S 矩阵，而是一边加载 K/V Block，一边逐步更新 softmax 结果。</p>
+<h3 id="softmax">标准 Softmax</h3>
+<pre><code>输入向量 x (长度 N)
+m = max(x[i])          → 找最大值
+s = sum(exp(x[i] - m))  → 计算分母
+p[i] = exp(x[i] - m) / s → 输出概率
+</code></pre>
+<p>问题：你需要知道所有 N 个 x[i] 才能算 Softmax——这意味着你必须先把完整的 Q×K^T 算出来。</p>
+<h3 id="online-softmax_1">Online Softmax（逐步更新）</h3>
+<pre><code>初始化: m_prev = -inf, l_prev = 0, o_prev = 0
+
+对每个 K/V Block:
+    1. 计算当前 Block 的 S_block = Q @ K_block^T    [N, BLOCK_SIZE]
+    2. m_curr = max(m_prev, row_max(S_block))
+    3. l_curr = exp(m_prev - m_curr) * l_prev + sum(exp(S_block - m_curr))
+    4. o_curr = exp(m_prev - m_curr) * o_prev + exp(S_block - m_curr) @ V_block
+    5. 更新状态，进入下一 Block
+</code></pre>
+<p>这个过程不需要把完整的 S 写回 HBM——S_block 在 Shared Memory 中算完即丢弃。你只需要维护三个统计量（m, l, o），它们从 Block 到 Block 渐近地收敛到全局 Softmax 的结果。</p>
+<h2 id="cuda-dx12-compute-shader">CUDA 与 DX12 Compute Shader 对照</h2>
+<h3 id="cuda-attention">CUDA 代码骨架：分块 Attention</h3>
+<pre><code class="language-cpp">// CUDA FlashAttention Forward Pass (简化版)
+// 假设一个 Block 处理一个 Q Tile: Q_tile [B_r, d], K_tile [B_c, d], V_tile [B_c, d]
+#define B_r 32   // Q 分块大小 (Tile Size)
+#define B_c 64   // K/V 分块大小 (Block Size)
+#define d   128  // Head Dim
+
+__global__ void flash_attention_kernel(float* Q, float* K, float* V, float* O,
+                                        int N, int d) {
+    __shared__ float Q_s[B_r][d];
+    __shared__ float K_s[B_c][d];
+    __shared__ float V_s[B_c][d];
+    __shared__ float S_s[B_r][B_c]; // 中间结果: Q_s * K_s^T
+
+    int tx = threadIdx.x, ty = threadIdx.y;
+    int row = blockIdx.x * B_r + tx; // Q 的行索引
+
+    // 加载 Q Tile 到 Shared Memory
+    if (row &lt; N &amp;&amp; ty &lt; d) {
+        Q_s[tx][ty] = Q[row * d + ty];
+    }
+    __syncthreads();
+
+    // Online Softmax 状态
+    float m_prev = -INFINITY;
+    float l_prev = 0.0f;
+    float o_prev[d] = {0.0f}; // 寄存器中维护输出累加
+
+    // 循环所有 K/V Block
+    for (int block_start = 0; block_start &lt; N; block_start += B_c) {
+        // 加载 K_s 和 V_s
+        if (tx &lt; B_c &amp;&amp; ty &lt; d &amp;&amp; (block_start + tx) &lt; N) {
+            K_s[tx][ty] = K[(block_start + tx) * d + ty];
+            V_s[tx][ty] = V[(block_start + tx) * d + ty];
+        }
+        __syncthreads();
+
+        // 计算 S_s = Q_s @ K_s^T  (每个线程外循环 N 元素)
+        // ... (矩阵乘，结果在 Shared Memory 或寄存器中)
+
+        // 更新 Online Softmax
+        float m_curr = m_prev;
+        float l_curr = l_prev;
+        // 1. 找当前 Block 的行最大值
+        // 2. 更新 m_curr = max(m_prev, m_block)
+        // 3. 更新 l_curr = exp(m_prev - m_curr) * l_prev + sum(exp(S - m_curr))
+        // 4. 更新 o_curr = exp(m_prev - m_curr) * o_prev + exp(S - m_curr) @ V_block
+
+        m_prev = m_curr;
+        l_prev = l_curr;
+        // o_prev 在寄存器中持续更新
+        __syncthreads();
+    }
+
+    // 最终输出: O[row] = o_prev / l_prev
+    if (row &lt; N) {
+        for (int k = 0; k &lt; d; k++) {
+            O[row * d + k] = o_prev[k] / l_prev;
+        }
+    }
+}
+</code></pre>
+<h3 id="dx12-compute-shader">DX12 Compute Shader 代码骨架</h3>
+<p>下面是你在之前对话中看到的 <strong>DX12 + HLSL 实现 FlashAttention 的核心骨架</strong>：</p>
+<pre><code class="language-hlsl">// AttentionKernel.hlsl
+// FlashAttention 的 DX12 Compute Shader 实现 (简化版)
+
+#define TILE 32         // 分块大小
+#define D_HEAD 128      // Head Dim
+
+RWStructuredBuffer&lt;float&gt; Output : register(u0);
+StructuredBuffer&lt;float&gt; Q : register(t0);
+StructuredBuffer&lt;float&gt; K : register(t1);
+StructuredBuffer&lt;float&gt; V : register(t2);
+
+// groupshared memory = 图形工程师眼中的 Tile Buffer
+groupshared float sharedQ[TILE][D_HEAD];
+groupshared float sharedK[TILE][D_HEAD];
+
+[numthreads(TILE, TILE, 1)]
+void main(uint3 DTid : SV_DispatchThreadID, 
+          uint3 GTid : SV_GroupThreadID, 
+          uint3 Gid : SV_GroupID)
+{
+    uint row = DTid.x;  // SeqIdx
+    uint col = DTid.y;  // DimIdx
+    uint seqLen = 1024; // 从常量传入
+
+    // 1. 加载 Q 和 K 的分块到 groupshared (Tile Buffer)
+    if (row &lt; TILE &amp;&amp; col &lt; D_HEAD) {
+        sharedQ[row][col] = Q[row * D_HEAD + col];
+        sharedK[row][col] = K[row * D_HEAD + col];
+    }
+    GroupMemoryBarrierWithGroupSync();
+
+    // 2. 计算当前 Tile 的 Attention Score (Q * K^T)
+    if (row &lt; TILE &amp;&amp; col &lt; TILE) {
+        float acc = 0.0f;
+        for (int d = 0; d &lt; D_HEAD; d++) {
+            acc += sharedQ[row][d] * sharedK[col][d];
+        }
+        // acc = Q[row] 和 K[col] 的点积
+
+        // 3. 这里应该是 Online Softmax + 乘以 V
+        //    真实 FlashAttention 需要循环所有 K/V Block
+        Output[row * TILE + col] = acc;
+    }
+}
+</code></pre>
+<p><strong>注意</strong>：上面的 HLSL 代码只展示了单个 Tile 的 Q*K^T 计算。完整的 FlashAttention 需要：</p>
+<ul>
+<li><strong>外层循环</strong>：对每个 Q Block，循环遍历所有 K/V Block。</li>
+<li><strong>Online Softmax 状态更新</strong>：跨 Block 维护 <code>m</code>（最大值）和 <code>l</code>（归一化分母），在寄存器中更新。</li>
+<li><strong>最终融合</strong>：将乘 V 的累加（<code>o</code>）也融合在循环内。</li>
+</ul>
+<h3 id="c-dx12">C++ DX12 应用骨架</h3>
+<pre><code class="language-cpp">// main.cpp — DX12 设备初始化 + 资源管理 + 调度
+int main() {
+    // 1. 创建设备和 Command Queue
+    ID3D12Device* pDevice;
+    ID3D12CommandQueue* pQueue;
+    ID3D12GraphicsCommandList* pCmdList;
+    InitDX12(&amp;pDevice, &amp;pQueue, &amp;pCmdList);
+
+    // 2. 创建根签名 (Root Signature)
+    ID3D12RootSignature* pRootSig;
+    CreateRootSignature(pDevice, &amp;pRootSig);
+
+    // 3. 定义张量 Shape: B=1, H=12, SeqLen=1024, D=128
+    const UINT B = 1, H = 12, S = 1024, D = 128;
+    UINT64 tensorSize = B * H * S * D * sizeof(float);
+
+    // 4. 在 GPU 上分配 Q, K, V 和 Output Buffer
+    ComPtr&lt;ID3D12Resource&gt; pQ = CreateBuffer(pDevice, tensorSize, D3D12_HEAP_TYPE_DEFAULT);
+    ComPtr&lt;ID3D12Resource&gt; pK = CreateBuffer(pDevice, tensorSize, D3D12_HEAP_TYPE_DEFAULT);
+    ComPtr&lt;ID3D12Resource&gt; pV = CreateBuffer(pDevice, tensorSize, D3D12_HEAP_TYPE_DEFAULT);
+    ComPtr&lt;ID3D12Resource&gt; pOut = CreateBuffer(pDevice, tensorSize, D3D12_HEAP_TYPE_DEFAULT);
+
+    // 5. 录制 Command List
+    pCmdList-&gt;SetComputeRootSignature(pRootSig);
+    // 设置 Root Descriptor (传 GPU 虚拟地址)
+    // pCmdList-&gt;SetComputeRootShaderResourceView(0, pQ-&gt;GetGPUVirtualAddress());
+    // ...
+
+    // 6. 调度: 每个 Thread Group 处理一个 Head 的一个 Block
+    //    实际需要根据 SeqLen 计算 Dispatch 次数
+    const UINT TILE = 32;
+    UINT numGroupsX = (S + TILE - 1) / TILE;
+    pCmdList-&gt;Dispatch(numGroupsX, numGroupsX, H); // X×Y = Block 网格, Z = Head
+
+    // 7. Barrier + 执行
+    pCmdList-&gt;Close();
+    pQueue-&gt;ExecuteCommandLists(1, (ID3D12CommandList**)&amp;pCmdList);
+
+    // 8. 等待 Fence（同步 CPU-GPU）
+    // 9. 读回 Output 验证
+    return 0;
+}
+</code></pre>
+<h2 id="tbdr-flashattention">从 TBDR 视角重读 FlashAttention 论文</h2>
+<p>如果你带着 TBDR 的思维去读 FlashAttention 论文，你会发现以下一一对应：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">FlashAttention 论文概念</th>
+<th style="text-align: left;">TBDR 对应物</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Tiling (分块)</td>
+<td style="text-align: left;">屏幕分 Tile (32x32)</td>
+</tr>
+<tr>
+<td style="text-align: left;">SRAM / Shared Memory</td>
+<td style="text-align: left;">Tile Buffer (片上内存)</td>
+</tr>
+<tr>
+<td style="text-align: left;">Online Softmax (重计算 + 逐步更新)</td>
+<td style="text-align: left;">解决 Overdraw（不存中间结果，重新算）</td>
+</tr>
+<tr>
+<td style="text-align: left;">Block Size 调优</td>
+<td style="text-align: left;">Tile Size 调优（太大则片上放不下）</td>
+</tr>
+<tr>
+<td style="text-align: left;">Bank Conflict 规避</td>
+<td style="text-align: left;">Shared Memory 踩踏（同样需要 Padding）</td>
+</tr>
+<tr>
+<td style="text-align: left;">减少 HBM 事务</td>
+<td style="text-align: left;">减少 Global Memory 事务（提高 Tile Buffer 命中率）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_4">落地的关键教训</h2>
+<p>这些经验你在写 TBDR Shader 时已经付出了血的代价，现在直接迁移到 FlashAttention：</p>
+<ol>
+<li><strong>Tile Size 不能太大</strong>：片上放不下（Shared Memory 只有几十 KB），Block Size 需要调优。</li>
+<li><strong>要避免 Bank Conflict</strong>：写 Triton/Kernel 时，你本能会做 Padding 来规避冲突。</li>
+<li><strong>重计算换带宽</strong>：不存中间结果，重新算 Softmax 归一化项——这就是 Online Softmax 的精髓。</li>
+<li><strong>循环展开</strong>：FlashAttention 的外层循环（遍历所有 K/V Block）建议手动展开或让编译器优化，减少循环开销。</li>
+</ol>
+<h2 id="_5">总结</h2>
+<p>FlashAttention 是你熟悉的图形渲染技术在 AI 推理中最完美的映射。它的核心创新不在于发明了新的数学，而在于<strong>用你在 TBDR 中早已深知的工程策略——分块加载到片上内存、在线处理避免中间结果写回——来解决 AI 中的带宽瓶颈。</strong></p>
+<blockquote>
+<p><strong>"FlashAttention 就是一个把 TBDR 渲染器写成 CUDA Kernel 的作品。你如果会写 TBDR 的 Shader，那就已经会了 FlashAttention 的核心思维。剩下的只是把 '像素' 换成 'Token'，把 'Tile Buffer' 换成 'Shared Memory'。"</strong></p>
+</blockquote>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../radix_sort_as_stream_compaction/" class="btn btn-neutral float-left" title="6.3 基数排序 (Radix Sort) = 逐位流压缩"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../tensor_core_vs_cuda_core/" class="btn btn-neutral float-right" title="7.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../radix_sort_as_stream_compaction/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../tensor_core_vs_cuda_core/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>4.2 分块 (Tiling) 与局部性: 为何图形做多 Pass，AI 做单 Pass Tiling - GPU 图形与 AI 推理知识手册</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "4.2 \u5206\u5757 (Tiling) \u4e0e\u5c40\u90e8\u6027: \u4e3a\u4f55\u56fe\u5f62\u505a\u591a Pass\uff0cAI \u505a\u5355 Pass Tiling";
+        var mkdocs_page_input_path = "tiling_locality_analysis.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GPU 图形与 AI 推理知识手册
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">首页</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">1. 图形渲染管线与 GPU 硬件基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 渲染管线与硬件单元 (SM, TMU, ROP)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_passes_and_sync/">1.4 图形管线中的 Pass 与同步 (RenderPass, Barrier)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">2. GPU 并发模型与系统思维</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../cpu_gpu_async_pipeline/">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../command_buffer_ring_buffer/">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../multithreaded_rendering_and_pools/">2.3 多线程渲染与资源池管理</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_to_ai_first_principles/">2.4 从图形管线到 AI 推理的第一性原理映射</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">3. AI 模型与算子基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../model_structures_inference_view/">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../operator_taxonomy/">3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../convolution_math_implementation/">3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">4. AI 推理优化核心策略</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">4.2 分块 (Tiling) 与局部性: 为何图形做多 Pass，AI 做单 Pass Tiling</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#_1">概述</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#ai-tiling">核心问题：AI 做 Tiling 的对象是什么？</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#tiling">为什么不像图形那样只 Tiling 输入？</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_2">算访比：决定一切的核心指标</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#pass">图形：算访比低 → 多 Pass 省带宽</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#ai-pass-tiling">AI：算访比高 → 单 Pass Tiling 省算力</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#pass-vs-ai-pass-tiling">图形多 Pass vs AI 单 Pass Tiling：完整对比</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#shared-memory">为什么 Shared Memory 能装下大纹理？</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#ai-tiling_1">AI 做 Tiling 的本质</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#tiling_1">高效 Tiling 的四条铁律</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_3">最终结论</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention (类比 DX12 资源池 / 伙伴分配器)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../thread_block_grid_mapping/">5.1 线程模型 (Thread, Block, Grid) 与映射</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../explicit_memory_shared_vs_cache/">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../warp_simd_simt_divergence/">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../synchronization_primitives/">5.4 同步原语: __syncthreads, __syncwarp, 内存屏障</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../reduce_tree_implementation/">6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../scan_stream_compaction/">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../radix_sort_as_stream_compaction/">6.3 基数排序 (Radix Sort) = 逐位流压缩</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">7. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">7.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">7.2 RT Core: BVH 遍历专用电路 (压缩解决随机访问，专用电路解决分支分歧)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">7.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">8. GPU 软件栈与驱动开发</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">8.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">8.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">8.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">8.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 职业发展与工程实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">9.1 四个核心岗位对比: 算子开发 / 推理框架 / 编译器 / 驱动</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">9.2 简历技能清单 (基于我们对话的认知总结)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">9.3 关键知识点自检清单 (MkDocs 版)</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GPU 图形与 AI 推理知识手册</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">4. AI 推理优化核心策略</li>
+      <li class="breadcrumb-item active">4.2 分块 (Tiling) 与局部性: 为何图形做多 Pass，AI 做单 Pass Tiling</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <hr />
+<p>title: 分块 (Tiling) 与局部性: 为何图形做多 Pass，AI 做单 Pass Tiling
+tags: [tiling, locality, 分块, shared memory, 带宽优化, 卷积, 算访比]
+description: 深入分析图形渲染使用多 Pass 而 AI 推理使用单 Pass + Tiling 的根本原因，理解算访比 (Compute-to-Access Ratio) 的核心作用</p>
+<hr />
+<h1 id="42-tiling-passai-pass-tiling">4.2 分块 (Tiling) 与局部性: 为何图形做多 Pass，AI 做单 Pass Tiling</h1>
+<h2 id="_1">概述</h2>
+<p><strong>Tiling（分块）</strong> 是 GPU 计算中最核心的局部性优化技术。但图形渲染和 AI 推理在使用 Tiling 时，走了两条完全不同的路：</p>
+<ul>
+<li><strong>图形</strong>：多 Pass（每 Pass 处理一小块，Pass 间通过 RT 切换同步）</li>
+<li><strong>AI</strong>：单 Pass + Shared Memory Tiling（一个 Kernel 内循环加载多个 Tile）</li>
+</ul>
+<p>理解这背后的原因，你就理解了图形和 AI 在 GPU 上的本质差异。</p>
+<hr />
+<h2 id="ai-tiling">核心问题：AI 做 Tiling 的对象是什么？</h2>
+<p>AI 做 Tiling 时，<strong>同时对输入特征图和权重进行分块加载</strong>，而不是只对某一个。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Tiling 对象</th>
+<th style="text-align: left;">为什么需要</th>
+<th style="text-align: left;">加载到哪里</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>输入特征图 (Input Activation)</strong></td>
+<td style="text-align: left;">太大，一次装不进 Shared Memory</td>
+<td style="text-align: left;">Shared Memory Tile</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>权重 (Weight)</strong></td>
+<td style="text-align: left;">太大，一次装不进 Shared Memory</td>
+<td style="text-align: left;">Shared Memory Tile</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>两者同时</strong></td>
+<td style="text-align: left;">因为两者在计算中都有<strong>高复用率</strong></td>
+<td style="text-align: left;">同时加载到 Shared Memory 做矩阵乘</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>你的理解</strong>：AI 做 Tiling，就是把\"输入块\"和\"权重块\"一起搬进 Shared Memory，然后像做矩阵乘一样，在片上把计算全部摊平。</p>
+</blockquote>
+<h3 id="tiling">为什么不像图形那样只 Tiling 输入？</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">场景</th>
+<th style="text-align: left;">复用的数据</th>
+<th style="text-align: left;">为什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>图形模糊</strong>（3×3 高斯）</td>
+<td style="text-align: left;"><strong>输入像素</strong></td>
+<td style="text-align: left;">同一个输入像素会被相邻像素的窗口反复用到</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>AI 卷积</strong>（C_in=128, C_out=256）</td>
+<td style="text-align: left;"><strong>权重和输入同时复用</strong></td>
+<td style="text-align: left;">同一个权重会被所有输入位置用到；同一个输入位置也会被所有输出通道用到</td>
+</tr>
+</tbody>
+</table>
+<p>在 AI 中，输入和权重的复用关系是<strong>双向的</strong>，所以必须同时加载两者。</p>
+<hr />
+<h2 id="_2">算访比：决定一切的核心指标</h2>
+<p><strong>算访比</strong>（Compute-to-Access Ratio）= 每读一个数据，你要做多少次计算操作。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">场景</th>
+<th style="text-align: left;">每读一个元素，做多少次计算</th>
+<th style="text-align: left;">算访比</th>
+<th style="text-align: left;">是否值得 Tiling</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>图形模糊</strong>（3×3）</td>
+<td style="text-align: left;">读 9 次像素，算 9 次乘加</td>
+<td style="text-align: left;">≈1</td>
+<td style="text-align: left;">❌ 不值得</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>AI 卷积</strong>（3×3, C_in=64, C_out=128）</td>
+<td style="text-align: left;">读一个像素，做 64×128×9 次乘加</td>
+<td style="text-align: left;">≈73728</td>
+<td style="text-align: left;">✅ <strong>极其值得！</strong></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>你的直觉</strong>：算访比决定了你是\"带宽瓶颈\"还是\"算力瓶颈\"。算访比低 → 带宽是瓶颈（图形）；算访比高 → 算力是瓶颈（AI）。</p>
+</blockquote>
+<h3 id="pass">图形：算访比低 → 多 Pass 省带宽</h3>
+<p>图形模糊（如高斯模糊）的算访比 ≈ 1，意味着：</p>
+<ul>
+<li><strong>瓶颈在 TMU</strong>（纹理采样太慢）</li>
+<li>每读一次纹理数据，只做一次乘加</li>
+<li>所以<strong>宁可多开一个 Pass</strong>，也要减少纹理采样次数</li>
+</ul>
+<p>这就是为什么图形模糊要拆成<strong>水平 + 垂直</strong>两个 Pass：</p>
+<pre><code>5×5 高斯核：
+  不拆：每个像素读 25 次纹理 → 25 次访存
+  拆开（水平+垂直）：每个像素读 5 + 5 = 10 次纹理 → 省掉 60% 带宽
+</code></pre>
+<p><strong>收益</strong>：访存减少 60%，代价是多一次 RT 切换（图形中 RT 切换的开销相对较小）。</p>
+<h3 id="ai-pass-tiling">AI：算访比高 → 单 Pass Tiling 省算力</h3>
+<p>AI 卷积（以 C_in=64, C_out=128, 3×3 为例）的算访比 ≈ 73728，意味着：</p>
+<ul>
+<li><strong>瓶颈在 Tensor Core</strong>（计算太快，数据喂不饱）</li>
+<li>每读一次数据，要做七万多次乘加</li>
+<li>所以<strong>宁可一次把所有数据读到 Shared Memory</strong>，也要减少重复访存</li>
+</ul>
+<pre><code>AI 卷积的 Tiling：
+  不 Tiling：每次计算都要从 HBM 读权重 → 带宽爆炸
+  Tiling：把权重块 + 输入块加载到 Shared Memory → 只读一次，反复复用
+</code></pre>
+<p><strong>收益</strong>：访存减少几十万倍，代价是手动写 Tiling 逻辑。</p>
+<hr />
+<h2 id="pass-vs-ai-pass-tiling">图形多 Pass vs AI 单 Pass Tiling：完整对比</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">维度</th>
+<th style="text-align: left;">图形（高斯模糊）</th>
+<th style="text-align: left;">AI（Conv2d）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>卷积核是否可分离</strong></td>
+<td style="text-align: left;">✅ 是（高斯核 = h × v）</td>
+<td style="text-align: left;">❌ 否（训练得到的随机权重）</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>主要瓶颈</strong></td>
+<td style="text-align: left;">纹理采样（带宽）</td>
+<td style="text-align: left;">算力 + 带宽（Tensor Core 太快）</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>为什么拆/不拆</strong></td>
+<td style="text-align: left;">拆了采样从 25 降到 10 次，值</td>
+<td style="text-align: left;">拆了计算量翻倍 + 带宽翻倍，血亏</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Shared Memory 用法</strong></td>
+<td style="text-align: left;">无所谓（纹理 Cache 自动搞定）</td>
+<td style="text-align: left;"><strong>必须手动 Tiling</strong>（显式加载权重 + 输入）</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>优化方向</strong></td>
+<td style="text-align: left;">减少纹理采样次数</td>
+<td style="text-align: left;">减少 Global Memory 访问 + 增加计算密度</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="shared-memory">为什么 Shared Memory 能装下大纹理？</h2>
+<p>你可能会问：<strong>Shared Memory 只有几十 KB，怎么装得下一整张纹理？</strong></p>
+<p><strong>答案</strong>：Shared Memory 不是装整张图，而是只装<strong>当前 Tile 需要的那一小块</strong>。</p>
+<p>比如 Conv2d 的 Tiling：</p>
+<pre><code>输入特征图（H×W×C_in）        权重（C_out×C_in×K×K）
+┌─────────────────────┐       ┌─────────────────────┐
+│  Tile 1 │ Tile 2 │ ...      │  Tile 1 │ Tile 2 │ ...
+│─────────┼─────────┤        │─────────┼─────────┤
+│  Tile 3 │ Tile 4 │ ...      │  Tile 3 │ Tile 4 │ ...
+└─────────────────────┘       └─────────────────────┘
+          │                            │
+          └───────── Load ─────────────┘
+                      │
+                     ▼
+          ┌─────────────────────┐
+          │   Shared Memory     │ ← 输入 Tile + 权重 Tile 同时在这里
+          │   (片上 SRAM, 极快)  │
+          └─────────────────────┘
+                      │
+                     ▼
+          ┌─────────────────────┐
+          │   Tensor Core       │ ← 在片上做矩阵乘
+          │   (一次性算完一块)    │
+          └─────────────────────┘
+</code></pre>
+<p><strong>每次只加载一个 Tile</strong>，算完再加载下一个。Shared Memory 装不下整张图，但装得下<strong>当前线程块正在处理的那一个 Tile</strong>。</p>
+<hr />
+<h2 id="ai-tiling_1">AI 做 Tiling 的本质</h2>
+<blockquote>
+<p><strong>AI 做 Tiling，本质上就是在用软件写一个\"纹理采样器\"的替代品。</strong></p>
+</blockquote>
+<p>你不再依赖硬件 TMU 和 Cache，而是<strong>自己写一套加载、缓存、复用的逻辑</strong>，来应对\"不可预测的访问模式\"。</p>
+<h3 id="tiling_1">高效 Tiling 的四条铁律</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">铁律</th>
+<th style="text-align: left;">具体做法</th>
+<th style="text-align: left;">图形经验</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>1. 合并访问</strong></td>
+<td style="text-align: left;">加载时让连续线程访问连续地址（Coalesced Access）</td>
+<td style="text-align: left;">让相邻像素采相邻纹素</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>2. 避免 Bank Conflict</strong></td>
+<td style="text-align: left;">Shared Memory 做 Padding（[32][33] 替代 [32][32]）</td>
+<td style="text-align: left;">避免 groupshared Race Condition</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>3. 循环展开</strong></td>
+<td style="text-align: left;"><code>#pragma unroll</code> 手动展开内层循环</td>
+<td style="text-align: left;">减少循环控制开销</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>4. 双缓冲</strong></td>
+<td style="text-align: left;">计算当前 Tile 时，后台异步加载下一个 Tile</td>
+<td style="text-align: left;">三重缓冲思想平移</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="_3">最终结论</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">场景</th>
+<th style="text-align: left;">优化策略</th>
+<th style="text-align: left;">本质原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>图形渲染</strong>（算访比低）</td>
+<td style="text-align: left;"><strong>多 Pass 换少采样</strong></td>
+<td style="text-align: left;">带宽是瓶颈，宁可多 Pass 也要少访存</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>AI 推理</strong>（算访比高）</td>
+<td style="text-align: left;"><strong>单 Pass + Tiling</strong></td>
+<td style="text-align: left;">算力是瓶颈，宁可多加载也要少重复计算</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>你已经完全可以这样理解</strong>：图形优化是\"我怎么才能少读点纹理？\"，AI 优化是\"我怎么才能让 Tensor Core 多干点活，少等数据？\"。</p>
+</blockquote>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../operator_fusion/" class="btn btn-neutral float-left" title="4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../async_pipeline_communication_behind_compute/" class="btn btn-neutral float-right" title="4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../operator_fusion/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../async_pipeline_communication_behind_compute/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
