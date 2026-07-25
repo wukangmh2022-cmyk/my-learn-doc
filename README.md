@@ -1,1 +1,2 @@
-https://github.com/wukangmh2022-cmyk/my-learn-doc/deployments/github-pages
+我的文档：
+https://wukangmh2022-cmyk.github.io/my-learn-doc/
