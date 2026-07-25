@@ -1,0 +1,5 @@
+site_name: 我的技术手册
+nav:
+  - 首页: index.md
+  - 第一章: chapter1.md
+theme: readthedocs
