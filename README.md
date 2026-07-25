@@ -1,11 +1,11 @@
-# 点此阅读文档：
-https://wukangmh2022-cmyk.github.io/my-learn-doc/
-
 # 欢迎来到我的技术手册
 
 ## GPU 图形与 AI 推理知识手册
 
 本手册从一个**图形渲染工程师**的视角出发，系统性地梳理了从 GPU 图形管线到 AI 推理优化的知识体系。
+
+## 点此阅读文档：
+https://wukangmh2022-cmyk.github.io/my-learn-doc/
 
 ### 核心理念
 
