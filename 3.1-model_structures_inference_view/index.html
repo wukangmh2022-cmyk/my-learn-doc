@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="zh_CN" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>3.1 模型结构速览 (YOLOv8, Transformer 的推理视角) - GPU 图形与 AI 推理知识手册</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "3.1 \u6a21\u578b\u7ed3\u6784\u901f\u89c8 (YOLOv8, Transformer \u7684\u63a8\u7406\u89c6\u89d2)";
+        var mkdocs_page_input_path = "3.1-model_structures_inference_view.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GPU 图形与 AI 推理知识手册
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">首页</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">1. 图形渲染管线与 GPU 硬件基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.1-graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.2-render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.3-gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.4-graphics_passes_and_sync/">1.4 图形管线中的 Pass 与同步 (RenderPass, Barrier)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">2. GPU 并发模型与系统思维</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.1-cpu_gpu_async_pipeline/">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.2-command_buffer_ring_buffer/">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.3-multithreaded_rendering_and_pools/">2.3 多线程渲染与资源池管理</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.4-graphics_to_ai_first_principles/">2.4 从图形管线到 AI 推理的第一性原理映射</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">3. AI 模型与算子基础</span></p>
+              <ul class="current">
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#_1">概述</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#yolov8">一、YOLOv8 模型结构</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_2">整体数据流</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#1-backbone">1. Backbone：特征提取</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-neck-pan-fpn">2. Neck：特征融合 (PAN-FPN)</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-head">3. Head：检测头输出</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#gpu-yolov8">GPU 流水线视角下的 YOLOv8</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#transformer">二、Transformer 模型架构</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#transformer-block">单层 Transformer Block 数据流</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_3">模块拆解</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#1-embedding">1. Embedding（嵌入层）</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#2-qkv-rope">2. QKV 投影 + RoPE</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#3-self-attention">3. Self-Attention（自注意力）</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#4-ffn">4. FFN（前馈网络）</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#5-rmsnorm-layernorm">5. RMSNorm / LayerNorm</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#transformer-gpu">Transformer 推理的 GPU 流水线特征</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_4">三、总结对比</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.2-operator_taxonomy/">3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.3-convolution_math_implementation/">3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">4. AI 推理优化核心策略</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.1-operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.2-tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.3-async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.4-memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.1-thread_block_grid_mapping/">5.1 线程模型 (Thread, Block, Grid) 与映射</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.2-explicit_memory_shared_vs_cache/">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.3-warp_simd_simt_divergence/">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.4-synchronization_primitives/">5.4 同步原语: __syncthreads, __syncwarp, 内存屏障</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.5-warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.6-atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.1-reduce_tree_implementation/">6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.2-scan_stream_compaction/">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.3-radix_sort_as_stream_compaction/">6.3 基数排序 (Radix Sort) = 逐位流压缩</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.4-flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../7-llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../8-vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.1-tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.2-rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.3-computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.1-umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.2-driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.3-compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.4-graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.1-nano_vllm_from_scratch/">11.1 读 Nano-vLLM 源码: 一个推理引擎怎么组装起来</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.2-attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.3-paged_attention_continuous_batching/">11.3 PagedAttention 与 Continuous Batching: 从 PyTorch 到 CUDA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.4-kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.5-inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.6-paged_attention_dx12_tensorrt_backend/">11.6 进阶: 把分页契约搬到 DX12 与 TensorRT 后端</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.1-career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.2-resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.3-knowledge_checklist/">A.3 关键知识点自检清单</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GPU 图形与 AI 推理知识手册</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">3. AI 模型与算子基础</li>
+      <li class="breadcrumb-item active">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="31-yolov8-transformer">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)<a class="headerlink" href="#31-yolov8-transformer" title="Permanent link">&para;</a></h1>
+<h2 id="_1">概述<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>在图形渲染中，你习惯把渲染管线拆成一系列 Pass：先画 G-Buffer，再算光照，最后做后处理。AI 推理模型也是同样的思路——它是一个<strong>固定的数据流水线</strong>，输入经过一系列计算变换，最终输出结果。</p>
+<p>本文从<strong>推理视角</strong>（而非训练视角）速览两种主流模型结构：YOLOv8（视觉检测）和 Transformer（大语言模型）。重点不在于记住每一层的名字，而在于理解<strong>数据在 GPU 上的流动方式</strong>。</p>
+<blockquote>
+<p><strong>核心思维</strong>：当你把模型结构拆解成 GPU 数据流时，你看到的不再是"神经网络层"，而是 <strong>Kernel Launch 序列 + 显存读写模式</strong>。</p>
+</blockquote>
+<hr />
+<h2 id="yolov8">一、YOLOv8 模型结构<a class="headerlink" href="#yolov8" title="Permanent link">&para;</a></h2>
+<p>YOLOv8 延续了 YOLO 系列的经典<strong>三段式设计</strong>：Backbone（主干网络）→ Neck（颈部网络）→ Head（检测头）。</p>
+<h3 id="_2">整体数据流<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h3>
+<pre><code>640×640×3 → Backbone 逐级下采样 → Neck 多尺度融合 → Head 输出 3 个尺度的预测结果
+</code></pre>
+<h3 id="1-backbone">1. Backbone：特征提取<a class="headerlink" href="#1-backbone" title="Permanent link">&para;</a></h3>
+<p>Backbone 的作用是从输入图像中提取特征。它由 5 个 Stage 组成，每个 Stage 以一个步长为 2 的卷积开始进行下采样，后面接 <strong>C2f 模块</strong>，最后用 <strong>SPPF</strong> 融合多尺度特征。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Stage</th>
+<th style="text-align: left;">输入尺寸</th>
+<th style="text-align: left;">操作</th>
+<th style="text-align: left;">输出尺寸</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">输入</td>
+<td style="text-align: left;">640×640×3</td>
+<td style="text-align: left;">Conv (3×3, stride=2, 32 filters)</td>
+<td style="text-align: left;">320×320×32</td>
+</tr>
+<tr>
+<td style="text-align: left;">Stage 1</td>
+<td style="text-align: left;">320×320×32</td>
+<td style="text-align: left;">Conv stride=2 → <strong>C2f</strong></td>
+<td style="text-align: left;">160×160×64</td>
+</tr>
+<tr>
+<td style="text-align: left;">Stage 2</td>
+<td style="text-align: left;">160×160×64</td>
+<td style="text-align: left;">Conv stride=2 → <strong>C2f</strong></td>
+<td style="text-align: left;">80×80×128</td>
+</tr>
+<tr>
+<td style="text-align: left;">Stage 3</td>
+<td style="text-align: left;">80×80×128</td>
+<td style="text-align: left;">Conv stride=2 → <strong>C2f</strong></td>
+<td style="text-align: left;">40×40×256</td>
+</tr>
+<tr>
+<td style="text-align: left;">Stage 4</td>
+<td style="text-align: left;">40×40×256</td>
+<td style="text-align: left;">Conv stride=2 → <strong>C2f</strong></td>
+<td style="text-align: left;">20×20×512</td>
+</tr>
+<tr>
+<td style="text-align: left;">Stage 5</td>
+<td style="text-align: left;">20×20×512</td>
+<td style="text-align: left;">Conv stride=2 → <strong>SPPF</strong></td>
+<td style="text-align: left;">10×10×512</td>
+</tr>
+</tbody>
+</table>
+<p><strong>关键模块：</strong></p>
+<ul>
+<li>
+<p><strong>C2f</strong>：取代了 YOLOv5 的 C3 模块。结构更轻量，增强了梯度流（训练时），在推理时是一个高效的特征提取块。它将输入分成两个分支，通过多个 Bottleneck 增强梯度流。</p>
+</li>
+<li>
+<p><strong>SPPF (Spatial Pyramid Pooling - Fast)</strong>：用三个级联的 5×5 最大池化，等效于一个多尺度金字塔池化，在不增加计算量的前提下大幅提升感受野。相比于 SPP，SPPF 将三个池化串联（而非并联），计算量更小。</p>
+</li>
+</ul>
+<p><strong>GPU 视角</strong>：Backbone 的每一层输出尺寸在缩小、通道在增加。这是一个典型的<strong>访存密集型 → 计算密集型</strong>的过渡过程——早期 Stage 的特征图大通道少（访存瓶颈），后期 Stage 特征图小通道多（计算瓶颈）。</p>
+<h3 id="2-neck-pan-fpn">2. Neck：特征融合 (PAN-FPN)<a class="headerlink" href="#2-neck-pan-fpn" title="Permanent link">&para;</a></h3>
+<p>Neck 使用 <strong>PAN-FPN</strong> 结构，通过自顶向下和自底向上的双向路径，让深层语义信息和浅层细节信息充分融合。</p>
+<p><strong>自顶向下（FPN — 特征金字塔）：</strong></p>
+<pre><code>10×10×512 → 上采样 → 与 Stage4(20×20×512) 拼接 → C2f → 20×20×512
+20×20×512 → 上采样 → 与 Stage3(40×40×256) 拼接 → C2f → 40×40×256
+</code></pre>
+<p><strong>自底向上（PAN — 路径聚合网络）：</strong></p>
+<pre><code>40×40×256 → 下采样 → 与 FPN(20×20×512) 拼接 → C2f → 20×20×512
+20×20×512 → 下采样 → 与 FPN(10×10×512) 拼接 → C2f → 10×10×512
+</code></pre>
+<p><strong>Neck 输出的三个特征图：</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">特征图</th>
+<th style="text-align: left;">尺寸</th>
+<th style="text-align: left;">负责检测</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">P3</td>
+<td style="text-align: left;">80×80×256</td>
+<td style="text-align: left;">小目标</td>
+</tr>
+<tr>
+<td style="text-align: left;">P4</td>
+<td style="text-align: left;">40×40×512</td>
+<td style="text-align: left;">中目标</td>
+</tr>
+<tr>
+<td style="text-align: left;">P5</td>
+<td style="text-align: left;">20×20×512</td>
+<td style="text-align: left;">大目标</td>
+</tr>
+</tbody>
+</table>
+<p><strong>GPU 视角</strong>：Neck 阶段涉及上采样、拼接、C2f 等操作。拼接在 GPU 上只是<strong>内存视图的重新解释</strong>，不需要实际拷贝数据——这是融合策略中可以利用的优化点。</p>
+<h3 id="3-head">3. Head：检测头输出<a class="headerlink" href="#3-head" title="Permanent link">&para;</a></h3>
+<p>YOLOv8 的检测头有两大革新：</p>
+<ul>
+<li><strong>Anchor-Free（无锚框）</strong>：直接预测目标的中心点和宽高，省去复杂的锚框调参。</li>
+<li><strong>Decoupled Head（解耦头）</strong>：分类和回归任务拆分到两个独立分支，避免相互干扰，提升精度。</li>
+</ul>
+<p><strong>每个尺度对应的输出：</strong></p>
+<pre><code>                     ┌──────────────────┐
+P3/P4/P5 ──────────►│  分类分支 (Cls)  │──► H × W × 80 (类别概率)
+                     ├──────────────────┤
+                     │  回归分支 (Reg)  │──► H × W × 4 (边界框偏移 + 宽高)
+                     └──────────────────┘
+</code></pre>
+<p><strong>GPU 视角</strong>：Head 是典型的 Elementwise 操作，每个网格独立计算。分类用 Sigmoid，回归用某种激活函数。这一阶段是<strong>访存密集型</strong>——计算量不大，但每个网格都要读写显存。</p>
+<h3 id="gpu-yolov8">GPU 流水线视角下的 YOLOv8<a class="headerlink" href="#gpu-yolov8" title="Permanent link">&para;</a></h3>
+<p>对于推理优化工程师，YOLOv8 的推理就是一条<strong>确定的 GPU Kernel 流水线</strong>：</p>
+<pre><code class="language-cuda">// 伪代码：YOLOv8 推理的 Kernel Launch 序列
+// 每个 Launch 对应一个 GPU Kernel
+
+// Backbone
+conv_kernel&lt;&lt;&lt;grid, block&gt;&gt;&gt;(input, weight1, conv1_out);       // Conv1
+c2f_kernel&lt;&lt;&lt;grid, block&gt;&gt;&gt;(conv1_out, weight2, c2f_out);      // C2f Stage1
+// ... 重复 Conv + C2f 直到 Stage4
+sppf_kernel&lt;&lt;&lt;grid, block&gt;&gt;&gt;(stage4_out, sppf_weight, sppf_out); // SPPF
+
+// Neck (PAN-FPN)
+upsample_kernel&lt;&lt;&lt;grid, block&gt;&gt;&gt;(sppf_out, up_out);            // 上采样
+concat_kernel&lt;&lt;&lt;grid, block&gt;&gt;&gt;(up_out, stage4_out, cat_out);   // 拼接
+c2f_kernel&lt;&lt;&lt;grid, block&gt;&gt;&gt;(cat_out, weight, fpn_out);         // FPN C2f
+// ... PAN 路径类似
+
+// Head (Decoupled)
+conv_kernel&lt;&lt;&lt;grid, block&gt;&gt;&gt;(pan_out, cls_weight, cls_out);    // 分类分支
+conv_kernel&lt;&lt;&lt;grid, block&gt;&gt;&gt;(pan_out, reg_weight, reg_out);    // 回归分支
+</code></pre>
+<blockquote>
+<p><strong>YOLOv8 推理流水线类比图形 Pass：</strong>
+- Backbone = 一系列逐渐降低分辨率的 Pass（像 Mipmap 生成）
+- Neck = 多 Pass 融合（像 HDR 合并 + Tone Mapping）
+- Head = 最终输出 Pass（像 Render Target 输出到屏幕）</p>
+</blockquote>
+<hr />
+<h2 id="transformer">二、Transformer 模型架构<a class="headerlink" href="#transformer" title="Permanent link">&para;</a></h2>
+<p>Transformer 是当前大语言模型（LLM）的核心架构。从推理视角看，它是一系列<strong>固定层</strong>的重复堆叠，每层结构完全相同。</p>
+<h3 id="transformer-block">单层 Transformer Block 数据流<a class="headerlink" href="#transformer-block" title="Permanent link">&para;</a></h3>
+<pre><code>输入张量 (Batch, SeqLen, HiddenDim)
+    │
+    ▼
+┌────────────────────────────────────┐
+│          RMSNorm                    │  ← 逐元素归一化，访存密集
+└────────────────────────────────────┘
+    │
+    ▼
+┌────────────────────────────────────┐
+│          QKV 投影                   │  ← 矩阵乘 (3 组 Linear)，Tensor Core
+│          [B,S,H] × [H,3H]          │
+└────────────────────────────────────┘
+    │
+    ▼
+┌────────────────────────────────────┐
+│          RoPE (旋转位置编码)         │  ← 逐元素旋转操作
+└────────────────────────────────────┘
+    │
+    ▼
+┌────────────────────────────────────┐
+│          Self-Attention             │  ← Q×K^T → Softmax → ×V
+│          (FlashAttention)           │  ← 核心瓶颈：带宽
+└────────────────────────────────────┘
+    │
+    ▼
+┌────────────────────────────────────┐
+│          残差连接 + RMSNorm         │  ← 逐元素加法 + 归一化
+└────────────────────────────────────┘
+    │
+    ▼
+┌────────────────────────────────────┐
+│          FFN (前馈网络)             │  ← 2层矩阵乘 (fc1, fc2)
+│          [B,S,H]×[H,4H]→GELU→×[4H,H]│ ← Tensor Core
+└────────────────────────────────────┘
+    │
+    ▼
+┌────────────────────────────────────┐
+│          残差连接                   │  ← 逐元素加法
+└────────────────────────────────────┘
+    │
+    ▼
+  下一个 Decoder Layer
+</code></pre>
+<h3 id="_3">模块拆解<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
+<h4 id="1-embedding">1. Embedding（嵌入层）<a class="headerlink" href="#1-embedding" title="Permanent link">&para;</a></h4>
+<p>将 token ID 映射为稠密向量。本质是一个 <strong>Gather 操作</strong>——根据 token ID 从权重矩阵中取对应的行。</p>
+<pre><code>输入形状: [Batch, SeqLen] (token ID 序列)
+输出形状: [Batch, SeqLen, Dim]
+权重形状: [VocabSize, Dim]
+</code></pre>
+<p><strong>GPU 视角</strong>：Gather 是不规则访存——相邻的 token ID 不一定对应连续的权重行。缓存命中率取决于访问模式的局部性。</p>
+<h4 id="2-qkv-rope">2. QKV 投影 + RoPE<a class="headerlink" href="#2-qkv-rope" title="Permanent link">&para;</a></h4>
+<ul>
+<li><strong>QKV 投影</strong>：将输入通过三个独立的 Linear 层（矩阵乘）映射到 Query、Key、Value 空间。这是<strong>计算密集型</strong>操作，由 Tensor Core 加速。</li>
+<li><strong>RoPE</strong>：在 Q 和 K 上注入位置信息，通过旋转角度实现。轻量的逐元素三角函数操作，由 CUDA Core 处理。</li>
+</ul>
+<h4 id="3-self-attention">3. Self-Attention（自注意力）<a class="headerlink" href="#3-self-attention" title="Permanent link">&para;</a></h4>
+<p>Attention 的计算公式：</p>
+<pre><code>Attention(Q, K, V) = softmax(Q × K^T / √d) × V
+</code></pre>
+<p><strong>标准 Attention 的 GPU 执行流程（暴露带宽瓶颈）：</strong></p>
+<pre><code>Step 1: S = Q × K^T        // [B, H, S, d] × [B, H, d, S] → [B, H, S, S]
+                            // 矩阵乘，Tensor Core。结果必须写回显存！
+                            ↓
+Step 2: P = softmax(S)      // 从显存读 S，写回 P（两次显存访问）
+                            ↓
+Step 3: O = P × V           // [B, H, S, S] × [B, H, S, d] → [B, H, S, d]
+                            // 矩阵乘，Tensor Core
+</code></pre>
+<p><strong>问题</strong>：中间矩阵 <code>S = Q × K^T</code>（尺寸 S×S）必须完整写回显存再读出来。当序列长度 S 变大时（如 4096、8192），这个中间矩阵的显存读写成为<strong>主要瓶颈</strong>。</p>
+<p><strong>FlashAttention 的解决思路</strong>：通过 Tiling + Online Softmax，把中间矩阵 S 留在片上 SRAM（Shared Memory）中，不写回显存。</p>
+<p><strong>GPU 视角</strong>：Attention 在 Decode 阶段，Q 只有一个 token（S=1），而 K 和 V 是完整的 KV Cache。此时 Attention 退化为一个 <strong>GEMV（矩阵-向量乘）</strong>，访存带宽成为瓶颈。</p>
+<blockquote>
+<p><strong>KV Cache</strong>：推理时缓存历史 K 和 V，避免重复计算。这跟你图形渲染中的"帧缓存"是同样的思想——把之前算好的结果存起来，下次直接用。</p>
+</blockquote>
+<h4 id="4-ffn">4. FFN（前馈网络）<a class="headerlink" href="#4-ffn" title="Permanent link">&para;</a></h4>
+<p>标准的 FFN 包含两个线性层和一个激活函数：</p>
+<pre><code>FFN(x) = W₂ × GELU(W₁ × x)
+</code></pre>
+<ul>
+<li>第一层：从 Dim 扩展到 4×Dim（或更高）</li>
+<li>激活函数：GELU / SiLU（非线性的 Elementwise 操作）</li>
+<li>第二层：从 4×Dim 压缩回 Dim</li>
+</ul>
+<p><strong>GPU 视角</strong>：FFN 的两个线性层是<strong>计算密集型的 GEMM</strong>，由 Tensor Core 加速。激活函数由 CUDA Core 处理。FFN 是 Transformer 推理中计算量占比最高的部分（约 2/3）。</p>
+<h4 id="5-rmsnorm-layernorm">5. RMSNorm / LayerNorm<a class="headerlink" href="#5-rmsnorm-layernorm" title="Permanent link">&para;</a></h4>
+<pre><code>RMSNorm(x) = x / sqrt(mean(x²) + ε) × γ
+</code></pre>
+<p><strong>GPU 视角</strong>：RMSNorm 包含一个 <strong>Reduce（求平方的均值）</strong> 和一个 <strong>Elementwise（归一化）</strong>。它涉及一次全局内存的读取和写入，是<strong>访存密集型</strong>操作。</p>
+<h3 id="transformer-gpu">Transformer 推理的 GPU 流水线特征<a class="headerlink" href="#transformer-gpu" title="Permanent link">&para;</a></h3>
+<p>以 LLM 的 Decode 阶段为例，<strong>每生成一个 Token，要依次跑</strong>：</p>
+<blockquote>
+<p>RMSNorm → QKV 投影 → RoPE → Attention → 残差连接 → FFN → ...</p>
+</blockquote>
+<p>未融合实现可能包含十几到几十个 Kernel。单次 Launch 延迟与系统、软件栈和测量方法相关，通常是微秒量级；小 Kernel 中占比更明显。</p>
+<p><strong>关键差异（对比图形渲染）：</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">特征</th>
+<th style="text-align: left;">图形渲染</th>
+<th style="text-align: left;">Transformer 推理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>任务粒度</strong></td>
+<td style="text-align: left;">既有大型 Draw，也有短 Compute/Copy</td>
+<td style="text-align: left;">随 Batch、序列与融合程度变化</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Kernel 数量</strong></td>
+<td style="text-align: left;">少（几十到几百）</td>
+<td style="text-align: left;">多（几十到几百，但每个计算量小）</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>数据依赖</strong></td>
+<td style="text-align: left;">Pass 间常有显式资源依赖</td>
+<td style="text-align: left;">层内/层间有张量依赖</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>提交开销占比</strong></td>
+<td style="text-align: left;">取决于 Draw/Dispatch 粒度</td>
+<td style="text-align: left;">小 Batch Decode 中可能较高</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>能否重叠</strong></td>
+<td style="text-align: left;">可做帧级与异步队列重叠</td>
+<td style="text-align: left;">可做请求、流水线、通信/计算重叠，但受依赖限制</td>
+</tr>
+</tbody>
+</table>
+<p>这解释了两类不同优化：<strong>CUDA Graph</strong> 保留多个 Kernel 节点但降低重复提交开销；<strong>算子融合</strong> 才会把多个操作合入更少的 Kernel，以减少 Launch 和中间张量流量。两者都需要评估动态形状、寄存器压力和可维护性。</p>
+<hr />
+<h2 id="_4">三、总结对比<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">维度</th>
+<th style="text-align: left;">YOLOv8</th>
+<th style="text-align: left;">Transformer (Decoder Layer)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">整体结构</td>
+<td style="text-align: left;">Backbone → Neck → Head</td>
+<td style="text-align: left;">RMSNorm → Attention → FFN → Residual</td>
+</tr>
+<tr>
+<td style="text-align: left;">数据流形式</td>
+<td style="text-align: left;">串行，每个 Stage 产出多尺度特征</td>
+<td style="text-align: left;">串行，每一步依赖上一步输出</td>
+</tr>
+<tr>
+<td style="text-align: left;">计算密集阶段</td>
+<td style="text-align: left;">Conv 层（Backbone）</td>
+<td style="text-align: left;">QKV 投影、FFN（Tensor Core）</td>
+</tr>
+<tr>
+<td style="text-align: left;">访存密集阶段</td>
+<td style="text-align: left;">Concat、Head 输出</td>
+<td style="text-align: left;">RMSNorm、残差连接、Softmax</td>
+</tr>
+<tr>
+<td style="text-align: left;">主要瓶颈</td>
+<td style="text-align: left;">卷积层的计算密度</td>
+<td style="text-align: left;">Attention 的中间矩阵显存读写</td>
+</tr>
+<tr>
+<td style="text-align: left;">优化方向</td>
+<td style="text-align: left;">算子融合、INT8 量化</td>
+<td style="text-align: left;">FlashAttention、算子融合、KV Cache</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>一句话总结</strong>：图形渲染是"游击战"（状态多变，需要快速应变），AI 推理是"阅兵式"（流程固定，所以能极致优化）。</p>
+</blockquote>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../2.4-graphics_to_ai_first_principles/" class="btn btn-neutral float-left" title="2.4 从图形管线到 AI 推理的第一性原理映射"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../3.2-operator_taxonomy/" class="btn btn-neutral float-right" title="3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../2.4-graphics_to_ai_first_principles/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../3.2-operator_taxonomy/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

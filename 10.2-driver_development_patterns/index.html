@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="zh_CN" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化) - GPU 图形与 AI 推理知识手册</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "10.2 \u9a71\u52a8\u5f00\u53d1\u6a21\u5f0f: \u82af\u7247\u524d(\u4eff\u771f/FPGA) vs \u82af\u7247\u540e(\u6301\u7eed\u4f18\u5316)";
+        var mkdocs_page_input_path = "10.2-driver_development_patterns.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GPU 图形与 AI 推理知识手册
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">首页</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">1. 图形渲染管线与 GPU 硬件基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.1-graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.2-render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.3-gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.4-graphics_passes_and_sync/">1.4 图形管线中的 Pass 与同步 (RenderPass, Barrier)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">2. GPU 并发模型与系统思维</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.1-cpu_gpu_async_pipeline/">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.2-command_buffer_ring_buffer/">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.3-multithreaded_rendering_and_pools/">2.3 多线程渲染与资源池管理</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.4-graphics_to_ai_first_principles/">2.4 从图形管线到 AI 推理的第一性原理映射</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">3. AI 模型与算子基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.1-model_structures_inference_view/">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.2-operator_taxonomy/">3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.3-convolution_math_implementation/">3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">4. AI 推理优化核心策略</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.1-operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.2-tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.3-async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.4-memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.1-thread_block_grid_mapping/">5.1 线程模型 (Thread, Block, Grid) 与映射</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.2-explicit_memory_shared_vs_cache/">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.3-warp_simd_simt_divergence/">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.4-synchronization_primitives/">5.4 同步原语: __syncthreads, __syncwarp, 内存屏障</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.5-warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.6-atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.1-reduce_tree_implementation/">6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.2-scan_stream_compaction/">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.3-radix_sort_as_stream_compaction/">6.3 基数排序 (Radix Sort) = 逐位流压缩</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.4-flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../7-llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../8-vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.1-tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.2-rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.3-computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../10.1-umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#_1">概述</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#pre-silicon">Pre-Silicon 驱动开发：没有芯片，怎么调试？</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-emulationsimulation">1. 软件仿真平台 (Emulation/Simulation)</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-fpga-fpga-prototyping">2. FPGA 原型验证 (FPGA Prototyping)</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-virtual-prototype">3. 虚拟原型与协同验证 (Virtual Prototype)</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#pre-silicon_1">Pre-Silicon 流程总结</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#post-silicon">Post-Silicon 驱动开发：\"硬件固定，软件长跑\"</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1">1. 夯实基础：功能补全</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2">2. 榨干性能：\"一对一\"的游戏特调</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3">3. 横向扩展：平台兼容性</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4-ai">4. AI 模型演进驱动的持续优化</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#graphics-driver-vs-compute-driver-post-silicon">Graphics Driver vs Compute Driver：不同的 Post-Silicon 优化模式</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_2">总结</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.3-compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.4-graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.1-nano_vllm_from_scratch/">11.1 读 Nano-vLLM 源码: 一个推理引擎怎么组装起来</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.2-attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.3-paged_attention_continuous_batching/">11.3 PagedAttention 与 Continuous Batching: 从 PyTorch 到 CUDA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.4-kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.5-inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.6-paged_attention_dx12_tensorrt_backend/">11.6 进阶: 把分页契约搬到 DX12 与 TensorRT 后端</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.1-career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.2-resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.3-knowledge_checklist/">A.3 关键知识点自检清单</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GPU 图形与 AI 推理知识手册</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">10. GPU 软件栈与驱动开发</li>
+      <li class="breadcrumb-item active">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="102-fpga-vs">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)<a class="headerlink" href="#102-fpga-vs" title="Permanent link">&para;</a></h1>
+<h2 id="_1">概述<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>GPU 驱动开发贯穿芯片的整个生命周期。和你在图形渲染中熟悉的离线渲染 → 实时预览 → 最终交付一样，驱动开发也分两个截然不同的阶段：</p>
+<ul>
+<li><strong>Pre-Silicon（流片前）</strong>：芯片还没造出来，驱动已经要开始写了。</li>
+<li><strong>Post-Silicon（流片后）</strong>：芯片回来了，驱动优化的\"长跑\"才刚刚开始。</li>
+</ul>
+<h2 id="pre-silicon">Pre-Silicon 驱动开发：没有芯片，怎么调试？<a class="headerlink" href="#pre-silicon" title="Permanent link">&para;</a></h2>
+<p>这是一个经典的问题。芯片都没有，驱动怎么写？答案和你熟悉的图形渲染的思路很像——在硬件还没造出来的时候，先用软件模拟出一个\"虚拟芯片\"来开发和调试驱动。</p>
+<h3 id="1-emulationsimulation">1. 软件仿真平台 (Emulation/Simulation)<a class="headerlink" href="#1-emulationsimulation" title="Permanent link">&para;</a></h3>
+<p>这是最核心的方法。开发者基于芯片的硬件设计文档（RTL，寄存器传输级），构建一个运行在 CPU 上的软件模型。</p>
+<p><strong>工作原理</strong>：这个模型会在软件里\"镜像\"出芯片的内部寄存器状态和地址空间。驱动代码（比如 UMD）在运行时，它会认为自己在跟真实的硬件寄存器打交道——实际上所有读写操作都被这个软件平台拦截和模拟了。</p>
+<pre><code>驱动代码 → 读/写寄存器地址 → 仿真平台拦截 → 模拟寄存器行为 → 返回结果
+</code></pre>
+<p><strong>就像</strong>：游戏引擎里为了测试物理效果，先在一个\"模拟沙盒\"里运行，而不是直接上真车测试。</p>
+<h3 id="2-fpga-fpga-prototyping">2. FPGA 原型验证 (FPGA Prototyping)<a class="headerlink" href="#2-fpga-fpga-prototyping" title="Permanent link">&para;</a></h3>
+<p>在仿真验证基本功能后，可以把部分 RTL 映射到 FPGA 原型。FPGA 的运行速度通常显著低于最终 ASIC/GPU，且容量、时钟、内存系统和外设模型可能不同；它的优势是比 RTL 仿真快很多，适合软件联调和长时间场景验证。</p>
+<p><strong>核心价值</strong>：FPGA 原型验证最大的好处是速度快——比纯软件仿真快得多，甚至可以在流片前就启动操作系统、运行真实业务负载。</p>
+<p><strong>调试手段</strong>：现代 FPGA 原型验证平台提供了丰富的调试能力，比如通过 JTAG 接口连接调试器，或使用内嵌的逻辑分析仪来抓取内部信号，帮助定位驱动和硬件设计交互时的问题。</p>
+<h3 id="3-virtual-prototype">3. 虚拟原型与协同验证 (Virtual Prototype)<a class="headerlink" href="#3-virtual-prototype" title="Permanent link">&para;</a></h3>
+<p>在更复杂的芯片（如 SoC）开发中，还会用到虚拟原型技术。它不只是模拟硬件电路，而是用 C 语言这样的高层语言来构建 CPU、GPU 核等模块的模型，并集成在一个虚拟平台上。</p>
+<p><strong>优势</strong>：开发速度极快，可以让软件（包括驱动）和硬件设计几乎同步开始验证，通过协同仿真（Co-Simulation）发现软硬件接口上的问题。</p>
+<h3 id="pre-silicon_1">Pre-Silicon 流程总结<a class="headerlink" href="#pre-silicon_1" title="Permanent link">&para;</a></h3>
+<pre><code>硬件设计(RTL) → 软件仿真 → FPGA原型 → 流片(Tape Out)
+    ↑              ↑            ↑
+  驱动开发 ← 功能验证 ← 性能验证 ← 最终适配
+</code></pre>
+<p>这个流程和你做图形渲染时很像：</p>
+<ol>
+<li><strong>先在\"离线渲染器\"里跑</strong>：在软件仿真平台上验证驱动的核心逻辑。</li>
+<li><strong>再到\"实时预览\"里测</strong>：在 FPGA 原型上跑更完整的软硬件协同工作流，调试性能。</li>
+<li><strong>最后\"出片\"</strong>：芯片流片回来后，之前开发、验证好的驱动可以直接适配，大大缩短从芯片到产品的上市时间（Time-to-Market）。</li>
+</ol>
+<h2 id="post-silicon">Post-Silicon 驱动开发：\"硬件固定，软件长跑\"<a class="headerlink" href="#post-silicon" title="Permanent link">&para;</a></h2>
+<p>芯片回来后，驱动开发生命周期最长的阶段才真正开始。这个阶段的核心目标是：<strong>把芯片从\"能用\"打磨到\"好用\"</strong>。</p>
+<h3 id="1">1. 夯实基础：功能补全<a class="headerlink" href="#1" title="Permanent link">&para;</a></h3>
+<p>GPU 要支持的图形和计算 API 数量极其庞大。以国内 GPU 厂商为例：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">阶段</th>
+<th style="text-align: left;">支持状态</th>
+<th style="text-align: left;">耗时</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">首发</td>
+<td style="text-align: left;">DirectX 9</td>
+<td style="text-align: left;">Year 1</td>
+</tr>
+<tr>
+<td style="text-align: left;">中期</td>
+<td style="text-align: left;">DirectX 11</td>
+<td style="text-align: left;">Year 2</td>
+</tr>
+<tr>
+<td style="text-align: left;">成熟</td>
+<td style="text-align: left;">DirectX 12、Vulkan</td>
+<td style="text-align: left;">Year 3+</td>
+</tr>
+</tbody>
+</table>
+<p>每一代 API 都有不同的渲染模型和资源管理方式，驱动团队需要一项项地补全。这就像先把路修通，才能跑车。</p>
+<h3 id="2">2. 榨干性能：\"一对一\"的游戏特调<a class="headerlink" href="#2" title="Permanent link">&para;</a></h3>
+<p>消费级显卡的游戏性能很大程度上取决于驱动对具体游戏的\"特别优化\"。NVIDIA 的 Game Ready 驱动就是这一模式的极致体现：</p>
+<blockquote>
+<p>截至 2022 年，一个 Game Ready 驱动就包含超过 <strong>2500 万行代码</strong>，复杂程度堪比战斗机的飞行控制系统。</p>
+</blockquote>
+<p>为什么强如 NVIDIA 也需要对游戏专门优化？</p>
+<ul>
+<li><strong>GPU 驱动是极度复杂的\"翻译官\"</strong>：游戏引擎和 GPU 硬件之间不是直接对话的。游戏开发者对图形 API 规则的诠释方式各有不同，这些细微差异都可能对性能造成巨大影响。</li>
+<li><strong>每款游戏都是独特的\"黑盒\"</strong>：新技术（光线追踪、DLSS）不断涌现，驱动需要理解、适配并优化。</li>
+<li><strong>NVIDIA 的做法</strong>：在整个开发过程中与游戏开发者紧密合作，提前拿到游戏的 Pre-release Build，同步进行驱动的调优和漏洞修复。</li>
+</ul>
+<p>国内 GPU 厂商的优化模式更艰难——由于没有游戏开发商主动适配，驱动团队只能通过\"逆向分析\"游戏渲染方式，逐个修复 Bug、优化编译效率。</p>
+<h3 id="3">3. 横向扩展：平台兼容性<a class="headerlink" href="#3" title="Permanent link">&para;</a></h3>
+<p>GPU 要和成千上万种 CPU、主板、显示器配合工作。老的平台可能没有 Resizable BAR 功能，新的应用可能需要 FFmpeg 的 Vulkan 视频编解码支持。驱动需要不断去适配和解决这些平台兼容性问题。</p>
+<h3 id="4-ai">4. AI 模型演进驱动的持续优化<a class="headerlink" href="#4-ai" title="Permanent link">&para;</a></h3>
+<p>这是 Post-Silicon 时代一个越来越重要的驱动更新驱动力。</p>
+<p>不同于游戏——游戏逻辑和渲染方式在发布后相对固定——<strong>AI 模型的进化速度极快</strong>。每一代新模型（从 Transformer 到 MoE 到 Mamba）都可能引入新的算子形态、新的计算模式：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">AI 模型演进</th>
+<th style="text-align: left;">对驱动的挑战</th>
+<th style="text-align: left;">优化方向</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Transformer → LLM</td>
+<td style="text-align: left;">长序列 Attention 计算</td>
+<td style="text-align: left;">Kernel Launch 调度优化、显存管理</td>
+</tr>
+<tr>
+<td style="text-align: left;">MoE (Mixture of Experts)</td>
+<td style="text-align: left;">稀疏激活、动态路由</td>
+<td style="text-align: left;">动态任务调度、显存碎片管理</td>
+</tr>
+<tr>
+<td style="text-align: left;">多模态模型</td>
+<td style="text-align: left;">跨模态对齐、大分辨率输入</td>
+<td style="text-align: left;">纹理采样与张量计算的混合调度</td>
+</tr>
+<tr>
+<td style="text-align: left;">Structured State Space</td>
+<td style="text-align: left;">新形态的扫描/卷积算子</td>
+<td style="text-align: left;">指令集适配、编译器后端扩展</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>关键洞察</strong>：AI 模型的\"迭代速度\"远超过游戏引擎的更新速度——这意味着 compute driver 需要面对比 graphics driver 更频繁的\"新工作负载\"冲击。</p>
+</blockquote>
+<h2 id="graphics-driver-vs-compute-driver-post-silicon">Graphics Driver vs Compute Driver：不同的 Post-Silicon 优化模式<a class="headerlink" href="#graphics-driver-vs-compute-driver-post-silicon" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">维度</th>
+<th style="text-align: left;">图形驱动优化</th>
+<th style="text-align: left;">计算驱动优化</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>驱动力量</strong></td>
+<td style="text-align: left;">游戏帧率是用户最直接的感知</td>
+<td style="text-align: left;">模型吞吐/延迟是用户最直接的感知</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>优化目标</strong></td>
+<td style="text-align: left;">减少 Draw Call 开销、纹理采样优化、状态切换</td>
+<td style="text-align: left;">Kernel Launch 延迟、显存带宽利用率、计算吞吐</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>工作负载特征</strong></td>
+<td style="text-align: left;">多样化、不可预测（游戏场景随机切换）</td>
+<td style="text-align: left;">可预测、固定计算图（模型结构固定）</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>优化手段</strong></td>
+<td style="text-align: left;">游戏特调、Shader 编译缓存、状态合并</td>
+<td style="text-align: left;">CUDA Graph 录放、算子融合、显存池优化</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>更新频率</strong></td>
+<td style="text-align: left;">每款新游戏发布需要对应优化</td>
+<td style="text-align: left;">每个新模型架构发布可能需要适配</td>
+</tr>
+</tbody>
+</table>
+<p>但两者也在<strong>快速收敛</strong>——随着 AI 推理开始使用 GPU Driven Pipeline、RT Core 开始加速 AI 场景（如神经渲染），图形驱动和计算驱动的优化边界正在模糊。</p>
+<h2 id="_2">总结<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<pre><code>Pre-Silicon（流片前）
+    │
+    ├── 软件仿真 ── 功能验证（\&quot;离线渲染\&quot;）
+    ├── FPGA原型 ── 性能验证（\&quot;实时预览\&quot;）
+    └── 虚拟原型 ── 软硬件协同设计
+    │
+    ▼ 流片 (Tape Out)
+    │
+Post-Silicon（流片后）
+    │
+    ├── 功能补全 ── API 兼容性（DX9→DX11→DX12）
+    ├── 性能优化 ── 游戏特调 / 模型适配
+    ├── 平台适配 ── CPU/主板/显示器兼容性
+    └── 持续迭代 ── 新游戏、新模型、新 API
+</code></pre>
+<p>驱动开发本身就是\"硬件固定，软件长跑\"的领域。每一行驱动的代码，都是在给芯片\"注入灵魂\"，这项工作远比硬件设计本身更考验耐心和工程能力。</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../10.1-umd_kmd_driver_stack/" class="btn btn-neutral float-left" title="10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../10.3-compiler_ptx_sass/" class="btn btn-neutral float-right" title="10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../10.1-umd_kmd_driver_stack/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../10.3-compiler_ptx_sass/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

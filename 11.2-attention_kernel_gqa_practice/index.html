@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="zh_CN" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>11.2 Attention Kernel: QK、Softmax、PV 与 GQA - GPU 图形与 AI 推理知识手册</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "11.2 Attention Kernel: QK\u3001Softmax\u3001PV \u4e0e GQA";
+        var mkdocs_page_input_path = "11.2-attention_kernel_gqa_practice.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GPU 图形与 AI 推理知识手册
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">首页</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">1. 图形渲染管线与 GPU 硬件基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.1-graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.2-render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.3-gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.4-graphics_passes_and_sync/">1.4 图形管线中的 Pass 与同步 (RenderPass, Barrier)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">2. GPU 并发模型与系统思维</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.1-cpu_gpu_async_pipeline/">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.2-command_buffer_ring_buffer/">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.3-multithreaded_rendering_and_pools/">2.3 多线程渲染与资源池管理</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.4-graphics_to_ai_first_principles/">2.4 从图形管线到 AI 推理的第一性原理映射</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">3. AI 模型与算子基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.1-model_structures_inference_view/">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.2-operator_taxonomy/">3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.3-convolution_math_implementation/">3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">4. AI 推理优化核心策略</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.1-operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.2-tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.3-async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.4-memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.1-thread_block_grid_mapping/">5.1 线程模型 (Thread, Block, Grid) 与映射</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.2-explicit_memory_shared_vs_cache/">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.3-warp_simd_simt_divergence/">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.4-synchronization_primitives/">5.4 同步原语: __syncthreads, __syncwarp, 内存屏障</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.5-warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.6-atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.1-reduce_tree_implementation/">6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.2-scan_stream_compaction/">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.3-radix_sort_as_stream_compaction/">6.3 基数排序 (Radix Sort) = 逐位流压缩</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.4-flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../7-llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../8-vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.1-tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.2-rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.3-computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.1-umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.2-driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.3-compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.4-graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../11.1-nano_vllm_from_scratch/">11.1 读 Nano-vLLM 源码: 一个推理引擎怎么组装起来</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#_1">这篇要带你走到哪</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#decode-attention">一、先搞清楚：Decode Attention 到底卡在哪</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1">1. 算一笔账</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2">2. 这笔账有多大</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_2">二、把公式手推一遍</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1_1">1. 三步走</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2_1">2. 为什么必须先减最大值</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#cpu-reference">三、CPU Reference：你唯一的真理来源</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#bug">测试用例：每一个都在抓一类特定的 Bug</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#gqa-kernel">四、GQA：先看它省了什么，再看它给 Kernel 带来什么</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1_2">1. 从显存账切入</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-head">2. Head 映射</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-gqa-kernel">3. GQA 给 Kernel 的机会（和陷阱）</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#kernel">五、先写三 Kernel 基线（真的别跳过）</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#kernel-aqk">Kernel A：QK</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#kernel-brow-wise-softmax">Kernel B：Row-wise Softmax</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#kernel-cpv">Kernel C：PV</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_3">基线要验收什么</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#row-max-qk">六、融合第一步：把 Row Max 吃进 QK</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#online-softmax">七、融合第二步：Online Softmax（本篇核心）</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1_3">1. 死结在哪</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-alpha">2. 推导 \(\alpha\)</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3">3. 三个容易被忽略的性质</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4">4. 落到代码</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#5">5. 融合不是越彻底越好</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_4">八、让搬运藏在计算后面</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#shape">九、Shape 特化：什么时候值得，什么时候是负担</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_5">十、怎么证明你做对了</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1_4">1. 正确性</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2_2">2. 性能：数字必须绑定上下文</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3_1">3. 验收清单</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_6">十一、如果只记住一句话</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.3-paged_attention_continuous_batching/">11.3 PagedAttention 与 Continuous Batching: 从 PyTorch 到 CUDA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.4-kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.5-inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.6-paged_attention_dx12_tensorrt_backend/">11.6 进阶: 把分页契约搬到 DX12 与 TensorRT 后端</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.1-career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.2-resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.3-knowledge_checklist/">A.3 关键知识点自检清单</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GPU 图形与 AI 推理知识手册</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">11. 推理引擎与算子实战</li>
+      <li class="breadcrumb-item active">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="112-attention-kernel-qksoftmaxpv-gqa">11.2 Attention Kernel 实战：QK、Softmax、PV 与 GQA<a class="headerlink" href="#112-attention-kernel-qksoftmaxpv-gqa" title="Permanent link">&para;</a></h1>
+<h2 id="_1">这篇要带你走到哪<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>如果你已经知道 Attention 的公式，也知道 FlashAttention「很快」，但一直没搞明白：</p>
+<ul>
+<li>为什么 Decode 阶段的 Attention 值得单独写一个 Kernel，用 cuBLAS 拼三步不行吗？</li>
+<li>Online Softmax 里那个 <span class="arithmatex">\(\alpha\)</span> 校正因子到底是从哪冒出来的？</li>
+<li>GQA 说「省显存」，到底省了多少？它对 Kernel 写法有什么影响？</li>
+<li>融合是不是越彻底越好？</li>
+</ul>
+<p>那这篇就是写给你的。我们从一个 Head 的标量公式出发，一路推到融合 Kernel，中间每加一个机制，都先回答「不加会怎样」。</p>
+<p>全篇聚焦 <strong>Decode</strong>：每条序列只有 1 个 Query Token，历史 K/V 全部来自 KV Cache。Prefill（一次进来几千个 Token）请直接用成熟的 FlashAttention 后端 —— 后面会讲为什么 Decode 特化的 Kernel 不能硬套到大 Query Length 上。</p>
+<hr />
+<h2 id="decode-attention">一、先搞清楚：Decode Attention 到底卡在哪<a class="headerlink" href="#decode-attention" title="Permanent link">&para;</a></h2>
+<p>在写任何一行 Kernel 之前，先做一件事：<strong>判断这个算子是算力受限还是访存受限</strong>。判错了，后面所有优化都会用错力气。</p>
+<h3 id="1">1. 算一笔账<a class="headerlink" href="#1" title="Permanent link">&para;</a></h3>
+<p>Decode 一个 Token 时，对每个 Query Head，我们要做的事是：</p>
+<ul>
+<li>拿 1 个长度为 <span class="arithmatex">\(D\)</span> 的向量 <span class="arithmatex">\(q\)</span>；</li>
+<li>和 KV Cache 里 <span class="arithmatex">\(T\)</span> 行的 <span class="arithmatex">\(k_t\)</span> 各做一次点积；</li>
+<li>再和 <span class="arithmatex">\(T\)</span> 行的 <span class="arithmatex">\(v_t\)</span> 做一次加权求和。</li>
+</ul>
+<p>关键在于：<strong>每个 K/V 元素只被用一次</strong>。读进来一个 <code>half</code>（2 字节），做一次乘加（2 FLOP），然后就再也不用它了。</p>
+<div class="arithmatex">\[
+\text{算术强度} \approx \frac{2\ \text{FLOP}}{2\ \text{Byte}} = 1\ \text{FLOP/Byte}
+\]</div>
+<p>拿 A100 对照：HBM 带宽约 2039 GB/s，FP16 Tensor Core 算力约 312 TFLOPS。它的 Roofline 拐点是</p>
+<div class="arithmatex">\[
+\frac{312 \times 10^{12}}{2039 \times 10^{9}} \approx 153\ \text{FLOP/Byte}
+\]</div>
+<p>我们在 1，拐点在 153。<strong>差了两个数量级。</strong></p>
+<p>结论很硬：Decode Attention 是彻头彻尾的访存受限算子。这一篇后面所有的优化 —— 融合、Online Softmax、双缓冲、GQA 复用 —— 目标只有一个：<strong>少搬字节，别让 SM 干等 HBM</strong>。任何「我把 FLOP 减少了 30%」的优化在这里都是零收益。</p>
+<h3 id="2">2. 这笔账有多大<a class="headerlink" href="#2" title="Permanent link">&para;</a></h3>
+<p>具体感受一下规模。假设一个 8B 级别的模型：36 层，<span class="arithmatex">\(H_q=32\)</span>，<span class="arithmatex">\(H_{kv}=8\)</span>，<span class="arithmatex">\(D=128\)</span>，FP16 KV Cache，服务 32 条并发序列、每条上下文 4096 Token。</p>
+<p>单层单步要读的 KV 字节数：</p>
+<div class="arithmatex">\[
+B \times H_{kv} \times T \times D \times \underbrace{2}_{K \text{ 和 } V} \times \underbrace{2}_{\text{FP16}}
+= 32 \times 8 \times 4096 \times 128 \times 2 \times 2 = 512\ \text{MiB}
+\]</div>
+<p>乘 36 层 = <strong>每生成一个 Token，光读 KV Cache 就要搬 18 GiB</strong>。在 A100 上打满带宽也要约 9.5 ms —— 这还没算模型权重。</p>
+<p>这就是为什么 KV Cache 是 LLM 服务的头号瓶颈，也是为什么 GQA 和 PagedAttention 这两个东西会同时出现在每一个现代推理框架里。</p>
+<hr />
+<h2 id="_2">二、把公式手推一遍<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<h3 id="1_1">1. 三步走<a class="headerlink" href="#1_1" title="Permanent link">&para;</a></h3>
+<p>对一个 Query Head，设：</p>
+<ul>
+<li><span class="arithmatex">\(q \in \mathbb{R}^{D}\)</span>，当前 Token 的 Query 向量；</li>
+<li><span class="arithmatex">\(K, V \in \mathbb{R}^{T \times D}\)</span>，来自 KV Cache 的历史；</li>
+<li><span class="arithmatex">\(D\)</span> 是 Head Size（常见 64/80/128）；</li>
+<li><span class="arithmatex">\(T\)</span> 是 Context Length。</li>
+</ul>
+<p><strong>第一步，算 Score（QK）</strong>：</p>
+<div class="arithmatex">\[
+s_t = \frac{q \cdot k_t}{\sqrt{D}}
+\]</div>
+<p><strong>为什么要除 <span class="arithmatex">\(\sqrt{D}\)</span>？</strong> 因为 <span class="arithmatex">\(q \cdot k_t\)</span> 是 <span class="arithmatex">\(D\)</span> 项的和。如果各分量近似独立、方差为 1，那么点积的方差就是 <span class="arithmatex">\(D\)</span>，标准差是 <span class="arithmatex">\(\sqrt{D}\)</span>。<span class="arithmatex">\(D=128\)</span> 时，Score 的典型量级就被放大到 <span class="arithmatex">\(\pm 11\)</span> 左右。这么大的输入喂给 Softmax，指数会把差距极度放大，输出几乎变成 One-hot，数值也不好看。除以 <span class="arithmatex">\(\sqrt{D}\)</span> 把方差拉回 1，是个纯粹的量纲修正。</p>
+<p><strong>第二步，Softmax</strong>：</p>
+<div class="arithmatex">\[
+m = \max_t s_t, \qquad p_t = \frac{e^{s_t - m}}{\sum_j e^{s_j - m}}
+\]</div>
+<p><strong>第三步，加权求和（PV）</strong>：</p>
+<div class="arithmatex">\[
+o_d = \sum_{t=0}^{T-1} p_t\, v_{t,d}
+\]</div>
+<p>数据流长这样：</p>
+<pre><code class="language-mermaid">flowchart LR
+    Q[&quot;Q: D&quot;] --&gt; DOT[&quot;QK Dot&quot;]
+    K[&quot;K: T x D&quot;] --&gt; DOT
+    DOT --&gt; SCORE[&quot;Scores: T&quot;]
+    SCORE --&gt; MAX[&quot;Row Max&quot;]
+    MAX --&gt; EXP[&quot;Exp + Row Sum&quot;]
+    EXP --&gt; PROB[&quot;Probabilities: T&quot;]
+    PROB --&gt; PV[&quot;PV Reduction&quot;]
+    V[&quot;V: T x D&quot;] --&gt; PV
+    PV --&gt; O[&quot;Output: D&quot;]
+</code></pre>
+<p>图里那两个中间态 —— <code>Scores[T]</code> 和 <code>Probabilities[T]</code> —— 是这篇文章的主角。<strong>朴素实现会把它们写回 HBM 再读回来；融合的全部意义就是让它们死在片上。</strong> 记住这条主线，后面每一步都是它的展开。</p>
+<h3 id="2_1">2. 为什么必须先减最大值<a class="headerlink" href="#2_1" title="Permanent link">&para;</a></h3>
+<p>课本上写「减去最大值是为了数值稳定」，但不给数字，读者只能当口诀背。我们来算一次。</p>
+<p><span class="arithmatex">\(e^x\)</span> 溢出的临界点，就是 <span class="arithmatex">\(x = \ln(\text{该精度的最大可表示值})\)</span>：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">精度</th>
+<th style="text-align: right;">最大可表示值</th>
+<th style="text-align: right;"><span class="arithmatex">\(e^x\)</span> 溢出临界 <span class="arithmatex">\(x\)</span></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">FP32</td>
+<td style="text-align: right;"><span class="arithmatex">\(3.40 \times 10^{38}\)</span></td>
+<td style="text-align: right;"><strong>88.7</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">FP16</td>
+<td style="text-align: right;"><span class="arithmatex">\(65504\)</span></td>
+<td style="text-align: right;"><strong>11.1</strong></td>
+</tr>
+</tbody>
+</table>
+<p>FP32 的 88.7 看起来很安全 —— 训练好的模型 Logit 一般到不了 90。但注意 FP16 那一行：<strong>只要有一个 Score 超过 11.1，<code>exp</code> 出来就是 <code>inf</code></strong>。而我们刚才算过，<span class="arithmatex">\(D=128\)</span> 时 Score 的典型标准差就在 11 附近。也就是说，不减最大值、又用 FP16 存中间结果，溢出不是小概率事件，是<strong>日常事件</strong>。</p>
+<p>一旦某个 <span class="arithmatex">\(e^{s_t}\)</span> 变成 <code>inf</code>：</p>
+<ol>
+<li>分母 <span class="arithmatex">\(\sum_j e^{s_j}\)</span> 也是 <code>inf</code>；</li>
+<li>那一项算出 <code>inf / inf</code> = <strong><code>NaN</code></strong>；</li>
+<li><code>NaN</code> 乘任何 <span class="arithmatex">\(v\)</span> 还是 <code>NaN</code>，累加进输出，整个 Head 的输出全废；</li>
+<li>下一层继续传播，最后你看到模型输出一堆乱码，却完全定位不到是哪一层坏的。</li>
+</ol>
+<p>减掉最大值之后：</p>
+<ul>
+<li>最大的那一项变成 <span class="arithmatex">\(e^0 = 1\)</span>，<strong>不可能溢出</strong>；</li>
+<li>其他项都是 <span class="arithmatex">\(e^{\text{负数}}\)</span>，落在 <span class="arithmatex">\((0, 1]\)</span>，最差是下溢成 0 —— 下溢只是丢掉一个本来就微不足道的权重，无害；</li>
+<li>分母至少包含那个 1，所以<strong>分母恒 <span class="arithmatex">\(\ge 1\)</span>，不可能除零</strong>。</li>
+</ul>
+<p>而且这个保险是<strong>免费</strong>的。因为分子分母同乘了 <span class="arithmatex">\(e^{-m}\)</span>：</p>
+<div class="arithmatex">\[
+\frac{e^{s_t - m}}{\sum_j e^{s_j - m}} = \frac{e^{-m} \cdot e^{s_t}}{e^{-m} \cdot \sum_j e^{s_j}} = \frac{e^{s_t}}{\sum_j e^{s_j}}
+\]</div>
+<p>和原公式<strong>完全等价</strong>，不是近似。所以业界不存在「要不要减 Max」的讨论 —— 只有「怎么在只扫一遍数据的前提下拿到 Max」的讨论。这正好引出第七节的 Online Softmax。</p>
+<hr />
+<h2 id="cpu-reference">三、CPU Reference：你唯一的真理来源<a class="headerlink" href="#cpu-reference" title="Permanent link">&para;</a></h2>
+<p>写 GPU Kernel 时最痛苦的场景不是「慢」，是「结果不对，但不知道哪一步不对」。解法是先写一份慢到离谱但绝对正确的 CPU 版本。</p>
+<pre><code class="language-cpp">void attention_ref(
+    const float* q,
+    const float* k,
+    const float* v,
+    float* out,
+    int context_len,
+    int head_size)
+{
+    std::vector&lt;float&gt; scores(context_len);
+    const float scale = 1.0f / std::sqrt(static_cast&lt;float&gt;(head_size));
+
+    // ---- 第一步：QK，顺便记录 row max ----
+    float row_max = -std::numeric_limits&lt;float&gt;::infinity();
+    for (int t = 0; t &lt; context_len; ++t) {
+        float dot = 0.0f;
+        for (int d = 0; d &lt; head_size; ++d)
+            dot += q[d] * k[t * head_size + d];
+        scores[t] = dot * scale;
+        row_max = std::max(row_max, scores[t]);
+    }
+
+    // ---- 第二步：减 max、取指数、求和 ----
+    float denominator = 0.0f;
+    for (float&amp; score : scores) {
+        score = std::exp(score - row_max);   // 原地覆盖成未归一化权重
+        denominator += score;
+    }
+
+    // ---- 第三步：PV 加权求和 ----
+    std::fill(out, out + head_size, 0.0f);
+    for (int t = 0; t &lt; context_len; ++t) {
+        const float probability = scores[t] / denominator;
+        for (int d = 0; d &lt; head_size; ++d)
+            out[d] += probability * v[t * head_size + d];
+    }
+}
+</code></pre>
+<p><strong>这份代码有三个刻意的选择，都不是随手写的：</strong></p>
+<ol>
+<li>
+<p><strong>全程 FP32，哪怕 GPU 上跑的是 FP16。</strong> Reference 的职责是给出「数学上的正确答案」，让 GPU 版本有个基准去比对误差。如果 Reference 也用 FP16，你就分不清误差是来自精度还是来自 Bug。</p>
+</li>
+<li>
+<p><strong>结构完全照抄数学定义，不做任何优化。</strong> 不要在 Reference 里写 Online Softmax，也不要分块。一旦 Reference 和 GPU 版本用了同一套「聪明」结构，同一个逻辑错误会在两边同时出现，比对就永远通过 —— 这是最危险的假阳性。Reference 要笨，笨到一眼能看出它就是公式本身。</p>
+</li>
+<li>
+<p><strong><code>scores</code> 数组被原地复用了三次</strong>（先存 Score、再存 <span class="arithmatex">\(e^{s-m}\)</span>、最后除以分母）。这在 Reference 里可以，因为它只求可读；但正是这个「必须留着一整个 <code>[T]</code> 数组」的特征，是 GPU 上要干掉的东西。</p>
+</li>
+</ol>
+<h3 id="bug">测试用例：每一个都在抓一类特定的 Bug<a class="headerlink" href="#bug" title="Permanent link">&para;</a></h3>
+<p>别把测试写成「跑一遍随机数据」。下面每一条都对应一个真实会犯的错：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">用例</th>
+<th style="text-align: left;">它专门抓什么 Bug</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><span class="arithmatex">\(T = 1\)</span></td>
+<td style="text-align: left;">只有一个 Token 时输出必须精确等于 <span class="arithmatex">\(v_0\)</span>。抓「分母算错」「Max 初值写成 0 而不是 <span class="arithmatex">\(-\infty\)</span>」</td>
+</tr>
+<tr>
+<td style="text-align: left;"><span class="arithmatex">\(T\)</span> 不是 2 的幂（如 4095）</td>
+<td style="text-align: left;">抓 Tile 尾部越界、归约树补零补错</td>
+</tr>
+<tr>
+<td style="text-align: left;"><span class="arithmatex">\(T\)</span> = 最大 Context Length</td>
+<td style="text-align: left;">抓索引整型溢出、Shared Memory 超限</td>
+</tr>
+<tr>
+<td style="text-align: left;">随机极大 Logit（人为塞 <span class="arithmatex">\(s=100\)</span>）</td>
+<td style="text-align: left;">抓有没有真的减 Max。不减的话这里必出 <code>inf</code>/<code>NaN</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">全部 Score 相等</td>
+<td style="text-align: left;">输出应是所有 <span class="arithmatex">\(v_t\)</span> 的均值。抓 Max/Sum 归约的对称性错误</td>
+</tr>
+<tr>
+<td style="text-align: left;">FP16/BF16 输入 vs FP32 Reference</td>
+<td style="text-align: left;">确立误差阈值基线，后面所有优化都跟这个阈值比</td>
+</tr>
+</tbody>
+</table>
+<p>误差判据要同时看 <code>max_abs</code> 和 <code>max_rel</code> —— 只看平均误差，会让个别彻底错掉的元素被淹没在几千个正确元素里。</p>
+<hr />
+<h2 id="gqa-kernel">四、GQA：先看它省了什么，再看它给 Kernel 带来什么<a class="headerlink" href="#gqa-kernel" title="Permanent link">&para;</a></h2>
+<h3 id="1_2">1. 从显存账切入<a class="headerlink" href="#1_2" title="Permanent link">&para;</a></h3>
+<p>MHA（Multi-Head Attention）里 Q、K、V 的 Head 数相同。GQA（Grouped-Query Attention）让<strong>多个 Query Head 共享同一个 KV Head</strong>。</p>
+<p>回到第一节那个模型：36 层、<span class="arithmatex">\(D=128\)</span>、FP16、<span class="arithmatex">\(H_q = 32\)</span>。</p>
+<p>每个 Token 每层的 KV Cache 字节数 = <span class="arithmatex">\(2 \times H_{kv} \times D \times 2\)</span>：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">方案</th>
+<th style="text-align: right;"><span class="arithmatex">\(H_{kv}\)</span></th>
+<th style="text-align: right;">每 Token 每层</th>
+<th style="text-align: right;">每 Token 全模型</th>
+<th style="text-align: right;">32 序列 × 4096 上下文</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">MHA</td>
+<td style="text-align: right;">32</td>
+<td style="text-align: right;">16 KiB</td>
+<td style="text-align: right;">576 KiB</td>
+<td style="text-align: right;"><strong>72 GiB</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">GQA (group=4)</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">4 KiB</td>
+<td style="text-align: right;">144 KiB</td>
+<td style="text-align: right;"><strong>18 GiB</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">MQA</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">0.5 KiB</td>
+<td style="text-align: right;">18 KiB</td>
+<td style="text-align: right;">2.25 GiB</td>
+</tr>
+</tbody>
+</table>
+<p>72 GiB —— 一张 80GB A100 装不下模型权重之外的这堆缓存。<strong>GQA 不是「优化」，是让这个 Batch 能跑起来的前提。</strong></p>
+<p>不过要说清楚边界：这个 4× 是 <strong>KV Head 维度上的理论缩减</strong>。实际显存还包含 Block Padding、Allocator 元数据、对齐开销和其他模型状态，所以不能说「整个推理显存缩到四分之一」。说「KV Cache 这一项是 4×」才准确。</p>
+<h3 id="2-head">2. Head 映射<a class="headerlink" href="#2-head" title="Permanent link">&para;</a></h3>
+<p>记 <span class="arithmatex">\(G\)</span> 为组大小、<span class="arithmatex">\(h\)</span> 为 Query Head 编号：</p>
+<div class="arithmatex">\[
+G = \frac{H_q}{H_{kv}}, \qquad
+\text{kvHead}(h) = \left\lfloor \frac{h}{G} \right\rfloor
+\]</div>
+<p>例如 <span class="arithmatex">\(H_q=16\)</span>、<span class="arithmatex">\(H_{kv}=2\)</span>，每 8 个 Query Head 共用一个 KV Head：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Query Head</th>
+<th style="text-align: left;">KV Head</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">0 – 7</td>
+<td style="text-align: left;">0</td>
+</tr>
+<tr>
+<td style="text-align: left;">8 – 15</td>
+<td style="text-align: left;">1</td>
+</tr>
+</tbody>
+</table>
+<p>映射本身只有一行整数除法。<strong>真正需要动脑的是：既然同组的 Query Head 读的是同一份 K/V，我们能不能只读一次？</strong></p>
+<h3 id="3-gqa-kernel">3. GQA 给 Kernel 的机会（和陷阱）<a class="headerlink" href="#3-gqa-kernel" title="Permanent link">&para;</a></h3>
+<p>回到第一节的结论：这是个访存受限算子。如果 4 个 Query Head 各自去读同一份 K/V，那<strong>同样的字节被搬了 4 遍</strong>，算术强度还是 1；如果让一个 CTA 同时处理这 4 个 Head，K/V Tile 读一次用 4 次，算术强度就变成 4。</p>
+<p>在一个访存受限的算子里，把有效带宽利用率翻 4 倍，这是免费午餐里最大的一块。</p>
+<p>但代价是片上资源：一个 CTA 现在要同时持有 4 个 Head 的 <span class="arithmatex">\(q\)</span>、4 份运行状态（<span class="arithmatex">\(m\)</span>、<span class="arithmatex">\(l\)</span>、<span class="arithmatex">\(o\)</span>）。<span class="arithmatex">\(o\)</span> 是 <span class="arithmatex">\(D\)</span> 维的，4 个 Head 就是 <span class="arithmatex">\(4 \times 128 = 512\)</span> 个 FP32 累加器，分摊到 128 个线程是每线程 4 个 —— 还行；但如果 <span class="arithmatex">\(G = 8\)</span>、<span class="arithmatex">\(D = 256\)</span>，就顶不住了，编译器会 Spill 到 Local Memory（其实就是 HBM），性能直接崩盘。</p>
+<p>所以三种映射各有适用区间：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">CTA 映射</th>
+<th style="text-align: left;">优点</th>
+<th style="text-align: left;">风险</th>
+<th style="text-align: left;">什么时候选</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">一个 CTA = 一个 Q Head</td>
+<td style="text-align: left;">实现简单，CTA 数量多，Occupancy 好</td>
+<td style="text-align: left;">同组 KV 被重复读，只能指望 L2 Cache 兜底</td>
+<td style="text-align: left;"><span class="arithmatex">\(G\)</span> 小，或 Batch 很大、CTA 已经足够多</td>
+</tr>
+<tr>
+<td style="text-align: left;">一个 CTA = 一整组 Q Head</td>
+<td style="text-align: left;">KV Tile 显式复用，带宽利用率 × <span class="arithmatex">\(G\)</span></td>
+<td style="text-align: left;">寄存器 / SMem 压力最大，CTA 数量少可能喂不饱 SM</td>
+<td style="text-align: left;"><span class="arithmatex">\(G\)</span> 适中（2–4）、<span class="arithmatex">\(D \le 128\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;">一个 CTA = 组内部分 Q Head</td>
+<td style="text-align: left;">在复用和 Occupancy 之间折中</td>
+<td style="text-align: left;">需要为每种 Shape 调参</td>
+<td style="text-align: left;">热点 Shape 固定，值得特化</td>
+</tr>
+</tbody>
+</table>
+<p>注意第一行那句「只能指望 L2 兜底」：L2 确实可能帮你命中，但那是<strong>被动的、不可控的</strong>。当 Batch 大、KV 总量远超 L2（A100 是 40 MB）时，重复读就是实打实的 HBM 流量。<strong>能显式复用就别赌 Cache</strong> —— 这条原则在图形里也一样，你不会指望纹理 Cache 帮你省掉一次本可以合并的采样。</p>
+<hr />
+<h2 id="kernel">五、先写三 Kernel 基线（真的别跳过）<a class="headerlink" href="#kernel" title="Permanent link">&para;</a></h2>
+<p>融合 Kernel 一旦写错，症状是「最终输出偏了一点点」，而错误可能在 QK、可能在 Max、可能在 <span class="arithmatex">\(\alpha\)</span> 校正、可能在 PV 累加。四个嫌疑人，没有目击证人。</p>
+<p>三 Kernel 基线的价值就是<strong>制造目击证人</strong>：每一步的中间结果都在显存里躺着，可以逐个和 CPU Reference 对。</p>
+<h3 id="kernel-aqk">Kernel A：QK<a class="headerlink" href="#kernel-aqk" title="Permanent link">&para;</a></h3>
+<p>Grid 按 <code>[context_tile, q_head, batch]</code> 组织，每个 CTA 负责一个 Q Head 的一段 K：</p>
+<pre><code class="language-cpp">// 伪 CUDA，只表达线程映射，省略了边界检查
+__global__ void qk_kernel(
+    const half* q, const half* k, float* scores,
+    int context_len, int head_size)
+{
+    int token  = blockIdx.x;   // 这个 CTA 负责第几个 K token
+    int q_head = blockIdx.y;
+
+    // 每个线程沿 D 维跨步累加自己那一份
+    float partial = 0.0f;
+    for (int d = threadIdx.x; d &lt; head_size; d += blockDim.x)
+        partial += __half2float(q[q_head * head_size + d])
+                 * __half2float(k[(token * num_kv_heads + kv_head(q_head)) * head_size + d]);
+
+    // CTA 内归约，把 D 维的分片和加起来
+    float dot = block_reduce_sum(partial);
+
+    if (threadIdx.x == 0)
+        scores[q_head * context_len + token] = dot * rsqrtf(float(head_size));
+}
+</code></pre>
+<p>几个值得停下来看的点：</p>
+<ul>
+<li><strong>累加器是 <code>float</code>，输入是 <code>half</code>。</strong> 这是所有 GPU 归约的标配：输入用低精度省带宽，累加用高精度防误差堆积。<span class="arithmatex">\(D=128\)</span> 项相加，FP16 累加的相对误差会肉眼可见。</li>
+<li><strong><code>kv_head(q_head)</code> 就是 GQA 的那行整数除法</strong>，它决定了访存地址 —— 这一个函数就是 MHA / GQA / MQA 的全部区别。</li>
+<li><strong><code>for (d = threadIdx.x; d &lt; head_size; d += blockDim.x)</code></strong> 这个跨步循环保证相邻线程读相邻地址，即访存合并（Coalescing）。如果写成 <code>d = threadIdx.x * items_per_thread</code> 让每个线程读一段连续区间，反而<strong>破坏</strong>合并 —— 这是新手最常踩的坑。</li>
+</ul>
+<h3 id="kernel-brow-wise-softmax">Kernel B：Row-wise Softmax<a class="headerlink" href="#kernel-brow-wise-softmax" title="Permanent link">&para;</a></h3>
+<p>每个 CTA 处理一行 Score（长度 <span class="arithmatex">\(T\)</span>）：先归约求 Max，<code>__syncthreads()</code>，再归约求 <span class="arithmatex">\(\sum e^{s-m}\)</span>。</p>
+<p>两次归约、一次同步，绕不开 —— 因为<strong>要减的 Max 必须在看完整行之后才知道</strong>。这个「必须扫两遍」正是第七节要破的局。</p>
+<h3 id="kernel-cpv">Kernel C：PV<a class="headerlink" href="#kernel-cpv" title="Permanent link">&para;</a></h3>
+<p>每个 CTA 处理一个输出 Head，沿 Context 维归约 <span class="arithmatex">\(p_t \cdot v_t\)</span>。输出的 <span class="arithmatex">\(D\)</span> 维映射到 Warp Lane：Lane <span class="arithmatex">\(d\)</span> 负责累加 <span class="arithmatex">\(o_d\)</span>，这样每个线程持有一个独立累加器，不需要跨线程归约，只需要沿 <span class="arithmatex">\(T\)</span> 循环。</p>
+<h3 id="_3">基线要验收什么<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
+<p>跑完三个 Kernel，逐个拷回来和 CPU Reference 比：</p>
+<ul>
+<li><code>scores</code> 对不上 → 问题在 QK 的映射或 GQA 索引；</li>
+<li><code>scores</code> 对、<code>probs</code> 不对 → 问题在 Softmax 的归约或减 Max；</li>
+<li>前两个都对、<code>out</code> 不对 → 问题在 PV 的累加或 <span class="arithmatex">\(D\)</span> 维映射。</li>
+</ul>
+<p><strong>三次比对把四个嫌疑人筛成一个。</strong> 这半小时省下的是后面三天的调试。</p>
+<hr />
+<h2 id="row-max-qk">六、融合第一步：把 Row Max 吃进 QK<a class="headerlink" href="#row-max-qk" title="Permanent link">&para;</a></h2>
+<p>三 Kernel 版本里，Kernel A 刚刚算完每个 Score，转手就把它写回显存；Kernel B 再把整行读回来只为了找最大值。这一读一写完全是浪费 —— <strong>Max 完全可以在 Score 产生的那一刻顺手更新</strong>。</p>
+<pre><code class="language-text">running_max = -inf
+for each KV tile:
+    scores_tile = Q dot K_tile
+    running_max = max(running_max, max(scores_tile))
+</code></pre>
+<p>代价是零：<code>max</code> 是一条指令，而且 Score 本来就在寄存器里。</p>
+<p>但要诚实地说清楚这一步的收益边界：<strong>如果你仍然把完整的 Score 写回显存</strong>，那这只是省掉了 Kernel B 的一次读遍历（约 <span class="arithmatex">\(T \times 4\)</span> 字节）外加一次 Kernel Launch。有收益，但不大。</p>
+<p>真正的大头在下一节：如果连 Score 都不必形成全局 Buffer，那这一整条数据通路都消失了。</p>
+<hr />
+<h2 id="online-softmax">七、融合第二步：Online Softmax（本篇核心）<a class="headerlink" href="#online-softmax" title="Permanent link">&para;</a></h2>
+<h3 id="1_3">1. 死结在哪<a class="headerlink" href="#1_3" title="Permanent link">&para;</a></h3>
+<p>想把 Score 留在片上，就必须分块处理 KV（<span class="arithmatex">\(T\)</span> 可能是几万，塞不进 Shared Memory）。但一分块就撞上一个死结：</p>
+<blockquote>
+<p>Softmax 的分母需要<strong>所有</strong> Score，而分块意味着你一次只能看到一部分。</p>
+</blockquote>
+<p>传统解法是扫两遍：第一遍找全局 Max 和全局 Sum，第二遍算权重。但那意味着 KV Cache 要从 HBM 读两次 —— 在一个访存受限的算子里，这等于直接把性能砍半。</p>
+<p>Online Softmax 的思路是：<strong>先按当前已知的 Max 算，等 Max 变了再回头修正</strong>。而修正的代价，恰好是一次乘法。</p>
+<h3 id="2-alpha">2. 推导 <span class="arithmatex">\(\alpha\)</span><a class="headerlink" href="#2-alpha" title="Permanent link">&para;</a></h3>
+<p>维护三个运行状态（都是「相对于当前 <span class="arithmatex">\(m\)</span>」的量）：</p>
+<ul>
+<li><span class="arithmatex">\(m\)</span>：目前见过的最大 Score；</li>
+<li><span class="arithmatex">\(l\)</span>：目前的分母，<span class="arithmatex">\(l = \sum_{i \in \text{seen}} e^{s_i - m}\)</span>；</li>
+<li><span class="arithmatex">\(o\)</span>：目前的未归一化输出，<span class="arithmatex">\(o = \sum_{i \in \text{seen}} e^{s_i - m} v_i\)</span>。</li>
+</ul>
+<p>现在来了新的一块，把最大值推到了 <span class="arithmatex">\(m' = \max(m, \max s_{\text{tile}})\)</span>。旧的 <span class="arithmatex">\(l\)</span> 和 <span class="arithmatex">\(o\)</span> 是以 <span class="arithmatex">\(m\)</span> 为基准算的，必须换基准。</p>
+<p><strong>关键的一步代数</strong>，就是指数的加法性质：</p>
+<div class="arithmatex">\[
+e^{s_i - m'} = e^{(s_i - m) + (m - m')} = e^{s_i - m} \cdot e^{m - m'}
+\]</div>
+<p>注意 <span class="arithmatex">\(e^{m - m'}\)</span> 里<strong>不含 <span class="arithmatex">\(i\)</span></strong> —— 它对已见过的每一项都一样。所以它能从求和号里提出来：</p>
+<div class="arithmatex">\[
+\sum_{i \in \text{seen}} e^{s_i - m'}
+= \underbrace{e^{m - m'}}_{\text{记作 } \alpha} \cdot \sum_{i \in \text{seen}} e^{s_i - m}
+= \alpha \cdot l
+\]</div>
+<p><strong>同一个提取对 <span class="arithmatex">\(o\)</span> 也成立</strong>，因为 <span class="arithmatex">\(o\)</span> 只是同一组指数项各自加了权重 <span class="arithmatex">\(v_i\)</span>：</p>
+<div class="arithmatex">\[
+\sum_{i \in \text{seen}} e^{s_i - m'} v_i = \alpha \cdot \sum_{i \in \text{seen}} e^{s_i - m} v_i = \alpha \cdot o
+\]</div>
+<p>这就回答了开头那个问题 —— <strong>为什么 <span class="arithmatex">\(l\)</span> 和 <span class="arithmatex">\(o\)</span> 要乘同一个 <span class="arithmatex">\(\alpha\)</span>？</strong> 因为 <span class="arithmatex">\(\alpha\)</span> 是从同一个求和式里提出来的公因子，<span class="arithmatex">\(l\)</span> 和 <span class="arithmatex">\(o\)</span> 只是这个求和式的两种加权形式。它们共享同一个基准，换基准当然用同一个因子。</p>
+<p>于是每来一块，更新规则是：</p>
+<div class="arithmatex">\[
+m' = \max(m,\ \max_i s_i), \qquad \alpha = e^{m - m'}
+\]</div>
+<div class="arithmatex">\[
+l' = \alpha\, l + \sum_i e^{s_i - m'}, \qquad
+o' = \alpha\, o + \sum_i e^{s_i - m'} v_i
+\]</div>
+<p>处理完所有块后，<strong>最后才做一次除法</strong>：</p>
+<div class="arithmatex">\[
+\text{output} = \frac{o}{l}
+\]</div>
+<h3 id="3">3. 三个容易被忽略的性质<a class="headerlink" href="#3" title="Permanent link">&para;</a></h3>
+<p><strong><span class="arithmatex">\(\alpha\)</span> 永远 <span class="arithmatex">\(\le 1\)</span>。</strong> 因为 <span class="arithmatex">\(m' \ge m\)</span>，所以 <span class="arithmatex">\(m - m' \le 0\)</span>，<span class="arithmatex">\(\alpha = e^{\text{非正数}} \in (0, 1]\)</span>。这意味着校正<strong>永远是在缩小</strong>旧状态，绝不可能放大成溢出。当新块带来一个远大于历史的 Score 时，<span class="arithmatex">\(\alpha\)</span> 会非常接近 0 —— 那是数学上正确的行为：旧的那些 Token 在新的尺度下确实微不足道。</p>
+<p><strong>归一化只做一次。</strong> 中间过程一直用未归一化的 <span class="arithmatex">\(o\)</span> 和 <span class="arithmatex">\(l\)</span>，直到最后才相除。如果你每块都归一化一次，下一块又要反归一化回去，纯属自找麻烦（还多引入舍入误差）。</p>
+<p><strong>它和标准 Softmax 数学上完全等价。</strong> 不是近似、不是 trade-off。FlashAttention 之所以能在 Prefill 上做同样的事，靠的就是这个恒等式（见 <a href="../6.4-flashattention_case_study/">6.4 FlashAttention</a>）。这里的 Decode 版本是它 <span class="arithmatex">\(Q\)</span> 只有一行时的特例。</p>
+<h3 id="4">4. 落到代码<a class="headerlink" href="#4" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">float running_max  = -INFINITY;
+float denominator  = 0.0f;
+// output_fragment 是 D 维的 FP32 累加器，全程留在寄存器里
+zero(output_fragment);
+
+for (int tile = 0; tile &lt; num_tiles; ++tile) {
+    load_kv_tile_async(tile);          // 见第八节：这里可以和上一块的计算重叠
+    wait_for_kv_tile();
+
+    // ---- 算这一块的 Score ----
+    compute_scores(q_fragment, k_tile, score_fragment);
+
+    // ---- 更新基准，算出校正因子 ----
+    float new_max    = max(running_max, reduce_max(score_fragment));
+    float correction = expf(running_max - new_max);     // 这就是 alpha，恒 &lt;= 1
+
+    // ---- 把旧状态换算到新基准上 ----
+    denominator     *= correction;
+    output_fragment *= correction;
+
+    // ---- 把这一块累加进来 ----
+    for (int i = 0; i &lt; valid_tokens_in_tile; ++i) {    // 注意是 valid，不是 TILE_SIZE
+        float weight = expf(score_fragment[i] - new_max);
+        denominator     += weight;
+        output_fragment += weight * v_tile[i];
+    }
+
+    running_max = new_max;
+}
+
+output_fragment /= denominator;        // 全程唯一一次归一化
+</code></pre>
+<p>逐段说明：</p>
+<ul>
+<li><strong><code>correction</code> 必须在更新 <code>running_max</code> 之前算</strong>，它用的是旧 <code>running_max</code>。这里写反了是最常见的 Bug，而且症状很阴险：输出只是「偏了一点」，随机数据下可能勉强过阈值，长上下文才暴露。</li>
+<li><strong>两行 <code>*= correction</code> 的先后无所谓，但一个都不能漏。</strong> 只校正 <code>denominator</code> 不校正 <code>output_fragment</code>，得到的结果依然「看起来像个概率分布」，误差却是系统性的。</li>
+<li><strong><code>valid_tokens_in_tile</code> 而不是 <code>TILE_SIZE</code>。</strong> 最后一块几乎总是不满的。多算的那几个位置如果是未初始化显存，<code>exp</code> 出来可能是任意大的数，直接污染 <span class="arithmatex">\(m\)</span> 和 <span class="arithmatex">\(l\)</span>。<strong>这是长上下文才复现、随机 Shape 才复现的经典越界 Bug。</strong></li>
+<li><strong>循环内两次用到 <code>new_max</code></strong>：一次算 <code>correction</code>，一次算 <code>weight</code>。它俩指的是同一个新基准，不能一个用新一个用旧。</li>
+</ul>
+<h3 id="5">5. 融合不是越彻底越好<a class="headerlink" href="#5" title="Permanent link">&para;</a></h3>
+<p><code>output_fragment</code> 是 <span class="arithmatex">\(D\)</span> 维 FP32。如果一个 CTA 按第四节的建议同时处理 <span class="arithmatex">\(G\)</span> 个 Q Head，累加器需求是：</p>
+<div class="arithmatex">\[
+\text{每 CTA 累加器数} = G \times D
+\]</div>
+<p><span class="arithmatex">\(G = 4\)</span>、<span class="arithmatex">\(D = 128\)</span> → 512 个 FP32。看着不多；但还要加上 <span class="arithmatex">\(q\)</span> 的暂存、Score Fragment、地址计算的临时变量。一旦超出每线程 255 寄存器的硬上限，编译器会 <strong>Spill 到 Local Memory</strong> —— 而 Local Memory 物理上就是 HBM。你为了省 HBM 流量做的融合，最后把状态 Spill 回了 HBM，净效果是负的。</p>
+<p><strong>怎么判断你踩到了？</strong> Nsight Compute 的 Launch Statistics 里看 <code>Registers Per Thread</code>，Memory Workload 里看 <code>Local Load/Store</code> 是否非零。有 Local 流量就说明 Spill 了，要么减 <span class="arithmatex">\(G\)</span>，要么减 Warp 数，要么把 <span class="arithmatex">\(o\)</span> 挪到 Shared Memory。</p>
+<p>这就是「融合要有边界」的具体含义：<strong>融合的收益是省掉 HBM 往返，代价是片上资源压力。当代价超过收益，就该停。</strong> 判断依据是 Profiler，不是直觉。</p>
+<hr />
+<h2 id="_4">八、让搬运藏在计算后面<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<p>到这里数据通路已经很干净了，但还有一个空转问题：Kernel 现在的节奏是「读一块 → 算一块 → 读一块 → 算一块」，读的时候 SM 在等，算的时候搬运单元在闲。</p>
+<p>双缓冲把这两条路重叠起来：</p>
+<pre><code class="language-text">stage 0:                 load tile 0
+stage 1: compute tile 0 | load tile 1
+stage 2: compute tile 1 | load tile 2
+...
+</code></pre>
+<p>CUDA 上的实现手段是 <code>cp.async</code>（Ampere 及以后）或 TMA（Hopper 及以后），也可以用框架封装的异步 Copy；换到别的加速器上则可能对应 DMA 引擎或专用搬运指令。</p>
+<p><strong>但异步 API 只是「允许」重叠，不等于「发生」重叠。</strong> 下面五条任何一条不成立，你写的异步代码就是同步代码套了层皮：</p>
+<ol>
+<li><strong>Copy 和 Compute 走的是不同硬件路径。</strong> <code>cp.async</code> 绕过寄存器直接 Global → Shared，才有独立性；用普通 <code>ld.global</code> 加载再存 Shared，就是占着 LSU 的同步操作。</li>
+<li><strong>Buffer 真的是双份，且没有覆盖仍在使用的数据。</strong> 单个 Buffer 上写 <code>cp.async</code> 是自欺欺人 —— 硬件必须等你算完才能覆盖。</li>
+<li><strong>Commit / Wait 的位置正确。</strong> Wait 放太早等于退化成同步；放太晚就是读到脏数据。</li>
+<li><strong>一块的计算量足以盖住一次加载的延迟。</strong> Tile 太小，计算几微秒就结束了，搬运还没回来，重叠没意义。这是个需要实测扫参的量。</li>
+<li><strong>Nsight Systems 的时间线上真的能看到两条重叠的带。</strong> 这是唯一的判据。</li>
+</ol>
+<p>第五条不是废话。异步这件事上，「我按文档写了」和「它真的重叠了」之间的距离，比大多数人以为的远得多 —— 这和图形里 Async Compute 队列的情况完全一样：你把工作丢进 Compute Queue，不代表它真的和 Graphics Queue 并行了，得看 GPU Trace 才算数。</p>
+<blockquote>
+<p>关于并发与重叠的完整讨论见 <a href="../4.3-async_pipeline_communication_behind_compute/">4.3 异步流水线</a>。</p>
+</blockquote>
+<hr />
+<h2 id="shape">九、Shape 特化：什么时候值得，什么时候是负担<a class="headerlink" href="#shape" title="Permanent link">&para;</a></h2>
+<p>一个通用 Kernel 必须在运行时处理任意 <code>head_size</code>、任意 Context Length、多种数据类型和对齐情况。这意味着：循环边界是变量（编译器无法展开）、分支要在运行时判断、寄存器要按最坏情况分配。</p>
+<p>特化就是把这些条件变成编译期常量：</p>
+<pre><code class="language-cpp">template&lt;int HEAD_SIZE, int KV_TILE, int WARPS&gt;
+__global__ void decode_attention_specialized(...);
+</code></pre>
+<p>编译器立刻能做三件它之前做不到的事：<strong>完全展开循环</strong>（消除循环开销和分支）、<strong>把索引计算折叠成立即数</strong>、<strong>精确分配寄存器</strong>（不用按最坏情况留余量）。在一个 Kernel 只跑几十微秒的场景里，这些「开销」占比不低。</p>
+<p>可特化的维度：</p>
+<ul>
+<li><code>HEAD_SIZE</code>：64 / 80 / 96 / 128 / 256（模型定死的，最值得特化）</li>
+<li>Context Length 的上限或分桶</li>
+<li>组大小 <span class="arithmatex">\(G = H_q / H_{kv}\)</span></li>
+<li>KV Cache 的数据类型：FP16 / BF16 / FP8</li>
+<li>Block Size 与内存对齐</li>
+<li>是否有 Attention Mask / Sliding Window / ALiBi</li>
+</ul>
+<p><strong>但特化有实打实的成本</strong>：每多一个组合，编译时间、二进制体积、测试矩阵都要乘一遍。8 个 <code>HEAD_SIZE</code> × 3 个 <code>KV_TILE</code> × 2 个 dtype = 48 份 Kernel，编译几分钟，二进制几十 MB，而其中可能 44 份一年都不会被调用一次。</p>
+<p>所以正确做法是：<strong>先测出真实流量里的 Shape 分布，只特化头部那几个，其余全部回退到通用实现。</strong> Dispatch 层负责选最小覆盖的 Kernel，没命中就走通用路径 —— 慢一点，但对。</p>
+<p>这也解释了开篇那句「Decode Kernel 别硬套到 Prefill 上」：Decode 特化 Kernel 的整个设计前提是 <span class="arithmatex">\(Q\)</span> 只有一行，所以 <span class="arithmatex">\(o\)</span>、<span class="arithmatex">\(m\)</span>、<span class="arithmatex">\(l\)</span> 都是单行状态、可以全放寄存器。Prefill 时 <span class="arithmatex">\(Q\)</span> 有几千行，这些状态变成矩阵，寄存器方案直接崩溃 —— 那是 FlashAttention 的地盘，它的分块是二维的。<strong>不是「调调参就能通用」，是两套不同的算法结构。</strong></p>
+<hr />
+<h2 id="_5">十、怎么证明你做对了<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<h3 id="1_4">1. 正确性<a class="headerlink" href="#1_4" title="Permanent link">&para;</a></h3>
+<p>按第五节建立的分阶段比对，加上第三节的测试用例矩阵。融合版没有中间 Buffer 可比了，所以要留<strong>调试开关</strong>：写 Kernel 时加一个 <code>#ifdef DUMP_INTERMEDIATE</code>，调试构建下把每块的 <span class="arithmatex">\(m\)</span>、<span class="arithmatex">\(l\)</span> 落盘，和 CPU Reference 逐块比。</p>
+<h3 id="2_2">2. 性能：数字必须绑定上下文<a class="headerlink" href="#2_2" title="Permanent link">&para;</a></h3>
+<p>一个脱离环境的加速比是没有意义的。任何性能结论都要带上：</p>
+<pre><code class="language-text">GPU 型号 / 驱动 / CUDA 或后端版本
+dtype（激活、KV Cache 各自的）
+batch size
+Hq / Hkv / head_size
+context length（是固定值还是分布）
+warmup 次数与测量次数、取中位数还是 P90
+测量范围：单 Kernel / 单 Decode Step / 端到端
+时钟单位与获取方式（CUDA Event / nsys / 墙钟）
+正确性误差阈值
+</code></pre>
+<p>比如 <code>32.2k → 13.6k cycles（约 2.37x）</code> 这种数字，只有绑定了上述环境才有意义，<strong>不能当成「融合普遍带来 2.3x」来引用</strong>。换个 <span class="arithmatex">\(T\)</span>、换个 Batch、换代硬件，结论都可能翻转 —— 尤其当 <span class="arithmatex">\(T\)</span> 很小时，中间 Buffer 本来就装得进 L2，融合的收益会大幅缩水。</p>
+<p>建议用这样的表格记录，把「案例值」和「待测」明确区分开：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">版本</th>
+<th style="text-align: center;">中间 Buffer</th>
+<th style="text-align: center;">KV 重读</th>
+<th style="text-align: right;">Cycles</th>
+<th style="text-align: right;">Speedup</th>
+<th style="text-align: right;">误差</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">三 Kernel 基线</td>
+<td style="text-align: center;">Score + Prob</td>
+<td style="text-align: center;">是</td>
+<td style="text-align: right;">32.2k（案例）</td>
+<td style="text-align: right;">1.00x</td>
+<td style="text-align: right;">待记录</td>
+</tr>
+<tr>
+<td style="text-align: left;">QK + Max 融合</td>
+<td style="text-align: center;">Prob</td>
+<td style="text-align: center;">是</td>
+<td style="text-align: right;">待测</td>
+<td style="text-align: right;">待测</td>
+<td style="text-align: right;">待记录</td>
+</tr>
+<tr>
+<td style="text-align: left;">Online Softmax + PV 全融合</td>
+<td style="text-align: center;">无</td>
+<td style="text-align: center;">按 Tile</td>
+<td style="text-align: right;">13.6k（案例）</td>
+<td style="text-align: right;">2.37x</td>
+<td style="text-align: right;">待记录</td>
+</tr>
+</tbody>
+</table>
+<h3 id="3_1">3. 验收清单<a class="headerlink" href="#3_1" title="Permanent link">&para;</a></h3>
+<p>正确性：</p>
+<ul>
+<li>[ ] CPU Reference 与三 Kernel 基线逐阶段对齐</li>
+<li>[ ] MHA（group=1）、GQA（group=4）、MQA（<span class="arithmatex">\(H_{kv}\)</span>=1）三种映射都有测试</li>
+<li>[ ] 人为塞入极大 Logit，Online Softmax 输出无 <code>NaN</code> / <code>inf</code></li>
+<li>[ ] <span class="arithmatex">\(T\)</span> 不是 Tile 整数倍时结果正确（这条抓 <code>valid_tokens_in_tile</code>）</li>
+<li>[ ] <span class="arithmatex">\(T = 1\)</span> 时输出精确等于 <span class="arithmatex">\(v_0\)</span></li>
+</ul>
+<p>性能：</p>
+<ul>
+<li>[ ] 融合版在 Profiler 里确认没有 Score / Probability 的全局 Buffer 写入</li>
+<li>[ ] Nsight Compute 的 <code>Local Load/Store</code> 为 0（没有寄存器 Spill）</li>
+<li>[ ] Nsight Systems 时间线上能看到 Copy 与 Compute 重叠</li>
+<li>[ ] DRAM Throughput 接近带宽上限 —— 因为这是访存受限算子，<strong>这才是真正该盯的目标指标</strong></li>
+<li>[ ] 每个性能数字都绑定了硬件、Shape、版本和测量范围</li>
+</ul>
+<hr />
+<h2 id="_6">十一、如果只记住一句话<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>能在片上立刻消费掉的数据，就不应该先写回 HBM 再读回来。</strong></p>
+</blockquote>
+<p>这一篇里的每一个技巧都是它的推论：</p>
+<ul>
+<li>Online Softmax 让 Score 不必落盘，因为它一产生就被消费；</li>
+<li>GQA 的 CTA 分组让 K/V Tile 读一次用多次；</li>
+<li>双缓冲让搬运的时间被计算盖住；</li>
+<li>而「融合有边界」是这条原则的反面 —— 当片上放不下时，强行留在片上会 Spill 回 HBM，反而更糟。</li>
+</ul>
+<p>判断的依据始终是<strong>中间结果的生命周期</strong>：它下一步会被谁用？用完还需要吗？如果答案是「马上被同一个线程用掉，用完就死」，那它就不该出现在 HBM 里。</p>
+<p>这套推理方式，和 <a href="../6.4-flashattention_case_study/">6.4 FlashAttention</a>、<a href="../4.2-tiling_locality_analysis/">4.2 Tiling 与局部性</a>、<a href="../4.3-async_pipeline_communication_behind_compute/">4.3 异步流水线</a> 是同一套。记模板会过时，记这条推理链不会。</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../11.1-nano_vllm_from_scratch/" class="btn btn-neutral float-left" title="11.1 读 Nano-vLLM 源码: 一个推理引擎怎么组装起来"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../11.3-paged_attention_continuous_batching/" class="btn btn-neutral float-right" title="11.3 PagedAttention 与 Continuous Batching: 从 PyTorch 到 CUDA">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../11.1-nano_vllm_from_scratch/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../11.3-paged_attention_continuous_batching/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="zh_CN" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>1.1 现代图形API (Vulkan/DX12) 执行模型 - GPU 图形与 AI 推理知识手册</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "1.1 \u73b0\u4ee3\u56fe\u5f62API (Vulkan/DX12) \u6267\u884c\u6a21\u578b";
+        var mkdocs_page_input_path = "1.1-graphics_api_execution_model.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GPU 图形与 AI 推理知识手册
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">首页</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">1. 图形渲染管线与 GPU 硬件基础</span></p>
+              <ul class="current">
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#_1">概述</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_2">核心设计哲学</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1">1. 显式内存管理</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2">2. 显式命令缓冲录制</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_3">执行模型的核心概念</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-queue-command-queue">1. Queue / Command Queue</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-fence-semaphore">2. Fence / Semaphore</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_4">关键洞察（来自你的原话）</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#api-ai">图形 API → AI 推理完整映射表</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.2-render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.3-gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.4-graphics_passes_and_sync/">1.4 图形管线中的 Pass 与同步 (RenderPass, Barrier)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">2. GPU 并发模型与系统思维</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.1-cpu_gpu_async_pipeline/">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.2-command_buffer_ring_buffer/">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.3-multithreaded_rendering_and_pools/">2.3 多线程渲染与资源池管理</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.4-graphics_to_ai_first_principles/">2.4 从图形管线到 AI 推理的第一性原理映射</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">3. AI 模型与算子基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.1-model_structures_inference_view/">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.2-operator_taxonomy/">3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.3-convolution_math_implementation/">3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">4. AI 推理优化核心策略</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.1-operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.2-tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.3-async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.4-memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.1-thread_block_grid_mapping/">5.1 线程模型 (Thread, Block, Grid) 与映射</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.2-explicit_memory_shared_vs_cache/">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.3-warp_simd_simt_divergence/">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.4-synchronization_primitives/">5.4 同步原语: __syncthreads, __syncwarp, 内存屏障</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.5-warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.6-atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.1-reduce_tree_implementation/">6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.2-scan_stream_compaction/">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.3-radix_sort_as_stream_compaction/">6.3 基数排序 (Radix Sort) = 逐位流压缩</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.4-flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../7-llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../8-vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.1-tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.2-rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.3-computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.1-umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.2-driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.3-compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.4-graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.1-nano_vllm_from_scratch/">11.1 读 Nano-vLLM 源码: 一个推理引擎怎么组装起来</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.2-attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.3-paged_attention_continuous_batching/">11.3 PagedAttention 与 Continuous Batching: 从 PyTorch 到 CUDA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.4-kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.5-inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.6-paged_attention_dx12_tensorrt_backend/">11.6 进阶: 把分页契约搬到 DX12 与 TensorRT 后端</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.1-career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.2-resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.3-knowledge_checklist/">A.3 关键知识点自检清单</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GPU 图形与 AI 推理知识手册</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">1. 图形渲染管线与 GPU 硬件基础</li>
+      <li class="breadcrumb-item active">1.1 现代图形API (Vulkan/DX12) 执行模型</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="11-api-vulkandx12">1.1 现代图形 API (Vulkan/DX12) 执行模型<a class="headerlink" href="#11-api-vulkandx12" title="Permanent link">&para;</a></h1>
+<h2 id="_1">概述<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>Vulkan 和 DirectX 12 代表了现代图形 API 的设计范式转变：<strong>把更多的控制权从驱动层转移到应用层</strong>。你不再依赖驱动来做内存管理和命令缓冲构建，而是自己动手。</p>
+<p>这种显式控制经验有助于学习 AI 推理运行时，但 UMD 仍负责命令翻译、Shader 编译、资源驻留协作和硬件抽象；职责不是简单地从驱动“搬空”到应用。</p>
+<h2 id="_2">核心设计哲学<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<h3 id="1">1. 显式内存管理<a class="headerlink" href="#1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>OpenGL/DX11 时代</strong>：应用创建 Buffer/Texture，驱动负责大部分底层放置与驻留决策；这些 API 中没有 <code>VkDeviceMemory</code>。</li>
+<li><strong>Vulkan/DX12 时代</strong>：你自行分配 <code>VkDeviceMemory</code>，然后绑定到对应的资源（Image/Buffer）。你需要自己设计分配器（如线性分配器、伙伴分配器）。</li>
+</ul>
+<blockquote>
+<p><strong>对应到 CUDA</strong>：<code>cudaMalloc</code> 就是分配显存，<code>VkDeviceMemory</code> 也是。但 Vulkan 给了你更细粒度的控制——你可以从一个大 Heap 里切出子块，自己管理偏移量。</p>
+</blockquote>
+<p><strong>你在聊天中曾用这个类比来描述 PagedAttention：</strong></p>
+<blockquote>
+<p>“Flash attention 我只记得 page，Attention 加上 continuous batch，有点类似于图形 API 里面的 Committed resource，自己先分一大片出来，然后管理切片句柄，类似于微软 dx12 资源仓库，里面写了一些线性分配器或伙伴分配器。”</p>
+</blockquote>
+<p>这句话完美地证明了你已经理解了现代图形 API 的内存模型——它和 vLLM 的显存池管理是同构的。</p>
+<h3 id="2">2. 显式命令缓冲录制<a class="headerlink" href="#2" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>OpenGL/DX11 时代</strong>：驱动在背后帮你构建命令流。</li>
+<li><strong>Vulkan/DX12 时代</strong>：你自行创建 <code>CommandBuffer</code>/<code>CommandList</code>，记录所有渲染/计算命令，最后提交执行。</li>
+</ul>
+<blockquote>
+<p><strong>对应到 CUDA</strong>：CUDA 的 Stream 就是一个隐式的命令序列，你按顺序 <code>cudaLaunchKernel</code>，驱动帮你排队。而 Vulkan/DX12 的命令缓冲，相当于你<strong>手动构建</strong>这个序列，粒度更细。</p>
+</blockquote>
+<h2 id="_3">执行模型的核心概念<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<h3 id="1-queue-command-queue">1. Queue / Command Queue<a class="headerlink" href="#1-queue-command-queue" title="Permanent link">&para;</a></h3>
+<ul>
+<li>GPU 上有一个或多个命令队列（Queue），你提交的命令缓冲被放入队列，GPU 按顺序消费。</li>
+<li>不同的 Queue 类型（Graphics、Compute、Transfer）可以并行执行，实现<strong>异步计算</strong>。</li>
+</ul>
+<blockquote>
+<p><strong>对应到 CUDA</strong>：Stream 与 Queue 都表达有序工作，但抽象层级不同。不同 Stream 的工作具备并发机会，是否重叠取决于依赖、硬件资源和运行时行为。</p>
+</blockquote>
+<h3 id="2-fence-semaphore">2. Fence / Semaphore<a class="headerlink" href="#2-fence-semaphore" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Fence</strong>：CPU 与 GPU 之间的同步原语。你在 CPU 端等待 Fence 信号，知道 GPU 完成到哪一步了。</li>
+<li><strong>Semaphore</strong>：GPU 与 GPU 之间的同步原语。用于跨 Queue 的依赖关系（比如 Compute Queue 写完数据，Graphics Queue 才能读）。</li>
+</ul>
+<blockquote>
+<p><strong>对应到 CUDA</strong>：<code>cudaEventRecord</code> + <code>cudaStreamWaitEvent</code> 类似 GPU 队列间的 Signal/Wait；<code>cudaEventSynchronize</code> 类似 CPU 等待某个 Fence 点。<code>cudaDeviceSynchronize</code> 是更粗粒度的整设备主机等待。</p>
+</blockquote>
+<p><strong>在聊天中，你曾深入讨论过轮询 Fence 的价值：</strong></p>
+<blockquote>
+<p>“反正就是 CPU 就在一直轮巡这个 fence 的值，这个比 wait for single object，更好的点，是不是渲染那边可以做三重帧缓冲 ring buffer...”</p>
+</blockquote>
+<p>你的理解完全正确。轮询（Query）是非阻塞的，它让你能够在 CPU 端实现“帧并行（Frame Parallelism）”，这个思想直接对应到 AI 推理中的 CUDA Stream 和 Event 查询机制。</p>
+<h2 id="_4">关键洞察（来自你的原话）<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>“现代图形 API 把驱动原来做的脏活累活搬到了应用层——而你已经会了。”</strong></p>
+</blockquote>
+<p>你写 Vulkan/DX12 时积累的"显式管理一切"的习惯，<strong>正是写高性能 AI Kernel 和推理引擎所需要的思维方式</strong>。</p>
+<h2 id="api-ai">图形 API → AI 推理完整映射表<a class="headerlink" href="#api-ai" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">图形 API 概念</th>
+<th style="text-align: left;">CUDA / AI 推理对应</th>
+<th style="text-align: left;">本质</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>VkDeviceMemory</code></td>
+<td style="text-align: left;"><code>cudaMalloc</code> 的显存池</td>
+<td style="text-align: left;">显存分配</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>CommandBuffer</code> 录制</td>
+<td style="text-align: left;">Kernel Launch 序列</td>
+<td style="text-align: left;">构建 GPU 任务流</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>vkQueueSubmit</code></td>
+<td style="text-align: left;">Kernel Launch / <code>cudaGraphLaunch</code></td>
+<td style="text-align: left;">提交任务到 GPU</td>
+</tr>
+<tr>
+<td style="text-align: left;">Fence / Semaphore</td>
+<td style="text-align: left;"><code>cudaEvent</code> / <code>cudaStreamWaitEvent</code></td>
+<td style="text-align: left;">同步原语</td>
+</tr>
+<tr>
+<td style="text-align: left;">RenderPass / Subpass</td>
+<td style="text-align: left;">算子融合（Conv+BN+ReLU）</td>
+<td style="text-align: left;">减少中间显存读写</td>
+</tr>
+<tr>
+<td style="text-align: left;">三重缓冲 + 轮询 Fence</td>
+<td style="text-align: left;"><code>cudaEventQuery</code> + <code>cudaStream</code></td>
+<td style="text-align: left;">非阻塞流水线</td>
+</tr>
+</tbody>
+</table>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href=".." class="btn btn-neutral float-left" title="首页"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../1.2-render_pipeline_hardware/" class="btn btn-neutral float-right" title="1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href=".." style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../1.2-render_pipeline_hardware/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="zh_CN" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>5.5 通信加速: Warp Shuffle (寄存器级数据交换) - GPU 图形与 AI 推理知识手册</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "5.5 \u901a\u4fe1\u52a0\u901f: Warp Shuffle (\u5bc4\u5b58\u5668\u7ea7\u6570\u636e\u4ea4\u6362)";
+        var mkdocs_page_input_path = "5.5-warp_shuffle.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GPU 图形与 AI 推理知识手册
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">首页</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">1. 图形渲染管线与 GPU 硬件基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.1-graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.2-render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.3-gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.4-graphics_passes_and_sync/">1.4 图形管线中的 Pass 与同步 (RenderPass, Barrier)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">2. GPU 并发模型与系统思维</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.1-cpu_gpu_async_pipeline/">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.2-command_buffer_ring_buffer/">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.3-multithreaded_rendering_and_pools/">2.3 多线程渲染与资源池管理</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.4-graphics_to_ai_first_principles/">2.4 从图形管线到 AI 推理的第一性原理映射</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">3. AI 模型与算子基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.1-model_structures_inference_view/">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.2-operator_taxonomy/">3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.3-convolution_math_implementation/">3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">4. AI 推理优化核心策略</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.1-operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.2-tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.3-async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.4-memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../5.1-thread_block_grid_mapping/">5.1 线程模型 (Thread, Block, Grid) 与映射</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.2-explicit_memory_shared_vs_cache/">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.3-warp_simd_simt_divergence/">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.4-synchronization_primitives/">5.4 同步原语: __syncthreads, __syncwarp, 内存屏障</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#_1">概述</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#warp-shuffle">为什么需要 Warp Shuffle？</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#shared-memory-barrier">传统方式：Shared Memory + Barrier</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#warp-shuffle_1">Warp Shuffle 方式：寄存器直通</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#shuffle">四种基本 Shuffle 操作</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-__shfl_sync">1. __shfl_sync — 按索引直接取</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-__shfl_up_sync">2. __shfl_up_sync — 从上方取</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-__shfl_down_sync">3. __shfl_down_sync — 从下方取</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4-__shfl_xor_sync">4. __shfl_xor_sync — 按异或取</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_2">参数说明</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#warp-warp-level-reduce">实战示例：Warp 内归约 (Warp-level Reduce)</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_3">求和归约</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_4">求最大值</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#warp-warp-level-scan-prefix-sum">Warp 级扫描 (Warp-level Scan / Prefix Sum)</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#api-warp-shuffle">在图形 API 中为什么没有 Warp Shuffle？</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_5">图形：像素是\"孤岛\"</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#cuda">CUDA：算法需要线程间通信</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_6">间接替代方案</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_7">使用限制与注意事项</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#kernel-warp-level-block-level-reduce">完整 Kernel 示例：Warp-level + Block-level Reduce</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_8">总结</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.6-atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.1-reduce_tree_implementation/">6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.2-scan_stream_compaction/">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.3-radix_sort_as_stream_compaction/">6.3 基数排序 (Radix Sort) = 逐位流压缩</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.4-flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../7-llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../8-vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.1-tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.2-rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.3-computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.1-umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.2-driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.3-compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.4-graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.1-nano_vllm_from_scratch/">11.1 读 Nano-vLLM 源码: 一个推理引擎怎么组装起来</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.2-attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.3-paged_attention_continuous_batching/">11.3 PagedAttention 与 Continuous Batching: 从 PyTorch 到 CUDA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.4-kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.5-inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.6-paged_attention_dx12_tensorrt_backend/">11.6 进阶: 把分页契约搬到 DX12 与 TensorRT 后端</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.1-career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.2-resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.3-knowledge_checklist/">A.3 关键知识点自检清单</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GPU 图形与 AI 推理知识手册</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">5. CUDA 编程与硬件执行模型</li>
+      <li class="breadcrumb-item active">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="55-warp-shuffle">5.5 通信加速: Warp Shuffle (寄存器级数据交换)<a class="headerlink" href="#55-warp-shuffle" title="Permanent link">&para;</a></h1>
+<h2 id="_1">概述<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>Warp Shuffle 是 CUDA 中一种极高效的线程间数据交换机制，它允许同一个 Warp（32 个线程）内的线程<strong>直接读写彼此的寄存器</strong>，而不经过 Shared Memory。它不依赖 Shared Memory，不需要 <code>__syncthreads()</code>，数据在<strong>同一个时钟周期内</strong>就能到达。</p>
+<blockquote>
+<p><strong>核心认知</strong>：Warp Shuffle 是 CUDA 中最快的跨线程通信方式，但只服务于 32 个线程，且只交换标量数据。它是你在写高性能 Kernel 时，<strong>在 Shared Memory 之前应该优先考虑的\"微型通信\"工具。</strong></p>
+</blockquote>
+<h2 id="warp-shuffle">为什么需要 Warp Shuffle？<a class="headerlink" href="#warp-shuffle" title="Permanent link">&para;</a></h2>
+<h3 id="shared-memory-barrier">传统方式：Shared Memory + Barrier<a class="headerlink" href="#shared-memory-barrier" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">// 传统做法：线程 A 要把数据给线程 B
+__shared__ float tmp[32];
+
+tmp[threadIdx.x] = my_value;  // A 写入 Shared Memory
+__syncthreads();              // 所有线程同步
+float val = tmp[target_lane]; // B 读 Shared Memory
+
+// ⚠️ 需要访问 Shared Memory，还要加同步点，延迟和开销都不小
+</code></pre>
+<h3 id="warp-shuffle_1">Warp Shuffle 方式：寄存器直通<a class="headerlink" href="#warp-shuffle_1" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">// Warp Shuffle 做法：线程 A 和 B 之间直接交换寄存器数据
+float val = __shfl_sync(0xFFFFFFFF, my_value, srcLane);
+
+// 不需要 Shared Memory，不需要 __syncthreads()
+// 数据在同一个时钟周期内就能到达
+// 比 Shared Memory 快一个数量级！
+</code></pre>
+<h2 id="shuffle">四种基本 Shuffle 操作<a class="headerlink" href="#shuffle" title="Permanent link">&para;</a></h2>
+<h3 id="1-__shfl_sync">1. <code>__shfl_sync</code> — 按索引直接取<a class="headerlink" href="#1-__shfl_sync" title="Permanent link">&para;</a></h3>
+<p>从指定的源线程（<code>srcLane</code>）取值，广播给所有其他线程。</p>
+<pre><code class="language-cpp">// 线程 0 广播它的值给所有线程
+float leader_val = __shfl_sync(0xFFFFFFFF, my_val, 0);
+
+// 执行后：每个线程的 leader_val 都等于线程 0 的 my_val
+// 常用于从\&quot;主线程\&quot;获取共享参数
+</code></pre>
+<h3 id="2-__shfl_up_sync">2. <code>__shfl_up_sync</code> — 从上方取<a class="headerlink" href="#2-__shfl_up_sync" title="Permanent link">&para;</a></h3>
+<p>从当前线程 ID 减去 <code>delta</code> 的那个线程取值。</p>
+<pre><code class="language-cpp">// 每个线程从上一个线程取值（偏移 1）
+float from_prev = __shfl_up_sync(0xFFFFFFFF, my_val, 1);
+
+// 线程 5 取到线程 4 的值，线程 0 的值不变（没有线程 -1）
+// 非常适合做前缀和 (Prefix Sum / Scan)
+</code></pre>
+<h3 id="3-__shfl_down_sync">3. <code>__shfl_down_sync</code> — 从下方取<a class="headerlink" href="#3-__shfl_down_sync" title="Permanent link">&para;</a></h3>
+<p>从当前线程 ID 加上 <code>delta</code> 的那个线程取值。</p>
+<pre><code class="language-cpp">// 每个线程从下一个线程取值（偏移 1）
+float from_next = __shfl_down_sync(0xFFFFFFFF, my_val, 1);
+
+// 线程 5 取到线程 6 的值，线程 31 的值不变
+// 非常适合做归约 (Reduce)
+</code></pre>
+<h3 id="4-__shfl_xor_sync">4. <code>__shfl_xor_sync</code> — 按异或取<a class="headerlink" href="#4-__shfl_xor_sync" title="Permanent link">&para;</a></h3>
+<p>从当前线程 ID 异或 <code>laneMask</code> 的那个线程取值。最常用于<strong>Warp 级归约的蝶形通信</strong>。</p>
+<pre><code class="language-cpp">// 异或 16：线程 0 ↔ 线程 16, 线程 1 ↔ 线程 17, ...
+float from_xor = __shfl_xor_sync(0xFFFFFFFF, my_val, 16);
+</code></pre>
+<h3 id="_2">参数说明<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">参数</th>
+<th style="text-align: left;">含义</th>
+<th style="text-align: left;">示例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>mask</code></td>
+<td style="text-align: left;">参与线程掩码（32 位，每位代表一个线程）</td>
+<td style="text-align: left;"><code>0xFFFFFFFF</code> 表示所有线程参与</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>var</code></td>
+<td style="text-align: left;">要交换的变量（必须是标量：int、float 等）</td>
+<td style="text-align: left;"><code>my_val</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>srcLane</code> / <code>delta</code> / <code>laneMask</code></td>
+<td style="text-align: left;">源线程选择方式</td>
+<td style="text-align: left;"><code>0</code> / <code>1</code> / <code>16</code></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>注意</strong>：从 Volta 架构开始，<strong>必须</strong>使用带 <code>_sync</code> 后缀的版本（如 <code>__shfl_sync</code>），旧版的无后缀函数已被弃用。<code>mask</code> 参数允许你选择哪些线程参与交换，这对处理退出线程（如 <code>if</code> 分支后的掩蔽线程）非常重要。</p>
+</blockquote>
+<h2 id="warp-warp-level-reduce">实战示例：Warp 内归约 (Warp-level Reduce)<a class="headerlink" href="#warp-warp-level-reduce" title="Permanent link">&para;</a></h2>
+<h3 id="_3">求和归约<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">// 假设每个线程有 val
+float sum = val;
+
+// 第 1 步：偏移 16 — 相隔 16 的线程两两相加
+sum += __shfl_down_sync(0xFFFFFFFF, sum, 16);
+// 执行后：线程 0 = v0+v16, 线程 1 = v1+v17, ...
+
+// 第 2 步：偏移 8
+sum += __shfl_down_sync(0xFFFFFFFF, sum, 8);
+
+// 第 3 步：偏移 4
+sum += __shfl_down_sync(0xFFFFFFFF, sum, 4);
+
+// 第 4 步：偏移 2
+sum += __shfl_down_sync(0xFFFFFFFF, sum, 2);
+
+// 第 5 步：偏移 1
+sum += __shfl_down_sync(0xFFFFFFFF, sum, 1);
+
+// 此时，线程 0 的 sum = 整个 Warp 的 32 个值之和
+// 线程 1-31 的值是中间结果，不重要
+
+// 用 __shfl_sync 广播给所有线程（可选）
+sum = __shfl_sync(0xFFFFFFFF, sum, 0);
+</code></pre>
+<pre><code class="language-text">归约过程可视化：
+Step 1 (offset=16): [v0+v16] [v1+v17] ... [v15+v31]  (16 active)
+Step 2 (offset=8):  [Σ0-7+Σ8-15] [Σ16-23+Σ24-31]    (8 active)
+Step 3 (offset=4):  [Σ0-3+Σ4-7] [Σ8-11+Σ12-15]      (4 active)
+Step 4 (offset=2):  [Σ0-1+Σ2-3] [Σ4-5+Σ6-7]          (2 active)
+Step 5 (offset=1):  [Σ0-31]                            (1 active - 最终结果)
+</code></pre>
+<h3 id="_4">求最大值<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">float max_val = val;
+max_val = max(max_val, __shfl_down_sync(0xFFFFFFFF, max_val, 16));
+max_val = max(max_val, __shfl_down_sync(0xFFFFFFFF, max_val, 8));
+max_val = max(max_val, __shfl_down_sync(0xFFFFFFFF, max_val, 4));
+max_val = max(max_val, __shfl_down_sync(0xFFFFFFFF, max_val, 2));
+max_val = max(max_val, __shfl_down_sync(0xFFFFFFFF, max_val, 1));
+// 线程 0 持有全局最大值
+</code></pre>
+<h2 id="warp-warp-level-scan-prefix-sum">Warp 级扫描 (Warp-level Scan / Prefix Sum)<a class="headerlink" href="#warp-warp-level-scan-prefix-sum" title="Permanent link">&para;</a></h2>
+<p>用 <code>__shfl_up_sync</code> 可以快速实现前缀和：</p>
+<pre><code class="language-cpp">// 计算 Warp 内前缀和
+float scan = val;
+
+// 偏移依次为 1, 2, 4, 8, 16
+float t = __shfl_up_sync(0xFFFFFFFF, scan, 1);
+if (lane_id &gt;= 1) scan += t;
+
+t = __shfl_up_sync(0xFFFFFFFF, scan, 2);
+if (lane_id &gt;= 2) scan += t;
+
+t = __shfl_up_sync(0xFFFFFFFF, scan, 4);
+if (lane_id &gt;= 4) scan += t;
+
+t = __shfl_up_sync(0xFFFFFFFF, scan, 8);
+if (lane_id &gt;= 8) scan += t;
+
+t = __shfl_up_sync(0xFFFFFFFF, scan, 16);
+if (lane_id &gt;= 16) scan += t;
+
+// 此时 scan = 从线程 0 到当前线程的累加和
+</code></pre>
+<h2 id="api-warp-shuffle">在图形 API 中为什么没有 Warp Shuffle？<a class="headerlink" href="#api-warp-shuffle" title="Permanent link">&para;</a></h2>
+<p>这是 CUDA（通用计算）与图形 API（渲染）设计哲学的根本分野。</p>
+<h3 id="_5">图形：像素是\"孤岛\"<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Pixel Shader 天生就是\"各扫门前雪\"——一个像素的渲染结果与旁边的像素<strong>毫无依赖关系</strong>。</li>
+<li>如果引擎需要在像素间做操作（如模糊），<strong>不是通过线程间通信，而是通过多 Pass</strong>：把结果写成纹理，下一个 Pass 再读回来。</li>
+<li>因此，图形 API 没有设计\"同一个 Wave 内线程交换数据\"的硬件机制。</li>
+</ul>
+<h3 id="cuda">CUDA：算法需要线程间通信<a class="headerlink" href="#cuda" title="Permanent link">&para;</a></h3>
+<ul>
+<li>通用计算中，很多算法（归约、扫描、排序）<strong>天然需要线程间通信</strong>。</li>
+<li>Warp Shuffle 就是为这个场景设计的硬件加速——在寄存器级别直通，代价极低。</li>
+</ul>
+<h3 id="_6">间接替代方案<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h3>
+<p>在 HLSL / Vulkan Compute Shader 中，虽然没有直接等价物，但可以用 Shared Memory 模拟：</p>
+<pre><code class="language-hlsl">// HLSL 中没有 Warp Shuffle，只能用 groupshared 替代
+groupshared float temp[32];
+
+temp[groupThreadID] = my_value;
+GroupMemoryBarrierWithGroupSync();
+float val = temp[target_lane];  // 手动读别人的数据
+</code></pre>
+<blockquote>
+<p><strong>注意</strong>：这种方式需要 Shared Memory 访问 + 显式 Barrier，速度比 Warp Shuffle 差一个数量级。</p>
+</blockquote>
+<p>现代 HLSL 确实引入了 <code>WaveReadLaneAt</code> 等函数，但它们在底层仍然通过 Shared Memory 或 LDS 实现，效率不如 CUDA 的原生 Shuffle 指令。</p>
+<h2 id="_7">使用限制与注意事项<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">限制</th>
+<th style="text-align: left;">说明</th>
+<th style="text-align: left;">对策</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>跨 Warp 无效</strong></td>
+<td style="text-align: left;">Shuffle 只在 Warp 内 32 个线程之间有效</td>
+<td style="text-align: left;">跨 Warp 通信必须走 Shared Memory + <code>__syncthreads()</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>线程数必须是 32 的倍数</strong></td>
+<td style="text-align: left;">如果 Warp 中有些线程因 <code>if</code> 退出，<code>mask</code> 需要正确设置</td>
+<td style="text-align: left;">用 <code>__activemask()</code> 动态获取活跃线程掩码</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>数据量限制</strong></td>
+<td style="text-align: left;">交换的是<strong>单标量</strong>（int/float），不能是结构体或数组</td>
+<td style="text-align: left;">对大结构体，拆成多个标量或走 Shared Memory</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>同步要求</strong></td>
+<td style="text-align: left;">即使在同一 Warp 内，Volta+ 架构不再严格 Lockstep</td>
+<td style="text-align: left;">必要时加 <code>__syncwarp()</code> 确保顺序</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>_sync 后缀</strong></td>
+<td style="text-align: left;">Volta+ 架构必须使用 <code>_sync</code> 版本</td>
+<td style="text-align: left;">始终使用 <code>__shfl_*_sync()</code> 系列函数</td>
+</tr>
+</tbody>
+</table>
+<h2 id="kernel-warp-level-block-level-reduce">完整 Kernel 示例：Warp-level + Block-level Reduce<a class="headerlink" href="#kernel-warp-level-block-level-reduce" title="Permanent link">&para;</a></h2>
+<pre><code class="language-cpp">__global__ void warp_reduce_kernel(const float* input, float* output, int N) {
+    __shared__ float shared_buffer[32];  // 每个 Warp 一个槽位
+
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    int lane_id = threadIdx.x % 32;
+    int warp_id = threadIdx.x / 32;
+
+    // 第 1 阶段：全局加载 + Warp 内归约
+    float val = (tid &lt; N) ? input[tid] : 0.0f;
+
+    // Warp Shuffle 归约（蝶形通信）
+    val += __shfl_down_sync(0xFFFFFFFF, val, 16);
+    val += __shfl_down_sync(0xFFFFFFFF, val, 8);
+    val += __shfl_down_sync(0xFFFFFFFF, val, 4);
+    val += __shfl_down_sync(0xFFFFFFFF, val, 2);
+    val += __shfl_down_sync(0xFFFFFFFF, val, 1);
+
+    // 此时每个 Warp 的线程 0 持有该 Warp 的归约结果
+    if (lane_id == 0) {
+        shared_buffer[warp_id] = val;
+    }
+
+    __syncthreads();  // 等待所有 Warp 写入 Shared Memory
+
+    // 第 2 阶段：如果 Block 内有多个 Warp，再做一次 Warp 归约
+    if (warp_id == 0 &amp;&amp; lane_id &lt; blockDim.x / 32) {
+        val = shared_buffer[lane_id];
+
+        // 再次用 Shuffle 做归约
+        val += __shfl_down_sync(0xFFFFFFFF, val, 16);
+        val += __shfl_down_sync(0xFFFFFFFF, val, 8);
+        val += __shfl_down_sync(0xFFFFFFFF, val, 4);
+        val += __shfl_down_sync(0xFFFFFFFF, val, 2);
+        val += __shfl_down_sync(0xFFFFFFFF, val, 1);
+    }
+
+    // 写回结果
+    if (threadIdx.x == 0) {
+        output[blockIdx.x] = shared_buffer[0];
+    }
+}
+</code></pre>
+<h2 id="_8">总结<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">项目</th>
+<th style="text-align: left;">Warp Shuffle</th>
+<th style="text-align: left;">Shared Memory</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>数据位置</strong></td>
+<td style="text-align: left;">寄存器 ↔ 寄存器</td>
+<td style="text-align: left;">寄存器 → Shared Memory → 寄存器</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>延迟</strong></td>
+<td style="text-align: left;">1 个时钟周期</td>
+<td style="text-align: left;">几十个时钟周期</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>是否需要 <code>__syncthreads()</code></strong></td>
+<td style="text-align: left;">❌ 不需要</td>
+<td style="text-align: left;">✅ 需要</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>通信范围</strong></td>
+<td style="text-align: left;">同一 Warp（32 线程）</td>
+<td style="text-align: left;">整个 Block（所有 Warp）</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>适用场景</strong></td>
+<td style="text-align: left;">Warp 内归约、扫描、广播</td>
+<td style="text-align: left;">跨 Warp 通信、大数据块分载</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>复杂度</strong></td>
+<td style="text-align: left;">低（几行代码）</td>
+<td style="text-align: left;">中（需管理 Bank Conflict、Padding）</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>用你的渲染思维理解</strong>：把 Warp Shuffle 想象成 <strong>SIMD 通道之间的数据交换</strong>。你写 Pixel Shader 时，同一个 Wave 的像素之间如果想做\"共享边缘检测信息\"，硬件不支持直接交换，必须写进纹理。而在 CUDA 里，Warp Shuffle 直接给了你这种能力，而且是硬件原生支持的，效率极高。</p>
+<p><strong>一句话总结</strong>：Warp Shuffle 是 CUDA 里最快的跨线程通信方式——没有 Shared Memory 的延迟，没有 Barrier 的开销，纯粹是寄存器级的直通。在你的 Kernel 中，<strong>先在 Warp 内用 Shuffle，不够了再上 Shared Memory。</strong></p>
+</blockquote>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../5.4-synchronization_primitives/" class="btn btn-neutral float-left" title="5.4 同步原语: __syncthreads, __syncwarp, 内存屏障"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../5.6-atomic_operations/" class="btn btn-neutral float-right" title="5.6 原子操作与竞争控制">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../5.4-synchronization_primitives/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../5.6-atomic_operations/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

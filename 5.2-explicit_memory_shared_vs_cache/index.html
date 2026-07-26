@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="zh_CN" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存 - GPU 图形与 AI 推理知识手册</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "5.2 \u5185\u5b58\u5c42\u7ea7\u4e0e\u663e\u5f0f\u7ba1\u7406: Shared Memory (__shared__) vs L1/L2 \u7f13\u5b58";
+        var mkdocs_page_input_path = "5.2-explicit_memory_shared_vs_cache.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GPU 图形与 AI 推理知识手册
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">首页</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">1. 图形渲染管线与 GPU 硬件基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.1-graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.2-render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.3-gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.4-graphics_passes_and_sync/">1.4 图形管线中的 Pass 与同步 (RenderPass, Barrier)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">2. GPU 并发模型与系统思维</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.1-cpu_gpu_async_pipeline/">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.2-command_buffer_ring_buffer/">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.3-multithreaded_rendering_and_pools/">2.3 多线程渲染与资源池管理</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.4-graphics_to_ai_first_principles/">2.4 从图形管线到 AI 推理的第一性原理映射</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">3. AI 模型与算子基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.1-model_structures_inference_view/">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.2-operator_taxonomy/">3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.3-convolution_math_implementation/">3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">4. AI 推理优化核心策略</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.1-operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.2-tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.3-async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.4-memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../5.1-thread_block_grid_mapping/">5.1 线程模型 (Thread, Block, Grid) 与映射</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#_1">概述</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_2">硬件层次拆解</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#nvidia-a100h100">存储层级总览 (以 NVIDIA A100/H100 为例)</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#shared-memory-l1">Shared Memory ≠ L1 缓存</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#cache-shared-memory">Cache 与 Shared Memory 的协作</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#cache">图形渲染：纹理 Cache（自动）</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#ai">AI 推理：规则分块与显式复用</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#shared-memory">什么时候值得使用 Shared Memory？</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#tiling-shared-memory">Tiling：用 Shared Memory 手动制造局部性</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#synchronous">标准分块加载 (Synchronous)</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#cudamemcpy_async-compute-capability-80">异步加载 (cuda::memcpy_async, Compute Capability 8.0+)</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#communication-behind-compute">异步加载的核心价值：Communication Behind Compute</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#cuda">图形到 CUDA 的搬运模型映射</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#shared-memory-bank-bank-conflict">Shared Memory Bank 架构与 Bank Conflict（重点）</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#bank-sram-32">什么是 Bank：把 SRAM 切成 32 条独立通道</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_3">三种访问情形</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#bank-conflict-132">Bank Conflict 量化：最坏掉到 1/32</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_4">典型冲突模式与解法</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#1-padding">1. 列访问 / Padding 修复（最常见）</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#2-stride-conflict">2. 跨步访问（Stride Conflict）</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#3-816-bank">3. 宽类型（8/16 字节）的双 Bank 冲突</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#4">4. 不规则 / 动态索引</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#swizzle">高级手法：Swizzle（地址重排）</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#ai_1">图形 → AI 映射</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#vllm-flashattention">对 vLLM / FlashAttention 调优的意义</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#shared-memory_1">实际例子：Shared Memory 配置的注意事项</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#shared-memory_2">Shared Memory 超额</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_5">总结</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.3-warp_simd_simt_divergence/">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.4-synchronization_primitives/">5.4 同步原语: __syncthreads, __syncwarp, 内存屏障</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.5-warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.6-atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.1-reduce_tree_implementation/">6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.2-scan_stream_compaction/">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.3-radix_sort_as_stream_compaction/">6.3 基数排序 (Radix Sort) = 逐位流压缩</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.4-flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../7-llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../8-vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.1-tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.2-rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.3-computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.1-umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.2-driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.3-compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.4-graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.1-nano_vllm_from_scratch/">11.1 读 Nano-vLLM 源码: 一个推理引擎怎么组装起来</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.2-attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.3-paged_attention_continuous_batching/">11.3 PagedAttention 与 Continuous Batching: 从 PyTorch 到 CUDA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.4-kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.5-inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.6-paged_attention_dx12_tensorrt_backend/">11.6 进阶: 把分页契约搬到 DX12 与 TensorRT 后端</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.1-career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.2-resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.3-knowledge_checklist/">A.3 关键知识点自检清单</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GPU 图形与 AI 推理知识手册</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">5. CUDA 编程与硬件执行模型</li>
+      <li class="breadcrumb-item active">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="52-shared-memory-__shared__-vs-l1l2">5.2 内存层级与显式管理: Shared Memory (<code>__shared__</code>) vs L1/L2 缓存<a class="headerlink" href="#52-shared-memory-__shared__-vs-l1l2" title="Permanent link">&para;</a></h1>
+<h2 id="_1">概述<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>Shared Memory 是 CUDA 编程中最重要、也最容易误解的概念。它和 L1 缓存共享同一块物理 SRAM，但在<strong>管理方式</strong>上有本质区别：L1 是硬件自动管理，Shared Memory 是软件显式控制。</p>
+<blockquote>
+<p><strong>一句话结论</strong>：Shared Memory 是 SRAM，但不是所有 SRAM 都是 Shared Memory。L1、L2、寄存器也都是 SRAM——区别在于容量、延迟、和管理方式，其中最关键的是：<strong>Shared Memory 归你管，L1 归硬件管。</strong></p>
+</blockquote>
+<h2 id="_2">硬件层次拆解<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<h3 id="nvidia-a100h100">存储层级总览 (以 NVIDIA A100/H100 为例)<a class="headerlink" href="#nvidia-a100h100" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">存储层级</th>
+<th style="text-align: left;">硬件本质</th>
+<th style="text-align: left;">容量 (A100)</th>
+<th style="text-align: left;">谁控制</th>
+<th style="text-align: left;">用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">寄存器 (Register)</td>
+<td style="text-align: left;">SRAM</td>
+<td style="text-align: left;">256 KB / SM</td>
+<td style="text-align: left;">编译器分配</td>
+<td style="text-align: left;">最快，线程私有</td>
+</tr>
+<tr>
+<td style="text-align: left;">L1 / Shared 统一数据存储</td>
+<td style="text-align: left;">SRAM</td>
+<td style="text-align: left;">192 KB / SM（A100）</td>
+<td style="text-align: left;">硬件缓存 + 软件显式寻址</td>
+<td style="text-align: left;">自动缓存与线程块内共享</td>
+</tr>
+<tr>
+<td style="text-align: left;">L2 缓存</td>
+<td style="text-align: left;">SRAM</td>
+<td style="text-align: left;">40 MB (整卡共享)</td>
+<td style="text-align: left;">硬件自动管理</td>
+<td style="text-align: left;">缓存全局内存 (跨 SM)</td>
+</tr>
+<tr>
+<td style="text-align: left;">HBM (显存)</td>
+<td style="text-align: left;">DRAM</td>
+<td style="text-align: left;">80 GB</td>
+<td style="text-align: left;">软件分配 (<code>cudaMalloc</code>)</td>
+<td style="text-align: left;">大容量全局存储</td>
+</tr>
+</tbody>
+</table>
+<h3 id="shared-memory-l1">Shared Memory ≠ L1 缓存<a class="headerlink" href="#shared-memory-l1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>L1</strong> 是硬件自动管理的缓存——你无法控制存什么、什么时候淘汰。它在你读取全局内存时自动填充命中，本质上是"尽力而为"的透明加速。</li>
+<li><strong>Shared Memory</strong> 是软件显式管理的 Scratchpad Memory——通过普通 Load/Store 或异步拷贝把数据写入，用完即弃。它没有 Cache Miss，但仍受同步、Bank Conflict、容量和吞吐约束；<code>__ldg</code> 是只读全局加载提示，不是写入 Shared Memory 的指令。</li>
+</ul>
+<p>但它们在物理上<strong>共用同一块 SRAM 空间</strong>：</p>
+<pre><code>A100 每个 SM 的片上 SRAM 总量 = 192 KB
+├── 可配置方案 A: 164 KB Shared Memory + 28 KB L1
+├── 可配置方案 B: 128 KB Shared Memory + 64 KB L1
+└── 可配置方案 C: 100 KB Shared Memory + 92 KB L1
+</code></pre>
+<blockquote>
+<p>DX12 Heap 的类比只能帮助记忆“显式与自动管理”：Heap 位于全局显存分配层，Shared Memory 是 SM 上的线程块 Scratchpad，二者不是同一层资源。</p>
+</blockquote>
+<h2 id="cache-shared-memory">Cache 与 Shared Memory 的协作<a class="headerlink" href="#cache-shared-memory" title="Permanent link">&para;</a></h2>
+<h3 id="cache">图形渲染：纹理 Cache（自动）<a class="headerlink" href="#cache" title="Permanent link">&para;</a></h3>
+<p>图形渲染中，纹理采样具有极强的<strong>空间局部性</strong>：</p>
+<ul>
+<li>一个像素采样纹理时，它旁边的像素极大概率会采样邻近的纹素。</li>
+<li>GPU 的纹理单元 (TMU) 和 L1/L2 Cache 会预取一大块连续数据。</li>
+<li>你写 <code>tex2D</code>，硬件在背后默默地把相邻数据塞进 Cache，命中率极高。</li>
+<li><strong>结论</strong>：纹理路径能利用硬件局部性，但 Compute Shader 仍常用 <code>groupshared</code> 做滤波、归约和 Tiled Shading。</li>
+</ul>
+<h3 id="ai">AI 推理：规则分块与显式复用<a class="headerlink" href="#ai" title="Permanent link">&para;</a></h3>
+<p>GEMM、Conv 和 Dense Attention 的地址通常规则，L1/L2 依然有效。高性能实现使用 Shared Memory，是为了显式安排 Block 内跨线程复用和布局变换：</p>
+<ul>
+<li>协作式、合并地加载连续 Tile。</li>
+<li>让一个 Tile 服务多个输出，减少重复的全局内存事务。</li>
+<li>用 Padding 或 Swizzle 匹配 Tensor Core 和 Shared Memory Bank 布局。</li>
+</ul>
+<h3 id="shared-memory">什么时候值得使用 Shared Memory？<a class="headerlink" href="#shared-memory" title="Permanent link">&para;</a></h3>
+<ol>
+<li>
+<p><strong>明确的 Block 内复用</strong>：同一数据会被当前 Block 多次读取，搬运和同步成本可被摊薄。</p>
+</li>
+<li>
+<p><strong>布局控制</strong>：Kernel 需要转置、Swizzle 或异步流水线来匹配后续计算指令。Shared Memory 访问并非零延迟。</p>
+</li>
+<li>
+<p><strong>收益可测量</strong>：如果数据只读一次或 Cache 已能覆盖复用，Shared Memory 反而会增加指令、同步和 Occupancy 压力。</p>
+</li>
+</ol>
+<blockquote>
+<p><strong>用你的渲染思维来理解</strong>：
+- 图形 Cache = "高速路旁的加油站"，你路过时顺便加个油（缓存命中了）。
+- AI Shared Memory = 你自己花钱买的"私人停车场"，你提前把车都停进去，工人（线程）零距离随便拿，不再需要去高速路上跑。</p>
+</blockquote>
+<h2 id="tiling-shared-memory">Tiling：用 Shared Memory 手动制造局部性<a class="headerlink" href="#tiling-shared-memory" title="Permanent link">&para;</a></h2>
+<h3 id="synchronous">标准分块加载 (Synchronous)<a class="headerlink" href="#synchronous" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">// 声明 Shared Memory：一个 Tile 的大小
+__shared__ float tile_A[TILE_SIZE][TILE_SIZE];
+__shared__ float tile_B[TILE_SIZE][TILE_SIZE];
+
+int tx = threadIdx.x;
+int ty = threadIdx.y;
+
+int row = blockIdx.y * TILE_SIZE + ty;
+int col = blockIdx.x * TILE_SIZE + tx;
+
+// Step 1: 从 Global Memory 加载数据到 Shared Memory
+tile_A[ty][tx] = A[row * stride + col];
+tile_B[ty][tx] = B[row * stride + col];
+
+// Step 2: 同步，确保所有线程都加载完成
+__syncthreads();
+
+// Step 3: 现在可以安全地使用 tile_A 和 tile_B 进行计算
+float sum = 0.0f;
+for (int k = 0; k &lt; TILE_SIZE; k++) {
+    sum += tile_A[ty][k] * tile_B[k][tx];
+}
+// ... 写回结果
+</code></pre>
+<h3 id="cudamemcpy_async-compute-capability-80">异步加载 (cuda::memcpy_async, Compute Capability 8.0+)<a class="headerlink" href="#cudamemcpy_async-compute-capability-80" title="Permanent link">&para;</a></h3>
+<p>在 Compute Capability 8.0+ 上，满足地址空间、大小和对齐条件的 Global-to-Shared <code>cuda::memcpy_async</code> 可使用硬件异步拷贝路径。下面只展示流水线顺序：</p>
+<pre><code class="language-cpp">// 概念伪代码：省略 barrier 初始化、边界与 pipeline stage 管理。
+#include &lt;cuda/barrier&gt;
+
+__global__ void async_gemm_kernel(...) {
+    __shared__ float tile_A[2][TILE_SIZE][TILE_SIZE];  // 双缓冲
+    __shared__ float tile_B[2][TILE_SIZE][TILE_SIZE];
+
+    auto block_barrier = cuda::barrier(cuda::thread_scope_block);
+
+    // 异步加载第一个 Tile
+    cuda::memcpy_async(&amp;tile_A[0][ty][tx], &amp;A[block_start], sizeof(float), block_barrier);
+    cuda::memcpy_async(&amp;tile_B[0][ty][tx], &amp;B[block_start], sizeof(float), block_barrier);
+
+    // 在等待数据时，可以做不依赖数据的操作（如初始化累加器）
+    float sum = 0.0f;
+
+    block_barrier.arrive_and_wait();  // 等待第一批数据到达
+
+    // 计算 Tile 0 的同时，后台已经开始异步加载 Tile 1
+    cuda::memcpy_async(&amp;tile_A[1][...], &amp;A[next_block], ..., block_barrier);
+    cuda::memcpy_async(&amp;tile_B[1][...], &amp;B[next_block], ..., block_barrier);
+
+    compute(tile_A[0], tile_B[0], &amp;sum);
+
+    block_barrier.arrive_and_wait();  // 等待第二批数据到达
+    compute(tile_A[1], tile_B[1], &amp;sum);
+    // ...
+}
+</code></pre>
+<h3 id="communication-behind-compute">异步加载的核心价值：Communication Behind Compute<a class="headerlink" href="#communication-behind-compute" title="Permanent link">&para;</a></h3>
+<pre><code>同步方式（低效）：
+  加载 Tile_0 → 等待 → 算完
+  加载 Tile_1 → 等待 → 算完
+  加载 Tile_2 → 等待 → 算完
+  → 每次加载时 SM 都在空等（100% 访存延迟）
+
+异步方式（高效）：
+  加载 Tile_0 ── 可同时计算不依赖 Tile_0 的逻辑
+  加载 Tile_1 ────── 同时计算 Tile_0
+  加载 Tile_2 ────────── 同时计算 Tile_1
+  → 计算和搬运像流水线一样跑起来
+</code></pre>
+<p>这完全等价于图形渲染中的<strong>三重缓冲</strong>：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">图形</th>
+<th style="text-align: left;">CUDA 异步加载</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">CPU 在准备下一帧数据时，GPU 在渲染当前帧</td>
+<td style="text-align: left;">SM 在计算当前 Tile 时，DMA 引擎在后台加载下一批 Tile</td>
+</tr>
+<tr>
+<td style="text-align: left;">你"算"的是当前帧，不是在等下一帧数据</td>
+<td style="text-align: left;">你"算"的是已经加载好的 Tile，不是在等正在加载的 Tile</td>
+</tr>
+</tbody>
+</table>
+<h2 id="cuda">图形到 CUDA 的搬运模型映射<a class="headerlink" href="#cuda" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">操作</th>
+<th style="text-align: left;">图形 (Compute Shader)</th>
+<th style="text-align: left;">CUDA (同步方式)</th>
+<th style="text-align: left;">CUDA (异步方式)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">数据加载</td>
+<td style="text-align: left;"><code>tex2D</code> 自动采样</td>
+<td style="text-align: left;"><code>tile[ty][tx] = global[idx]</code></td>
+<td style="text-align: left;"><code>cuda::memcpy_async + barrier</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">数据搬运者</td>
+<td style="text-align: left;">硬件 TMU 帮你搬</td>
+<td style="text-align: left;">你亲自写指针搬运</td>
+<td style="text-align: left;">DMA 引擎在后台搬运</td>
+</tr>
+<tr>
+<td style="text-align: left;">缓存管理</td>
+<td style="text-align: left;">隐式 Cache L1/L2</td>
+<td style="text-align: left;">显式 Shared Memory</td>
+<td style="text-align: left;">显式 Shared Memory + 流水线预取</td>
+</tr>
+<tr>
+<td style="text-align: left;">同步</td>
+<td style="text-align: left;">不需要</td>
+<td style="text-align: left;"><code>__syncthreads()</code></td>
+<td style="text-align: left;"><code>cuda::barrier.arrive_and_wait()</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="shared-memory-bank-bank-conflict">Shared Memory Bank 架构与 Bank Conflict（重点）<a class="headerlink" href="#shared-memory-bank-bank-conflict" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p>这一段是 5.2 的"深水区"。你前面已经理解了 Shared Memory 是什么、和 L1 的区别、怎么用 Tiling 把数据搬进来。但<strong>搬进来之后怎么访问</strong>决定了 Kernel 是跑满带宽还是掉到 1/32 性能——这就是 Bank 与 Bank Conflict。对 vLLM / FlashAttention 这类访存密集 Kernel，Bank Conflict 往往是 Nsight Compute 里最刺眼的那一项。</p>
+</blockquote>
+<h3 id="bank-sram-32">什么是 Bank：把 SRAM 切成 32 条独立通道<a class="headerlink" href="#bank-sram-32" title="Permanent link">&para;</a></h3>
+<p>Shared Memory 的物理 SRAM 并不是一条总线，而是被<strong>横向切成 32 个 Bank</strong>（每个 Bank 宽 4 字节 / 32 bit）。这个"32"正对应一个 Warp 的 32 个线程，设计目标是：一个 Warp 的 32 个线程同时各访问 4 字节时，一次完成、零等待。</p>
+<pre><code>地址 0–3    → Bank 0
+地址 4–7    → Bank 1
+...
+地址 124–127 → Bank 31
+地址 128–131 → Bank 0   （循环）
+</code></pre>
+<ul>
+<li><strong>Bank 编号公式</strong>：<code>bank_index = (byte_address &gt;&gt; 2) % 32</code></li>
+<li><strong>一次访存事务</strong>：32 线程访问 32 个不同 Bank → 硬件用 <strong>1 个 128 字节事务</strong> 在一个周期内完成。</li>
+<li>每个 Bank 每个周期只能服务<strong>一个</strong>地址（广播除外，见下）。</li>
+</ul>
+<h3 id="_3">三种访问情形<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">情形</th>
+<th style="text-align: left;">条件</th>
+<th style="text-align: center;">事务数</th>
+<th style="text-align: left;">代价</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">无冲突</td>
+<td style="text-align: left;">32 线程访问 32 个不同 Bank</td>
+<td style="text-align: center;">1</td>
+<td style="text-align: left;">1 cycle，最优</td>
+</tr>
+<tr>
+<td style="text-align: left;">广播（Broadcast）</td>
+<td style="text-align: left;">多线程访问<strong>同一 Bank 的同一地址</strong></td>
+<td style="text-align: center;">1</td>
+<td style="text-align: left;">1 cycle，<strong>无惩罚</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">Bank Conflict</td>
+<td style="text-align: left;">多线程访问<strong>同一 Bank 的不同地址</strong></td>
+<td style="text-align: center;">N</td>
+<td style="text-align: left;">N cycles，线性退化</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>⚠️ 关键易错点：<strong>"同一 Bank" 不等于 "Bank Conflict"</strong>。只有"同一 Bank + 不同地址"才冲突。多个线程读同一地址是广播，免费。</p>
+</blockquote>
+<h3 id="bank-conflict-132">Bank Conflict 量化：最坏掉到 1/32<a class="headerlink" href="#bank-conflict-132" title="Permanent link">&para;</a></h3>
+<p>如果 Warp 内 32 个线程全部撞到同一个 Bank 的不同地址（最坏情况），访问被<strong>串行化</strong>成 32 次事务，延迟 ×32。对一个本来访存受限的 Kernel，这直接把 Shared Memory 带宽从"几十 TB/s"打到"不到 1 TB/s"，Nsight Compute 里 <code>shared_load_bank_conflict</code> 指标会飙红。</p>
+<h3 id="_4">典型冲突模式与解法<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
+<h4 id="1-padding">1. 列访问 / Padding 修复（最常见）<a class="headerlink" href="#1-padding" title="Permanent link">&para;</a></h4>
+<p>Tiling 时如果你把 <code>tile[ty][tx]</code> 按 <code>[TILE][TILE]</code> 声明，按行主序存储，<strong>同一列的不同行落在同一 Bank</strong>——当 Warp 沿列方向访问就会冲突。</p>
+<pre><code class="language-cpp">// ❌ 32 个线程访问 tile[threadIdx.x][0]：全部落在 Bank 0
+float v = tile[threadIdx.x][0];
+
+// ✅ 解法 A：第二维 +1 Padding，打破 32 的周期规律
+__shared__ float tile[TILE_SIZE][TILE_SIZE + 1];
+// 现在 tile[i][j] 的 bank = (i*(TILE+1)+j) % 32，列之间错开
+
+// ✅ 解法 B：转置存储 / 让线程沿行访问
+float v = tile[threadIdx.x][threadIdx.x];  // 完美对角，32 个不同 Bank
+</code></pre>
+<h4 id="2-stride-conflict">2. 跨步访问（Stride Conflict）<a class="headerlink" href="#2-stride-conflict" title="Permanent link">&para;</a></h4>
+<pre><code class="language-cpp">// ❌ stride = 2：线程 i 访问 bank (2*i)%32，只用到 16 个 Bank，且两两冲突
+float v = arr[threadIdx.x * 2];
+
+// ✅ 解法：用寄存器暂存一行再分拆，或把跨步改成 1 / 用 wider type 合并
+</code></pre>
+<h4 id="3-816-bank">3. 宽类型（8/16 字节）的双 Bank 冲突<a class="headerlink" href="#3-816-bank" title="Permanent link">&para;</a></h4>
+<p><code>double</code> / <code>int2</code> / <code>float4</code> 等占用 2~4 个 Bank。一个 <code>float4</code> 横跨 4 个连续 Bank，如果 Warp 整体以跨步 4 访问，会触发<strong>成对的 Bank Conflict</strong>。</p>
+<pre><code class="language-cpp">// ✅ 解法：确保向量首地址 128-bit 对齐，并让相邻线程访问相邻向量（自然分散到不同 bank）
+</code></pre>
+<h4 id="4">4. 不规则 / 动态索引<a class="headerlink" href="#4" title="Permanent link">&para;</a></h4>
+<p><code>tile[offset[threadIdx.x]]</code> 这类动态索引几乎必然冲突。解法通常是<strong>重排（swizzle）</strong>或改用 Warp Shuffle 在寄存器间交换（见 5.5）绕开 Shared Memory。</p>
+<h3 id="swizzle">高级手法：Swizzle（地址重排）<a class="headerlink" href="#swizzle" title="Permanent link">&para;</a></h3>
+<p>在 FlashAttention、CUTLASS 等高性能 Kernel 里，你常看到 Shared Memory 布局的 <strong>Swizzle</strong>——按位 XOR 重排地址，使 2D Tile 的相邻行/列错开 Bank，从根上消除冲突。Hopper (SM90) 的 TMA 加载甚至内置了 Swizzle 模式（如 <code>128Bx4</code>），让异步拷贝进来的数据天然不冲突。</p>
+<pre><code class="language-cpp">// 简化示意：行偏移按 XOR 重排
+int swizzled_row = row ^ ((col &gt;&gt; 2) &amp; 0x7);
+tile[swizzled_row][col] = ...
+</code></pre>
+<h3 id="ai_1">图形 → AI 映射<a class="headerlink" href="#ai_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">概念</th>
+<th style="text-align: left;">图形</th>
+<th style="text-align: left;">CUDA</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">同一 Bank 多地址冲突</td>
+<td style="text-align: left;">纹理 Cache 的<strong>同 Set 冲突（Cache Thrashing）</strong>：多个不同地址哈希到同一个 Cache Set，互相驱逐</td>
+<td style="text-align: left;">同一 Bank 不同地址，事务串行化</td>
+</tr>
+<tr>
+<td style="text-align: left;">广播</td>
+<td style="text-align: left;">纹理采样时相邻像素命中同一 Cache Line（一次性取回）</td>
+<td style="text-align: left;">多线程读同一 Shared Memory 地址，硬件广播</td>
+</tr>
+<tr>
+<td style="text-align: left;">解决思路</td>
+<td style="text-align: left;">调整数据布局 / Mipmap 分级</td>
+<td style="text-align: left;">Padding / Swizzle / Warp Shuffle</td>
+</tr>
+</tbody>
+</table>
+<h3 id="vllm-flashattention">对 vLLM / FlashAttention 调优的意义<a class="headerlink" href="#vllm-flashattention" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>FlashAttention 的 QK^T / PV 阶段</strong>：Tile 以 <code>[Br][Bc]</code> 或 <code>[Bc][Bc]</code> 排布，若不做 Padding/Swizzle，归约维的访问会大面积 Bank Conflict，实测可让 Kernel 慢 20%~50%。</li>
+<li><strong>PagedAttention 的 Decode 阶段</strong>：每个 Query 要 gather 多个 KV Block，访问模式跨 Block 不规则，是 Bank Conflict 重灾区；vLLM 的 <code>flash_attn</code> / <code>flashinfer</code> 后端都对此做了专门 layout 优化。</li>
+<li><strong>怎么验证</strong>：Nsight Compute → Memory → <code>Shared Memory Bank Conflicts</code>（或 <code>l1_shared_bank_conflict</code>）。看到 <code>shared_load_bank_conflict</code> 远大于 0，就该查你的 Tile 布局了。</li>
+<li><strong>Triton 视角</strong>：Triton 的 <code>@triton.jit</code> 会自动帮你处理很多 banking（其 <code>tl.load</code> 的内部 swizzle），但手写 CUDA / 读 vLLM <code>csrc/</code> 源码时，Bank Conflict 是必修。</li>
+</ul>
+<h2 id="shared-memory_1">实际例子：Shared Memory 配置的注意事项<a class="headerlink" href="#shared-memory_1" title="Permanent link">&para;</a></h2>
+<h3 id="shared-memory_2">Shared Memory 超额<a class="headerlink" href="#shared-memory_2" title="Permanent link">&para;</a></h3>
+<p>每个 SM 的 Shared Memory 总量是有限的。如果你的 Kernel 每个 Block 使用超过限额，<strong>Occupancy 会下降</strong>（一个 SM 能同时驻留的 Block 数减少）。</p>
+<pre><code class="language-cpp">// A100 SM Shared Memory: 最大 164 KB
+// 如果你的 Block 用了 50 KB Shared Memory
+// SM 最多只能驻留 3 个 Block（164 / 50 ≈ 3），而不是理想情况下的更多
+</code></pre>
+<h2 id="_5">总结<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">项目</th>
+<th style="text-align: left;">L1 Cache</th>
+<th style="text-align: left;">Shared Memory</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">管理方式</td>
+<td style="text-align: left;">硬件自动</td>
+<td style="text-align: left;">软件显式</td>
+</tr>
+<tr>
+<td style="text-align: left;">数据生命周期</td>
+<td style="text-align: left;">"尽力而为"，可能 Miss</td>
+<td style="text-align: left;">显式写入并在 Block 生命周期内管理</td>
+</tr>
+<tr>
+<td style="text-align: left;">性能约束</td>
+<td style="text-align: left;">命中率、Cache Line 与争用</td>
+<td style="text-align: left;">Bank Conflict、同步、容量与吞吐</td>
+</tr>
+<tr>
+<td style="text-align: left;">容量</td>
+<td style="text-align: left;">可配置（与 Shared Memory 共享物理空间）</td>
+<td style="text-align: left;">可配置（与 L1 共享物理空间）</td>
+</tr>
+<tr>
+<td style="text-align: left;">适用场景</td>
+<td style="text-align: left;">有良好局部性的随机访问</td>
+<td style="text-align: left;">程序员已知的确定数据分块</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>图形和 AI 都会同时使用 Cache 与 Shared Memory。选择依据是复用范围与测量结果：Block 内明确复用适合 Shared Memory，跨 Block 或不确定复用交给 Cache 与布局优化。</p>
+</blockquote>
+<p><code>tex2D</code> 是带采样语义的纹理访问路径，<code>__shared__</code> 是线程块 Scratchpad 地址空间；它们可在同一工作负载中协作，并非互斥选项。</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../5.1-thread_block_grid_mapping/" class="btn btn-neutral float-left" title="5.1 线程模型 (Thread, Block, Grid) 与映射"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../5.3-warp_simd_simt_divergence/" class="btn btn-neutral float-right" title="5.3 执行模型: Warp, SIMD, SIMT, 分支分歧">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../5.1-thread_block_grid_mapping/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../5.3-warp_simd_simt_divergence/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

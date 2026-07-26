@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="zh_CN" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度 - GPU 图形与 AI 推理知识手册</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "10.3 \u7f16\u8bd1\u5668\u62bd\u8c61: PTX / SASS, \u5bc4\u5b58\u5668\u5206\u914d, \u6307\u4ee4\u8c03\u5ea6";
+        var mkdocs_page_input_path = "10.3-compiler_ptx_sass.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GPU 图形与 AI 推理知识手册
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">首页</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">1. 图形渲染管线与 GPU 硬件基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.1-graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.2-render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.3-gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.4-graphics_passes_and_sync/">1.4 图形管线中的 Pass 与同步 (RenderPass, Barrier)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">2. GPU 并发模型与系统思维</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.1-cpu_gpu_async_pipeline/">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.2-command_buffer_ring_buffer/">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.3-multithreaded_rendering_and_pools/">2.3 多线程渲染与资源池管理</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.4-graphics_to_ai_first_principles/">2.4 从图形管线到 AI 推理的第一性原理映射</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">3. AI 模型与算子基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.1-model_structures_inference_view/">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.2-operator_taxonomy/">3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.3-convolution_math_implementation/">3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">4. AI 推理优化核心策略</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.1-operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.2-tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.3-async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.4-memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.1-thread_block_grid_mapping/">5.1 线程模型 (Thread, Block, Grid) 与映射</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.2-explicit_memory_shared_vs_cache/">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.3-warp_simd_simt_divergence/">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.4-synchronization_primitives/">5.4 同步原语: __syncthreads, __syncwarp, 内存屏障</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.5-warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.6-atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.1-reduce_tree_implementation/">6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.2-scan_stream_compaction/">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.3-radix_sort_as_stream_compaction/">6.3 基数排序 (Radix Sort) = 逐位流压缩</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.4-flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../7-llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../8-vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.1-tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.2-rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.3-computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../10.1-umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.2-driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#_1">概述</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_2">编译流水线总览</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#cuda">CUDA 编译流水线</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_3">图形着色器编译流水线</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#ptx-vs-sass-vs">PTX vs SASS: 中间表示 vs 最终机器码</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#ptx-nvidia-isa">PTX: 面向 NVIDIA 虚拟 ISA 的中间语言</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#sass">SASS: 真正的硬件指令</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_4">编译器后端的核心技术</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-instruction-scheduling">1. 指令调度 (Instruction Scheduling)</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-register-allocation">2. 寄存器分配 (Register Allocation)</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-occupancy">3. 资源估算与 Occupancy</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#tensorrt-ai">TensorRT: AI 专用的编译器</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_5">一张表总结编译层级</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.4-graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.1-nano_vllm_from_scratch/">11.1 读 Nano-vLLM 源码: 一个推理引擎怎么组装起来</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.2-attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.3-paged_attention_continuous_batching/">11.3 PagedAttention 与 Continuous Batching: 从 PyTorch 到 CUDA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.4-kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.5-inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.6-paged_attention_dx12_tensorrt_backend/">11.6 进阶: 把分页契约搬到 DX12 与 TensorRT 后端</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.1-career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.2-resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.3-knowledge_checklist/">A.3 关键知识点自检清单</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GPU 图形与 AI 推理知识手册</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">10. GPU 软件栈与驱动开发</li>
+      <li class="breadcrumb-item active">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="103-ptx-sass">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度<a class="headerlink" href="#103-ptx-sass" title="Permanent link">&para;</a></h1>
+<h2 id="_1">概述<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>编译器是程序员和 GPU 硬件之间的 <strong>"优化师"</strong>。它的职责是把高级语言翻译成 GPU 汇编/机器码，并在翻译过程中做大量你无法（也不需要）手动控制的优化。</p>
+<p>你写的 CUDA C++、HLSL、GLSL 代码，最终都要经过一层一层的编译降级，才能在 GPU 上真正运行。</p>
+<h2 id="_2">编译流水线总览<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<h3 id="cuda">CUDA 编译流水线<a class="headerlink" href="#cuda" title="Permanent link">&para;</a></h3>
+<pre><code>CUDA C++ (源代码)
+    │
+    ├── 编译器前端 (nvcc / Clang)
+    │    ├── 词法分析、语法分析
+    │    ├── 类型检查、模板展开
+    │    └── 生成中间表示 (PTX)
+    │
+    ▼
+PTX (Parallel Thread Execution)  ← 中间表示，类比 LLVM IR
+    │
+    ├── 编译器后端 (ptxas / NV Compiler)
+    │    ├── 指令选择 (Instruction Selection)
+    │    ├── 指令调度 (Instruction Scheduling)
+    │    ├── 寄存器分配 (Register Allocation)
+    │    └── 生成机器码
+    │
+    ▼
+SASS (Streaming Assembler)  ← 最终机器码，GPU 直接执行
+    │
+    └── 驱动 (KMD) → 写入 Ring Buffer → GPU 执行
+</code></pre>
+<h3 id="_3">图形着色器编译流水线<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
+<pre><code>HLSL / GLSL (着色器源代码)
+    │
+    ├── 编译器前端 (FXC / DXCompiler / glslang)
+    │    ├── 词法/语法分析
+    │    ├── 语义检查
+    │    └── 生成中间表示 (DXIL / SPIR-V)
+    │
+    ▼
+DXIL / SPIR-V  ← 中间表示
+    │
+    ├── 编译器后端 (驱动内编译)
+    │    ├── 指令选择
+    │    ├── 寄存器分配
+    │    └── 生成 GPU 原生机器指令
+    │
+    ▼
+GPU 原生指令  ← 硬件直接执行
+</code></pre>
+<blockquote>
+<p><strong>关键类比</strong>：PTX、DXIL 和 SPIR-V 都是面向虚拟机/执行环境的中间表示，但语义、可移植范围和编译阶段不同。PTX 仍包含目标能力与 ISA 版本约束；SASS 是特定 NVIDIA 架构的原生机器指令，不宜称为“微码”。</p>
+</blockquote>
+<h2 id="ptx-vs-sass-vs">PTX vs SASS: 中间表示 vs 最终机器码<a class="headerlink" href="#ptx-vs-sass-vs" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">维度</th>
+<th style="text-align: left;">PTX</th>
+<th style="text-align: left;">SASS</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>全称</strong></td>
+<td style="text-align: left;">Parallel Thread Execution</td>
+<td style="text-align: left;">Streaming Assembler</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>角色</strong></td>
+<td style="text-align: left;">中间表示 (IR)</td>
+<td style="text-align: left;">最终机器码</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>硬件绑定</strong></td>
+<td style="text-align: left;">与具体 GPU 架构无关</td>
+<td style="text-align: left;">绑定到具体架构 (如 Ampere, Hopper)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>可读性</strong></td>
+<td style="text-align: left;">人类可读的汇编文本</td>
+<td style="text-align: left;">二进制格式，反汇编可读</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>稳定性</strong></td>
+<td style="text-align: left;">跨代稳定 (PTX 6.x 兼容多代 GPU)</td>
+<td style="text-align: left;">每代架构可能不同</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>类比</strong></td>
+<td style="text-align: left;">LLVM IR / DXIL</td>
+<td style="text-align: left;">x86 机器码 / GPU 原生指令</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>生成方式</strong></td>
+<td style="text-align: left;">nvcc 前端生成</td>
+<td style="text-align: left;">ptxas 后端生成</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>分发方式</strong></td>
+<td style="text-align: left;">可在驱动包中携带 (JIT 编译)</td>
+<td style="text-align: left;">预编译为二进制 (性能最佳)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="ptx-nvidia-isa">PTX: 面向 NVIDIA 虚拟 ISA 的中间语言<a class="headerlink" href="#ptx-nvidia-isa" title="Permanent link">&para;</a></h3>
+<pre><code class="language-ptx">// PTX 示例：一个简单的向量加法 Kernel
+.version 7.8
+.target sm_75
+.address_size 64
+
+.visible .entry _Z13vecAddKernelPfS_S_(
+    .param .u64 _Z13vecAddKernelPfS_S__param_0,
+    .param .u64 _Z13vecAddKernelPfS_S__param_1,
+    .param .u64 _Z13vecAddKernelPfS_S__param_2
+)
+{
+    .reg .u32   %r&lt;5&gt;;
+    .reg .f32   %f&lt;5&gt;;
+    .reg .u64   %rd&lt;8&gt;;
+
+    // 计算全局线程 ID
+    ld.param.u64   %rd1, [_Z13vecAddKernelPfS_S__param_0];  // A
+    ld.param.u64   %rd2, [_Z13vecAddKernelPfS_S__param_1];  // B
+    ld.param.u64   %rd3, [_Z13vecAddKernelPfS_S__param_2];  // C
+    mov.u32        %r1, %tid.x;
+    mov.u32        %r2, %ntid.x;
+    mul.wide.u32   %rd4, %r1, %r2;
+    cvta.to.global.u64 %rd5, %rd1;
+    // ... (加载、计算、存储)
+}
+</code></pre>
+<p>PTX 的关键特性：
+- <strong>架构无关</strong>：同一个 PTX 代码可以在多代 GPU 上运行（驱动负责 JIT 编译成当前硬件的 SASS）。
+- <strong>稳定性保证</strong>：NVIDIA 承诺 PTX 跨代兼容——你可以在 Volta 上编译 PTX，在 Hopper 上运行。
+- <strong>优化边界</strong>：PTX 保留了高级语义（如 <code>__syncthreads</code>），但已经丢失了变量名、循环结构等源码信息。</p>
+<h3 id="sass">SASS: 真正的硬件指令<a class="headerlink" href="#sass" title="Permanent link">&para;</a></h3>
+<pre><code class="language-sass">// 反汇编 SASS 示例 (Ampere 架构, sm_80)
+/*0000*/  IMAD.MOV.U32 R1, RZ, RZ, c[0x0][0x28]
+/*0010*/  S2R R0, SR_CTAID.X         // 读取线程块 ID
+/*0020*/  S2R R2, SR_TID.X           // 读取线程 ID
+/*0030*/  IMAD R0, R0, c[0x0][0x2c], R2  // 计算全局线程索引
+/*0040*/  ISETP.GE.AND P0, PT, R0, c[0x0][0x30], PT  // 边界检查
+/*0050*/  NOP
+/*0060*/  EXIT
+</code></pre>
+<p>SASS 的关键特性：
+- <strong>架构绑定</strong>：每代 GPU 架构有自己特有的 SASS 指令集（Turing SASS ≠ Ampere SASS ≠ Hopper SASS）。
+- <strong>性能最优</strong>：预编译的 SASS 二进制不需要 JIT 编译，且可以针对具体架构做最激进的优化。
+- <strong>调试目标</strong>：当你关心"为什么这个 Kernel 跑得慢"时，最终需要看 SASS 来理解寄存器压力、指令吞吐。</p>
+<blockquote>
+<p><strong>建议</strong>：在 CUDA 应用中携带 PTX 作为回退方案（兼容未来硬件），同时也携带当前主流架构的 SASS 二进制以获得最佳性能。这就是 <code>nvcc</code> 的 <code>-gencode</code> 参数做的事情。</p>
+</blockquote>
+<h2 id="_4">编译器后端的核心技术<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<h3 id="1-instruction-scheduling">1. 指令调度 (Instruction Scheduling)<a class="headerlink" href="#1-instruction-scheduling" title="Permanent link">&para;</a></h3>
+<p>编译器后端会<strong>重新排列指令顺序</strong>，以最大化指令级并行（ILP, Instruction-Level Parallelism）。</p>
+<pre><code class="language-sass">// 未优化的指令序列（串行依赖）
+LDG R0, [addr0]     // 加载数据  → 等待 Global Memory
+FMA R2, R0, R1, RZ  // 乘加运算  → 等待 R0 就绪
+LDG R3, [addr1]     // 加载数据  → 等待前一条完成
+FMA R4, R3, R5, RZ  // 乘加运算  → 等待 R3 就绪
+
+// 编译器优化后的指令序列（指令级并行）
+LDG R0, [addr0]     // 加载数据 0
+LDG R3, [addr1]     // 加载数据 1  ← 和上一条并行发射
+FMA R2, R0, R1, RZ  // 乘加 0    ← 此时 R0 已就绪
+FMA R4, R3, R5, RZ  // 乘加 1    ← 此时 R3 已就绪
+</code></pre>
+<p><strong>编译器通过把独立的加载指令提前</strong>，让加载延迟被后续独立计算掩盖——这正是"Communication behind compute"在指令级别的体现。</p>
+<h3 id="2-register-allocation">2. 寄存器分配 (Register Allocation)<a class="headerlink" href="#2-register-allocation" title="Permanent link">&para;</a></h3>
+<p>编译器决定哪些变量放在寄存器，哪些"溢出"（Spill）到 Local Memory（实际上是显存）。</p>
+<pre><code>寄存器是 GPU 上最快的存储，但数量有限：
+
+CUDA C++ 代码                        编译器决策
+────────────────────────────────     ────────────────
+float a = ...;      // 频繁使用  →  分配物理寄存器 (Register)
+float b = ...;      // 偶尔使用  →  可能溢出到 Local Memory
+float c = ...;      // 只在末尾使用 → 先放寄存器，后溢出
+</code></pre>
+<p><strong>图着色分配算法 (Graph Coloring Register Allocation)</strong>：编译器把变量看作图中的节点，变量间的同时活跃关系看作边，然后用图着色算法来最小化所需的寄存器数量。当图无法用可用颜色着色时，部分变量必须溢出到 Local Memory。</p>
+<pre><code>  a ─── b       ← a 和 b 同时活跃，不能共用寄存器
+   \   /
+    c           ← c 与 a、b 都同时活跃
+   / \
+  d ─── e
+
+需要至少 3 个寄存器 (颜色) 来着色这个图
+如果硬件只有 2 个寄存器 → 某个变量必须溢出到显存
+</code></pre>
+<p><strong>寄存器溢出（Register Spill）是性能杀手</strong>——溢出意味着数据要写到显存再读回，延迟从几个周期暴涨到数百周期。这就是为什么很多时候"减少一个变量"就能让 Kernel 跑快 20%。</p>
+<h3 id="3-occupancy">3. 资源估算与 Occupancy<a class="headerlink" href="#3-occupancy" title="Permanent link">&para;</a></h3>
+<p>编译器还会估算每个 Kernel 需要多少寄存器、多少 Shared Memory，从而决定一个 SM 上能同时驻留多少个线程块（Occupancy）。</p>
+<pre><code class="language-cuda">// 编译器分析结果 (通过 --ptxas-options=-v 查看)
+//    注册数: 32 registers per thread
+//    Shared Memory: 8192 bytes per block
+//    Occupancy: 64 blocks per SM (假设 SM 有 65536 个寄存器)
+//               = 64 * 32 * 32 = 65536 线程 / SM
+</code></pre>
+<h2 id="tensorrt-ai">TensorRT: AI 专用的编译器<a class="headerlink" href="#tensorrt-ai" title="Permanent link">&para;</a></h2>
+<p>TensorRT 的 Engine 编译可以看作是 <strong>"AI 专用的编译器"</strong>：</p>
+<pre><code>PyTorch 模型 (计算图)
+    │
+    ├── TensorRT IBuilder / INetwork
+    │    ├── 图优化 (算子融合: Conv+BN+ReLU)
+    │    ├── 精度校准 (FP16 / INT8 量化)
+    │    ├── 内存复用 (In-Place 优化)
+    │    └── Kernel 自动调优 (Tactic Selection)
+    │
+    ▼
+TensorRT Engine (.engine / .plan)
+    │
+    ├── 包含预编译的 CUDA Kernel (SASS)
+    ├── 包含计算图拓扑信息
+    └── 包含 Layer 参数和内存分配计划
+</code></pre>
+<p>你可以把 TensorRT Engine 理解成一个 <strong>"AI 专门的编译器产物"</strong>：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">通用编译器</th>
+<th style="text-align: left;">TensorRT</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">输入: CUDA C++ 源码</td>
+<td style="text-align: left;">输入: ONNX 计算图</td>
+</tr>
+<tr>
+<td style="text-align: left;">输出: SASS 机器码</td>
+<td style="text-align: left;">输出: Engine (含多个 SASS Kernel + 调度计划)</td>
+</tr>
+<tr>
+<td style="text-align: left;">优化: 指令调度 + 寄存器分配</td>
+<td style="text-align: left;">优化: 算子融合 + 量化 + Kernel 自动调优</td>
+</tr>
+<tr>
+<td style="text-align: left;">类比: 写一个 Draw Call 的 Shader</td>
+<td style="text-align: left;">类比: 把整个 RenderGraph 预编译成 PSO</td>
+</tr>
+</tbody>
+</table>
+<p>当你调用 TensorRT API 时：</p>
+<pre><code class="language-cpp">// TensorRT 的 Engine 构建
+IBuilder* builder = createInferBuilder(gLogger);
+INetworkDefinition* network = builder-&gt;createNetwork();
+
+// 添加网络层（类似构建计算图）
+auto conv = network-&gt;addConvolution(...);
+auto relu = network-&gt;addActivation(*conv-&gt;getOutput(0), ActivationType::kRELU);
+
+// 编译 Engine（类比 ptxas 编译 PTX → SASS）
+ICudaEngine* engine = builder-&gt;buildCudaEngine(*network);
+
+// 运行时执行（类似 vkQueueSubmit）
+context-&gt;enqueueV2(buffers, stream, nullptr);
+</code></pre>
+<blockquote>
+<p><strong>本质</strong>：你在 CUDA 层面关注的是<strong>单 Kernel 的指令级优化</strong>，而在 TensorRT 层面关注的是<strong>整个计算图的调度级优化</strong>。两者处于不同的抽象层级，但底层共享同一个 PTX/SASS 编译栈。</p>
+</blockquote>
+<h2 id="_5">一张表总结编译层级<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">层级</th>
+<th style="text-align: left;">核心工作</th>
+<th style="text-align: left;">技术栈</th>
+<th style="text-align: left;">程序员管不到的地方</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>驱动</strong> (Driver)</td>
+<td style="text-align: left;">把 API 调用翻译成硬件指令、管理显存</td>
+<td style="text-align: left;">WDK / Linux Kernel、PCIe、MMIO</td>
+<td style="text-align: left;">页表映射、中断处理、电源管理</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>编译器</strong> (Compiler)</td>
+<td style="text-align: left;">高级语言 → 机器码，指令调度 + 寄存器分配</td>
+<td style="text-align: left;">LLVM、PTX、SASS、图着色分配</td>
+<td style="text-align: left;">指令级并行 (ILP) 调度、寄存器选择</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>算子开发</strong> (Kernel)</td>
+<td style="text-align: left;">高效并行算法，手工管理 Shared Memory</td>
+<td style="text-align: left;">CUDA C++、Triton、Warp Shuffle</td>
+<td style="text-align: left;">指令顺序 (编译器重排)、寄存器分配</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>推理框架</strong> (vLLM/TensorRT)</td>
+<td style="text-align: left;">计算图优化、显存管理、批处理调度</td>
+<td style="text-align: left;">Python/C++、CUDA Runtime、CUDA Graph</td>
+<td style="text-align: left;">算子内部实现</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>你在第二层（编译器）的边缘试探过：你知道 <code>__syncthreads</code> 和 <code>__shared__</code> 的存在，知道编译器会帮你做指令重排，但不深入到 SASS 层面。如果你想突破，<strong>阅读 NVCC 的 PTX 输出</strong>是最好的起点。</p>
+</blockquote>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../10.2-driver_development_patterns/" class="btn btn-neutral float-left" title="10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../10.4-graphics_vs_compute_driver/" class="btn btn-neutral float-right" title="10.4 图形驱动 vs 通用计算驱动: 差异与交集">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../10.2-driver_development_patterns/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../10.4-graphics_vs_compute_driver/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

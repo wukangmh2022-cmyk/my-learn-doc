@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="zh_CN" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>2.4 从图形管线到 AI 推理的第一性原理映射 - GPU 图形与 AI 推理知识手册</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "2.4 \u4ece\u56fe\u5f62\u7ba1\u7ebf\u5230 AI \u63a8\u7406\u7684\u7b2c\u4e00\u6027\u539f\u7406\u6620\u5c04";
+        var mkdocs_page_input_path = "2.4-graphics_to_ai_first_principles.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GPU 图形与 AI 推理知识手册
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">首页</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">1. 图形渲染管线与 GPU 硬件基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.1-graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.2-render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.3-gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.4-graphics_passes_and_sync/">1.4 图形管线中的 Pass 与同步 (RenderPass, Barrier)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">2. GPU 并发模型与系统思维</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../2.1-cpu_gpu_async_pipeline/">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.2-command_buffer_ring_buffer/">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.3-multithreaded_rendering_and_pools/">2.3 多线程渲染与资源池管理</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">2.4 从图形管线到 AI 推理的第一性原理映射</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#_1">概述</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#1-gpu-driven-renderpipeline-ai">1. 核心映射：GPU Driven RenderPipeline → AI 推理引擎</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#11">1.1 架构层级对比</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#12-cuda-graph">1.2 精度修正：CUDA Graph 的准确定位</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#2-indirect-draw-cuda-graph">2. 第一映射：Indirect Draw = CUDA Graph 的"先录后放"</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#21-indirect-draw">2.1 图形中的 Indirect Draw</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#22-cuda-graph">2.2 CUDA Graph 的等价模式</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#23">2.3 本质相同</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#3-compute-shader-culling-sequence-length">3. 第二映射：Compute Shader Culling = 动态 Sequence Length</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#31-cs-culling">3.1 图形中的 CS Culling</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#32-ai-sequence">3.2 AI 推理中的等价物：变长 Sequence 处理</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#33">3.3 本质相同</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#4-pagedattention">4. 第三映射：显存池管理 = PagedAttention</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#41">4.1 图形中的预分配显存池</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#42-pagedattention">4.2 PagedAttention 的等价管理</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#43">4.3 本质相同</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#5">5. 完整映射表（收藏版）</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#51">5.1 架构级映射</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#52">5.2 优化技术映射</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#6">6. 你的终极思维框架</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#7">7. 下一步：你的架构创新方向</a>
+    </li>
+    </ul>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">3. AI 模型与算子基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.1-model_structures_inference_view/">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.2-operator_taxonomy/">3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.3-convolution_math_implementation/">3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">4. AI 推理优化核心策略</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.1-operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.2-tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.3-async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.4-memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.1-thread_block_grid_mapping/">5.1 线程模型 (Thread, Block, Grid) 与映射</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.2-explicit_memory_shared_vs_cache/">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.3-warp_simd_simt_divergence/">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.4-synchronization_primitives/">5.4 同步原语: __syncthreads, __syncwarp, 内存屏障</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.5-warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.6-atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.1-reduce_tree_implementation/">6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.2-scan_stream_compaction/">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.3-radix_sort_as_stream_compaction/">6.3 基数排序 (Radix Sort) = 逐位流压缩</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.4-flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../7-llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../8-vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.1-tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.2-rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.3-computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.1-umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.2-driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.3-compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.4-graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.1-nano_vllm_from_scratch/">11.1 读 Nano-vLLM 源码: 一个推理引擎怎么组装起来</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.2-attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.3-paged_attention_continuous_batching/">11.3 PagedAttention 与 Continuous Batching: 从 PyTorch 到 CUDA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.4-kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.5-inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.6-paged_attention_dx12_tensorrt_backend/">11.6 进阶: 把分页契约搬到 DX12 与 TensorRT 后端</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.1-career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.2-resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.3-knowledge_checklist/">A.3 关键知识点自检清单</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GPU 图形与 AI 推理知识手册</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">2. GPU 并发模型与系统思维</li>
+      <li class="breadcrumb-item active">2.4 从图形管线到 AI 推理的第一性原理映射</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="24-ai">2.4 从图形管线到 AI 推理的第一性原理映射<a class="headerlink" href="#24-ai" title="Permanent link">&para;</a></h1>
+<h2 id="_1">概述<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>这是本书中<strong>最重要的章节之一</strong>。它不是教一个概念，而是帮你建立一套<strong>跨领域的架构思维</strong>——让你在面对 AI 推理优化时，能够用图形管线的直觉进行降维打击。</p>
+<blockquote>
+<p><strong>你的原话</strong>："懂了，就是 GPU Driven RenderPipeline 那套。"</p>
+<p>这一句话直接点出了 AI 推理引擎和 GPU Driven Rendering 的架构同构性。本章的目标就是把这套映射完整、精确地画出来。</p>
+</blockquote>
+<h2 id="1-gpu-driven-renderpipeline-ai">1. 核心映射：GPU Driven RenderPipeline → AI 推理引擎<a class="headerlink" href="#1-gpu-driven-renderpipeline-ai" title="Permanent link">&para;</a></h2>
+<h3 id="11">1.1 架构层级对比<a class="headerlink" href="#11" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">层级</th>
+<th style="text-align: left;">GPU Driven Rendering</th>
+<th style="text-align: left;">AI 推理引擎 (vLLM / TensorRT)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>核心理念</strong></td>
+<td style="text-align: left;">CPU 只发一个 Draw，GPU 自己决定画什么、怎么画</td>
+<td style="text-align: left;">CPU 只发一次 <code>cudaGraphLaunch</code>，GPU 自己跑完整模型</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>消除的瓶颈</strong></td>
+<td style="text-align: left;">CPU 的 Draw Call 提交和状态切换</td>
+<td style="text-align: left;">CPU 的 Kernel Launch 提交和同步等待</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>数据驱动</strong></td>
+<td style="text-align: left;">GPU 从 Indirect Buffer 读取绘制参数（顶点数、实例数）</td>
+<td style="text-align: left;">GPU 从显存中的元数据读取 BatchSize、SeqLen 等动态参数</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>管线管理</strong></td>
+<td style="text-align: left;">GPU 用 Compute Shader 做 Culling、LOD，再发 Draw</td>
+<td style="text-align: left;">GPU 用 CUDA Graph 跑完整计算图，内部调度 Kernel</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>资源管理</strong></td>
+<td style="text-align: left;">GPU 用显存池管理几何数据 (Vertex/Index Buffer)</td>
+<td style="text-align: left;">GPU 用 PagedAttention 管理 KV Cache（显存块分配）</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>你的角色</strong></td>
+<td style="text-align: left;">你写 Shaders 和管线状态，CPU 只做最简单的提交</td>
+<td style="text-align: left;">你写 Kernels 和构建 Graph，CPU 只做最简单的 Launch</td>
+</tr>
+</tbody>
+</table>
+<h3 id="12-cuda-graph">1.2 精度修正：CUDA Graph 的准确定位<a class="headerlink" href="#12-cuda-graph" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p><strong>你的纠正</strong>："CUDA Graph 应该对标渲染管线里的状态缓存与合并——合并 Batch Draw Call、PSO 缓存、Barrier 合并，还没上升到 GPU Driven Pipeline。"</p>
+<p>这个纠正非常严谨。让我把层级划分清楚：</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">层级</th>
+<th style="text-align: left;">图形</th>
+<th style="text-align: left;">AI 推理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>应用层</strong></td>
+<td style="text-align: left;">游戏引擎逻辑</td>
+<td style="text-align: left;">PyTorch 模型代码</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>API 调用层</strong></td>
+<td style="text-align: left;"><code>DrawIndexed</code> / <code>Dispatch</code></td>
+<td style="text-align: left;"><code>cudaLaunchKernel</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>驱动层优化</strong></td>
+<td style="text-align: left;">Command List 合并、PSO 缓存、Barrier 合并</td>
+<td style="text-align: left;">CUDA Graph（节点合并、依赖分析）</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>硬件执行层</strong></td>
+<td style="text-align: left;">GPU 执行 Command Buffer</td>
+<td style="text-align: left;">GPU 执行 Graph 的 Nodes</td>
+</tr>
+</tbody>
+</table>
+<p><strong>CUDA Graph = DX12/Vulkan 的 Command List + PSO 缓存 + Barrier 合并</strong>，是一个驱动层的优化技术，而不是 GPU Driven Pipeline 这种架构级范式。</p>
+<p>GPU Driven Pipeline 是 CPU 彻底不管绘制参数，而 CUDA Graph 仍然是 CPU 提交，只是提交一次就够，活的性质没变。</p>
+<h2 id="2-indirect-draw-cuda-graph">2. 第一映射：Indirect Draw = CUDA Graph 的"先录后放"<a class="headerlink" href="#2-indirect-draw-cuda-graph" title="Permanent link">&para;</a></h2>
+<h3 id="21-indirect-draw">2.1 图形中的 Indirect Draw<a class="headerlink" href="#21-indirect-draw" title="Permanent link">&para;</a></h3>
+<p><code>DrawIndexedInstancedIndirect</code> / <code>ExecuteIndirect</code> 的核心思想是：<strong>把绘制参数放在 GPU Buffer 里，让 GPU 自己读参数、自己决定画多少个三角形。</strong></p>
+<pre><code class="language-cpp">// 图形：Indirect Draw
+// CPU 只需要知道 Indirect Buffer 的地址，不需要知道具体画什么
+ID3D12CommandSignature* cmdSignature;
+// ... 创建 Command Signature，描述 Indirect Buffer 的布局 ...
+
+// 每帧：CPU 只提交这一个 Indirect Draw
+cmdList-&gt;ExecuteIndirect(cmdSignature, maxCount,
+                         indirectBuffer, 0,
+                         countBuffer, 0);
+// GPU 自己从 indirectBuffer 读取参数，决定画多少实例
+</code></pre>
+<h3 id="22-cuda-graph">2.2 CUDA Graph 的等价模式<a class="headerlink" href="#22-cuda-graph" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">// AI：CUDA Graph —— 同样的&quot;先录后放&quot;
+cudaGraph_t graph;
+cudaStreamBeginCapture(stream);
+
+// 录制整个推理过程（Kernel 序列）
+embedding_kernel&lt;&lt;&lt;grid1, block1&gt;&gt;&gt;(input, embedding);
+attention_kernel&lt;&lt;&lt;grid2, block2&gt;&gt;&gt;(embedding, hidden);
+mlp_kernel&lt;&lt;&lt;grid3, block3&gt;&gt;&gt;(hidden, output);
+// ... 整个模型就是一个大的 Kernel 序列 ...
+
+cudaStreamEndCapture(stream, &amp;graph);
+
+// 实例化（编译 / 验证）
+cudaGraphExec_t graphExec;
+cudaGraphInstantiate(&amp;graphExec, graph, NULL, NULL, 0);
+
+// 推理时：CPU 只需要发这一个 Launch
+cudaGraphLaunch(graphExec, stream);  // GPU 自己跑完整图
+// 不需要每次一个一个 Launch Kernel
+</code></pre>
+<h3 id="23">2.3 本质相同<a class="headerlink" href="#23" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Indirect Draw</th>
+<th style="text-align: left;">CUDA Graph</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">CPU 提交一次，包含多个 Draw Call</td>
+<td style="text-align: left;">CPU Launch 一次，包含多个 Kernel</td>
+</tr>
+<tr>
+<td style="text-align: left;">GPU 自己读 Indirect Buffer 获取参数</td>
+<td style="text-align: left;">GPU 执行预编译好的 Node 序列</td>
+</tr>
+<tr>
+<td style="text-align: left;">减少 CPU Draw Call 开销</td>
+<td style="text-align: left;">减少 CPU Kernel Launch 开销</td>
+</tr>
+<tr>
+<td style="text-align: left;">重放：同一 Indirect Buffer 可多次提交</td>
+<td style="text-align: left;">重放：同一 GraphExec 可多次 Launch</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>你的扫一眼策略</strong>：CUDA Graph 就是帮你把多次 <code>cudaLaunchKernel</code> 打包成一次 <code>cudaGraphLaunch</code>，跟合 Batch Draw Call 一样。你只需要扫一眼 <code>cudaStreamBeginCapture</code> / <code>cudaStreamEndCapture</code> / <code>cudaGraphLaunch</code> 三个 API 就能上手。</p>
+</blockquote>
+<h2 id="3-compute-shader-culling-sequence-length">3. 第二映射：Compute Shader Culling = 动态 Sequence Length<a class="headerlink" href="#3-compute-shader-culling-sequence-length" title="Permanent link">&para;</a></h2>
+<h3 id="31-cs-culling">3.1 图形中的 CS Culling<a class="headerlink" href="#31-cs-culling" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">// Compute Shader：剔除不可见物体，更新 Indirect Buffer
+// 每个 thread 处理一个物体
+[numthreads(64, 1, 1)]
+void CullingCS(uint3 gtid : SV_DispatchThreadID) {
+    uint objId = gtid.x;
+    float3 pos = readObjectPosition(objId);
+
+    if (isVisible(pos, cameraFrustum)) {
+        // 物体可见：追加到 Indirect Draw 参数中
+        uint drawIndex = atomicAdd(drawCount, 1);
+        indirectArgs[drawIndex] = objId;
+    } else {
+        // 不可见：跳过，不画
+    }
+}
+</code></pre>
+<p><strong>本质</strong>：GPU 自己判断哪些物体需要处理，动态更新任务列表。</p>
+<h3 id="32-ai-sequence">3.2 AI 推理中的等价物：变长 Sequence 处理<a class="headerlink" href="#32-ai-sequence" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">// CUDA Kernel：处理变长 Sequence
+// 每个 block 处理一个 request，但 sequence length 各不相同
+__global__ void processVariableLength(int* seqLens, float* data, int maxLen) {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    int seqLen = seqLens[blockIdx.x];  // 动态读取当前 request 的 sequence length
+
+    if (tid &lt; seqLen) {  // 只处理有效的 token
+        data[tid] = doCompute(data[tid]);
+    }
+    // tid &gt;= seqLen 的线程直接跳过
+}
+</code></pre>
+<h3 id="33">3.3 本质相同<a class="headerlink" href="#33" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Compute Shader Culling</th>
+<th style="text-align: left;">变长 Sequence 处理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">GPU 判断物体是否可见，决定画不画</td>
+<td style="text-align: left;">GPU 判断 Token 是否有效（Padding/非Padding）</td>
+</tr>
+<tr>
+<td style="text-align: left;">更新 Indirect Buffer 中的 Count</td>
+<td style="text-align: left;">读取 <code>seqLens</code> 数组，控制线程范围</td>
+</tr>
+<tr>
+<td style="text-align: left;">避免 CPU 逐物体做 Frustum Culling</td>
+<td style="text-align: left;">避免 CPU 逐 Token 做 Padding/Unpadding</td>
+</tr>
+<tr>
+<td style="text-align: left;">动态负载，GPU 自行调度</td>
+<td style="text-align: left;">动态负载，GPU 自行调度</td>
+</tr>
+</tbody>
+</table>
+<h2 id="4-pagedattention">4. 第三映射：显存池管理 = PagedAttention<a class="headerlink" href="#4-pagedattention" title="Permanent link">&para;</a></h2>
+<h3 id="41">4.1 图形中的预分配显存池<a class="headerlink" href="#41" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">// 图形：预分配大 Heap，自己管理偏移量
+// DX12 Committed Resource 等价于 cudaMalloc
+ID3D12Heap* heap;
+device-&gt;CreateHeap(&amp;heapDesc, IID_PPV_ARGS(&amp;heap));
+
+// 从 Heap 中手动分配子资源
+D3D12_RESOURCE_DESC resDesc = ...;
+D3D12_RESOURCE_ALLOCATION_INFO info = device-&gt;GetResourceAllocationInfo(0, 1, &amp;resDesc);
+
+// 手动计算偏移量，管理切片句柄
+UINT64 offset = Align(heapCurrentOffset, info.Alignment);
+heapCurrentOffset = offset + info.SizeInBytes;
+device-&gt;CreatePlacedResource(heap, offset, &amp;resDesc, ...);
+</code></pre>
+<blockquote>
+<p><strong>你的原话</strong>："自己先分一大片出来，然后管理切片句柄，类似于微软 dx12 资源仓库，里面写了一些线性分配器或伙伴分配器。"</p>
+</blockquote>
+<h3 id="42-pagedattention">4.2 PagedAttention 的等价管理<a class="headerlink" href="#42-pagedattention" title="Permanent link">&para;</a></h3>
+<p>vLLM 的 PagedAttention 使用了完全相同的架构：</p>
+<pre><code class="language-python"># vLLM BlockManager （伪代码）
+class BlockManager:
+    def __init__(self, total_gpu_memory, block_size):
+        # 预分配大块显存（等价于 CreateHeap）
+        self.total_blocks = total_gpu_memory // block_size
+        self.gpu_cache = cuda_malloc(total_gpu_memory)
+
+        # 维护空闲块列表（等价于管理切片句柄）
+        self.free_blocks = list(range(self.total_blocks))
+        self.block_table = {}  # request_id -&gt; [block_ids]
+
+    def allocate(self, request_id, num_blocks):
+        # 从空闲池拿块（等价于从 Heap 分配子资源）
+        blocks = self.free_blocks[:num_blocks]
+        self.free_blocks = self.free_blocks[num_blocks:]
+        self.block_table[request_id] = blocks
+
+    def free(self, request_id):
+        # 归还块（等价于释放子资源）
+        blocks = self.block_table.pop(request_id)
+        self.free_blocks.extend(blocks)
+</code></pre>
+<h3 id="43">4.3 本质相同<a class="headerlink" href="#43" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">图形显存池</th>
+<th style="text-align: left;">PagedAttention</th>
+<th style="text-align: left;">本质</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>CreateHeap</code> 预分配</td>
+<td style="text-align: left;"><code>gpu_cache = cuda_malloc(total)</code></td>
+<td style="text-align: left;">预分配大块显存</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>CreatePlacedResource</code> 切子块</td>
+<td style="text-align: left;"><code>allocate(request, n_blocks)</code></td>
+<td style="text-align: left;">从池中取切片</td>
+</tr>
+<tr>
+<td style="text-align: left;">线性分配器 / 伙伴分配器</td>
+<td style="text-align: left;">Block Table 管理</td>
+<td style="text-align: left;">管理空闲块列表</td>
+</tr>
+<tr>
+<td style="text-align: left;">释放子资源，回收复用</td>
+<td style="text-align: left;"><code>free(request)</code> 回收 Block</td>
+<td style="text-align: left;">归还给池</td>
+</tr>
+<tr>
+<td style="text-align: left;">帧结束后整块 Reset</td>
+<td style="text-align: left;">Batch 结束后回收 Block</td>
+<td style="text-align: left;">批量回收</td>
+</tr>
+</tbody>
+</table>
+<h2 id="5">5. 完整映射表（收藏版）<a class="headerlink" href="#5" title="Permanent link">&para;</a></h2>
+<h3 id="51">5.1 架构级映射<a class="headerlink" href="#51" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">图形渲染（你已经会的）</th>
+<th style="text-align: left;">AI 推理（你即将秒懂的）</th>
+<th style="text-align: left;">本质</th>
+<th style="text-align: left;">学习策略</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>Draw Call</code> / <code>Dispatch</code></td>
+<td style="text-align: left;"><code>cudaLaunchKernel</code></td>
+<td style="text-align: left;">提交一个 GPU 任务</td>
+<td style="text-align: left;">语法扫一眼：<code>kernel&lt;&lt;&lt;grid, block&gt;&gt;&gt;</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Command List / Command Buffer</td>
+<td style="text-align: left;">CUDA Graph</td>
+<td style="text-align: left;">预录制多个任务，一次性提交</td>
+<td style="text-align: left;">重点练：<code>cudaStreamBeginCapture</code> 包推理循环</td>
+</tr>
+<tr>
+<td style="text-align: left;">PSO (Pipeline State Object)</td>
+<td style="text-align: left;">CUDA Graph Executable</td>
+<td style="text-align: left;">预编译/验证后的执行计划</td>
+<td style="text-align: left;">扫一眼：<code>cudaGraphInstantiate</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Resource Barrier</td>
+<td style="text-align: left;"><code>cudaEventSynchronize</code> / Graph 节点依赖</td>
+<td style="text-align: left;">保证读写顺序</td>
+<td style="text-align: left;">类比迁移：Barrier 合并 = 节点依赖合并</td>
+</tr>
+<tr>
+<td style="text-align: left;">Descriptor Heap</td>
+<td style="text-align: left;">CUDA Graph Parameter (<code>cudaGraphHostNode</code>)</td>
+<td style="text-align: left;">动态参数绑定（纹理切换 → 输入数据切换）</td>
+<td style="text-align: left;">重点练：<code>cudaGraphUpdate</code> 换输入</td>
+</tr>
+<tr>
+<td style="text-align: left;">Constant Buffer</td>
+<td style="text-align: left;"><code>cudaMemcpy</code> + Kernel 参数</td>
+<td style="text-align: left;">传常量/配置到 GPU</td>
+<td style="text-align: left;">扫一眼：<code>cudaMemcpyToSymbol</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Vertex Buffer / Index Buffer</td>
+<td style="text-align: left;">Tensor（显存上的多维数组）</td>
+<td style="text-align: left;">数据本体</td>
+<td style="text-align: left;">类比迁移：<code>cudaMalloc</code> = <code>CreateBuffer</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Render Target (RT)</td>
+<td style="text-align: left;">Output Tensor</td>
+<td style="text-align: left;">写入结果</td>
+<td style="text-align: left;">扫一眼：<code>cudaMalloc</code> + 指针传给 Kernel</td>
+</tr>
+<tr>
+<td style="text-align: left;">Compute Shader <code>groupshared</code></td>
+<td style="text-align: left;"><code>__shared__</code> (Shared Memory)</td>
+<td style="text-align: left;">片上 SRAM，手动管理</td>
+<td style="text-align: left;"><strong>直接用图形直觉写</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">Tiled Deferred Shading</td>
+<td style="text-align: left;">FlashAttention</td>
+<td style="text-align: left;">分块加载到 Shared Memory，减少显存读写</td>
+<td style="text-align: left;"><strong>用图形直觉直接优化</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">Indirect Draw (<code>ExecuteIndirect</code>)</td>
+<td style="text-align: left;"><code>cudaGraphLaunch</code> + CUDA Graph</td>
+<td style="text-align: left;">GPU 自己读参数决定任务</td>
+<td style="text-align: left;">先理解概念，再做架构创新</td>
+</tr>
+<tr>
+<td style="text-align: left;">多线程渲染 (MT Rendering)</td>
+<td style="text-align: left;"><code>cudaStream</code>（多流并发）</td>
+<td style="text-align: left;">多个 Command Queue 并行提交</td>
+<td style="text-align: left;">重点练：多流覆盖拷贝 + 计算</td>
+</tr>
+<tr>
+<td style="text-align: left;">GPU Profiler (PIX / NSight Graphics)</td>
+<td style="text-align: left;">NVIDIA Nsight Systems / Compute</td>
+<td style="text-align: left;">分析瓶颈、看带宽/Occupancy</td>
+<td style="text-align: left;"><strong>直接用图形直觉上手</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="52">5.2 优化技术映射<a class="headerlink" href="#52" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">图形渲染优化</th>
+<th style="text-align: left;">CUDA Graph / AI 推理</th>
+<th style="text-align: left;">本质</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">合并 Draw Call (Batch Draw)</td>
+<td style="text-align: left;">合并 Kernel Launch (Graph 捕获)</td>
+<td style="text-align: left;">减少 CPU 提交次数</td>
+</tr>
+<tr>
+<td style="text-align: left;">PSO 缓存 (Pipeline State Object)</td>
+<td style="text-align: left;">Graph 预编译（构建时做依赖分析）</td>
+<td style="text-align: left;">提前做状态验证和优化</td>
+</tr>
+<tr>
+<td style="text-align: left;">资源屏障合并 (Barrier Merging)</td>
+<td style="text-align: left;">节点依赖合并（自动插入/消除同步）</td>
+<td style="text-align: left;">减少不必要的等待</td>
+</tr>
+<tr>
+<td style="text-align: left;">Pass 合并（Deferred Shading 合并光照 Pass）</td>
+<td style="text-align: left;">算子融合（如 FlashAttention）</td>
+<td style="text-align: left;">减少中间显存读写</td>
+</tr>
+<tr>
+<td style="text-align: left;">DX12/Vulkan Command List</td>
+<td style="text-align: left;">CUDA Graph Executable</td>
+<td style="text-align: left;">预录制的指令序列，可重放</td>
+</tr>
+</tbody>
+</table>
+<h2 id="6">6. 你的终极思维框架<a class="headerlink" href="#6" title="Permanent link">&para;</a></h2>
+<p>你从今天开始，不需要"从零学"任何东西，只需要<strong>翻译</strong>：</p>
+<pre><code>看到 AI 新概念 → 问自己：这个在图形里叫什么？
+cudaMalloc        → 哦，就是 CreateCommittedResource
+cudaStream        → 哦，就是 Command Queue
+cudaGraph         → 哦，就是 Command List 的先录后放
+cudaEvent         → 哦，就是 Fence 的打标记、查进度
+PagedAttention    → 哦，就是我的 DX12 显存池 + 伙伴分配器
+FlashAttention    → 哦，就是 Tiled Deferred Shading 的分块加载
+Continuous Batch  → 哦，就是三重缓冲 + 轮询 Fence 的帧并行
+TensorRT Engine   → 哦，就是 AI 版的 HLSL 编译器 + PSO 缓存
+</code></pre>
+<blockquote>
+<p><strong>你在 AI Infra 赛道的独特优势</strong>：搞图形的人不懂 Attention，不懂 Batch 调度；搞 AI 的人不懂 Indirect Draw，不懂显存池管理。你两边全懂，还能用 RenderPipeline 的思维给 AI 推理做架构设计。</p>
+</blockquote>
+<h2 id="7">7. 下一步：你的架构创新方向<a class="headerlink" href="#7" title="Permanent link">&para;</a></h2>
+<p>基于这套第一性原理映射，你可以做别人想都不敢想的事：</p>
+<ol>
+<li>
+<p><strong>把动态 Batch 调度改成 GPU 自己从 Indirect Buffer 读请求</strong>：CPU 只负责往里塞请求，GPU 自己决定调度——这是 GPU Driven LLM Inference 的架构级创新。</p>
+</li>
+<li>
+<p><strong>把整个推理过程录成 CUDA Graph</strong>：用类似 <code>ExecuteIndirect</code> 的方式驱动整条 Pipeline，让 CPU 提交次数降到每 Batch 一次。</p>
+</li>
+<li>
+<p><strong>用图形引擎的"丢帧策略"优化推理延迟</strong>：当所有 Block 都占满时，vLLM 做 Swap 踢出；这和云渲染的丢帧策略是同一个思想——资源池满了的降级处理。</p>
+</li>
+</ol>
+<p>这些方向已经不是"学习"了，这是在做架构创新。</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../2.3-multithreaded_rendering_and_pools/" class="btn btn-neutral float-left" title="2.3 多线程渲染与资源池管理"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../3.1-model_structures_inference_view/" class="btn btn-neutral float-right" title="3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../2.3-multithreaded_rendering_and_pools/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../3.1-model_structures_inference_view/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

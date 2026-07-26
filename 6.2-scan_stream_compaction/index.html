@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="zh_CN" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction) - GPU 图形与 AI 推理知识手册</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "6.2 \u626b\u63cf (Scan / Prefix Sum) \u4e0e\u6d41\u538b\u7f29 (Stream Compaction)";
+        var mkdocs_page_input_path = "6.2-scan_stream_compaction.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GPU 图形与 AI 推理知识手册
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">首页</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">1. 图形渲染管线与 GPU 硬件基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.1-graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.2-render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.3-gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.4-graphics_passes_and_sync/">1.4 图形管线中的 Pass 与同步 (RenderPass, Barrier)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">2. GPU 并发模型与系统思维</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.1-cpu_gpu_async_pipeline/">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.2-command_buffer_ring_buffer/">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.3-multithreaded_rendering_and_pools/">2.3 多线程渲染与资源池管理</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.4-graphics_to_ai_first_principles/">2.4 从图形管线到 AI 推理的第一性原理映射</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">3. AI 模型与算子基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.1-model_structures_inference_view/">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.2-operator_taxonomy/">3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.3-convolution_math_implementation/">3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">4. AI 推理优化核心策略</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.1-operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.2-tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.3-async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.4-memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.1-thread_block_grid_mapping/">5.1 线程模型 (Thread, Block, Grid) 与映射</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.2-explicit_memory_shared_vs_cache/">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.3-warp_simd_simt_divergence/">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.4-synchronization_primitives/">5.4 同步原语: __syncthreads, __syncwarp, 内存屏障</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.5-warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.6-atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../6.1-reduce_tree_implementation/">6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#_1">概述</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#gatherscatterscan">Gather、Scatter、Scan：用图形语言翻译</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_2">图形中的经典流水线：粒子剔除</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#prefix-sum-scan">前缀和 (Prefix Sum / Scan)</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_3">定义</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#scan">并行 Scan 算法：两种经典实现</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#1-hillis-steele-scan">1. Hillis-Steele (朴素并行 Scan)</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#2-blelloch-scan">2. Blelloch (工作高效 Scan)</a>
+    </li>
+        </ul>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#stream-compaction">流压缩 (Stream Compaction)</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_4">三步法</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_5">流压缩的时间复杂度</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#cuda">CUDA 实现示例</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#summed-area-table">图形中的流压缩变体：Summed Area Table</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_6">总结</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.3-radix_sort_as_stream_compaction/">6.3 基数排序 (Radix Sort) = 逐位流压缩</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.4-flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../7-llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../8-vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.1-tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.2-rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.3-computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.1-umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.2-driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.3-compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.4-graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.1-nano_vllm_from_scratch/">11.1 读 Nano-vLLM 源码: 一个推理引擎怎么组装起来</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.2-attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.3-paged_attention_continuous_batching/">11.3 PagedAttention 与 Continuous Batching: 从 PyTorch 到 CUDA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.4-kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.5-inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.6-paged_attention_dx12_tensorrt_backend/">11.6 进阶: 把分页契约搬到 DX12 与 TensorRT 后端</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.1-career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.2-resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.3-knowledge_checklist/">A.3 关键知识点自检清单</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GPU 图形与 AI 推理知识手册</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">6. 高性能算子实现模式</li>
+      <li class="breadcrumb-item active">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="62-scan-prefix-sum-stream-compaction">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)<a class="headerlink" href="#62-scan-prefix-sum-stream-compaction" title="Permanent link">&para;</a></h1>
+<h2 id="_1">概述<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>Scan（扫描，亦称前缀和 Prefix Sum）是 GPU 并行计算中最重要的<strong>基础设施算子</strong>。它本身不完全产生业务价值，但它是 Stream Compaction、Radix Sort、甚至 FlashAttention Online Softmax 的底层引擎。</p>
+<p>如果你熟悉图形渲染，你会发现 Scan + Stream Compaction 就是你用 Compute Shader 做<strong>粒子剔除（Particle Culling）</strong>的那一套流水线。</p>
+<h2 id="gatherscatterscan">Gather、Scatter、Scan：用图形语言翻译<a class="headerlink" href="#gatherscatterscan" title="Permanent link">&para;</a></h2>
+<p>这三个算子对应的是<strong>不规则内存访问模式</strong>，在图形里你天天都在用：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">算子</th>
+<th style="text-align: left;">数学本质</th>
+<th style="text-align: left;">图形等价</th>
+<th style="text-align: left;">AI 应用场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Gather</strong></td>
+<td style="text-align: left;">根据索引读数据</td>
+<td style="text-align: left;"><code>tex2D(tex, uv)</code> 纹理采样、顶点 Buffer Index Fetch</td>
+<td style="text-align: left;">Embedding 查表、Attention 从 V 取值</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Scatter</strong></td>
+<td style="text-align: left;">根据索引写数据</td>
+<td style="text-align: left;">写入 UAV (<code>RWStructuredBuffer[idx] = val</code>)、Stream Out</td>
+<td style="text-align: left;">MoE 梯度回传、Sparse Attention 输出</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Scan</strong></td>
+<td style="text-align: left;">前缀累积计算</td>
+<td style="text-align: left;">流压缩 (Stream Compaction)、Mipmap 的 Summed Area Table</td>
+<td style="text-align: left;">FlashAttention Online Softmax、动态偏移计算</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_2">图形中的经典流水线：粒子剔除<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<p>这是把 Gather → Scan → Scatter 串起来的最直观场景：</p>
+<pre><code>1. Gather:   每个线程从 Buffer 读取一个粒子的位置
+2. 计算:     判断粒子是否在视锥内 (生成 0/1 Flag)
+3. Scan:     对 Flag 数组做前缀和，计算每个存活粒子的新索引
+4. Scatter:  根据新索引，把存活粒子写入 Compact Buffer
+</code></pre>
+<p><strong>AI 的完全对应场景是 MoE 路由：</strong></p>
+<pre><code>1. Gather:   根据路由分数 (Score)，从专家权重表中取出对应的行
+2. 计算:     当前 Token 在专家里的前向传播
+3. Scan:     如果要做动态 Padding，用前缀和计算每个 Token 在输出中的偏移
+4. Scatter:  将计算结果散射回输出序列的对应位置
+</code></pre>
+<p>流水线都可抽象为 Flag → Scan → Scatter，但谓词、稳定性和输出布局要求不同。</p>
+<h2 id="prefix-sum-scan">前缀和 (Prefix Sum / Scan)<a class="headerlink" href="#prefix-sum-scan" title="Permanent link">&para;</a></h2>
+<h3 id="_3">定义<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
+<p>对于输入数组 <code>A = [a0, a1, a2, ..., an-1]</code>，<strong>包含式前缀和</strong>输出：</p>
+<pre><code>B[0] = A[0]
+B[1] = A[0] + A[1]
+B[2] = A[0] + A[1] + A[2]
+...
+B[n-1] = A[0] + A[1] + ... + A[n-1]
+</code></pre>
+<p><strong>排除式前缀和</strong>输出（第一个元素为 0）：</p>
+<pre><code>B[0] = 0
+B[1] = A[0]
+B[2] = A[0] + A[1]
+...
+B[n-1] = A[0] + A[1] + ... + A[n-2]
+</code></pre>
+<p>这两种变体在流压缩中各有用处，通常在 Scatter 阶段使用排除式来获得目标写入位置。</p>
+<h3 id="scan">并行 Scan 算法：两种经典实现<a class="headerlink" href="#scan" title="Permanent link">&para;</a></h3>
+<h4 id="1-hillis-steele-scan">1. Hillis-Steele (朴素并行 Scan)<a class="headerlink" href="#1-hillis-steele-scan" title="Permanent link">&para;</a></h4>
+<pre><code class="language-cpp">// Hillis-Steele 算法: 多轮迭代，每轮步长加倍
+__device__ void scan_hillis_steele(float* shared, int tid, int n) {
+    for (int stride = 1; stride &lt; n; stride *= 2) {
+        float temp = shared[tid];
+        if (tid &gt;= stride) {
+            temp += shared[tid - stride];
+        }
+        __syncthreads();
+        shared[tid] = temp;
+        __syncthreads();
+    }
+}
+</code></pre>
+<ul>
+<li><strong>时间复杂度</strong>：O(n log n)（总工作量，不是最优的）</li>
+<li><strong>并行深度</strong>：O(log n)</li>
+<li><strong>特点</strong>：直观但多做了 log n 倍的工作</li>
+</ul>
+<h4 id="2-blelloch-scan">2. Blelloch (工作高效 Scan)<a class="headerlink" href="#2-blelloch-scan" title="Permanent link">&para;</a></h4>
+<pre><code class="language-cpp">// Blelloch 算法: 上行扫 (Reduce) + 下行扫 (Downsweep)
+__device__ void scan_blelloch(float* shared, int tid, int n) {
+    // 第一阶段: 上行扫 (Up-sweep / Reduce)
+    for (int stride = 1; stride &lt; n; stride *= 2) {
+        int idx = (tid + 1) * stride * 2 - 1;
+        if (idx &lt; n) {
+            shared[idx] += shared[idx - stride];
+        }
+        __syncthreads();
+    }
+
+    // 置零根节点
+    if (tid == n - 1) {
+        shared[tid] = 0;
+    }
+    __syncthreads();
+
+    // 第二阶段: 下行扫 (Down-sweep)
+    for (int stride = n / 2; stride &gt; 0; stride /= 2) {
+        int idx = (tid + 1) * stride * 2 - 1;
+        if (idx &lt; n) {
+            float temp = shared[idx];
+            shared[idx] += shared[idx - stride];
+            shared[idx - stride] = temp;
+        }
+        __syncthreads();
+    }
+}
+</code></pre>
+<ul>
+<li><strong>时间复杂度</strong>：O(n)（最优，总工作量跟串行一样）</li>
+<li><strong>并行深度</strong>：O(log n)</li>
+<li><strong>特点</strong>：工作高效，但实现更复杂</li>
+</ul>
+<p>这两种算法都在 CUDA CUB 库中有高度优化的实现 (<code>cub::BlockScan</code>)，它会自动根据你的 GPU 架构选择最优策略并做循环展开。</p>
+<h2 id="stream-compaction">流压缩 (Stream Compaction)<a class="headerlink" href="#stream-compaction" title="Permanent link">&para;</a></h2>
+<p>流压缩是 Scan 最直接的应用：从数组中筛选出满足条件的元素，并紧凑地写到新数组。</p>
+<h3 id="_4">三步法<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
+<pre><code>输入数组:    [A, B, C, D, E]   (5 个元素)
+Flag 数组:   [1, 0, 1, 0, 1]   (1=保留, 0=丢弃)
+
+Step 1. Map (标记)     → 生成 Flag 数组
+Step 2. Scan (前缀和)  → 对 Flag 做排除式前缀和: [0, 1, 1, 2, 2]
+Step 3. Scatter (散射) → 根据前缀和结果写入新位置:
+                            A → Compacted[0]
+                            C → Compacted[1]
+                            E → Compacted[2]
+                         Compacted: [A, C, E]  (3 个元素，已紧凑)
+</code></pre>
+<h3 id="_5">流压缩的时间复杂度<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">步骤</th>
+<th style="text-align: left;">复杂度</th>
+<th style="text-align: left;">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Map (标记)</td>
+<td style="text-align: left;">O(n)</td>
+<td style="text-align: left;">遍历一次数组，生成 0/1 标记</td>
+</tr>
+<tr>
+<td style="text-align: left;">Scan (前缀和)</td>
+<td style="text-align: left;">O(n)</td>
+<td style="text-align: left;">但对 GPU 并行执行延迟只有 O(log n)</td>
+</tr>
+<tr>
+<td style="text-align: left;">Scatter (散射)</td>
+<td style="text-align: left;">O(n)</td>
+<td style="text-align: left;">再遍历一次，根据前缀和结果写入新位置</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>总工作量</strong></td>
+<td style="text-align: left;"><strong>O(n)</strong></td>
+<td style="text-align: left;">三次遍历</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>并行延迟</strong></td>
+<td style="text-align: left;"><strong>O(log n)</strong></td>
+<td style="text-align: left;">真正的执行时间</td>
+</tr>
+</tbody>
+</table>
+<h3 id="cuda">CUDA 实现示例<a class="headerlink" href="#cuda" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">// 流压缩 Kernel: 筛选出所有大于阈值的元素
+__global__ void stream_compaction(const float* input, const int* flags, 
+                                   float* output, int* compacted_count, 
+                                   int n) {
+    __shared__ float shared_scan[256];
+
+    int tid = threadIdx.x;
+    int global_idx = blockIdx.x * blockDim.x + tid;
+
+    // 1. 加载 Flag 到 Shared Memory（做 Scan）
+    shared_scan[tid] = (global_idx &lt; n) ? flags[global_idx] : 0;
+    __syncthreads();
+
+    // 2. 并行 Scan: 用 Blelloch 算法
+    scan_blelloch(shared_scan, tid, blockDim.x);
+
+    // shared_scan 现在包含排除式前缀和
+
+    // 3. Scatter: 根据前缀和结果写入输出
+    if (global_idx &lt; n &amp;&amp; flags[global_idx]) {
+        int write_pos = shared_scan[tid];
+        output[write_pos] = input[global_idx];
+    }
+
+    // 4. 最后一个线程写入紧凑后的总元素数
+    if (tid == blockDim.x - 1) {
+        // 注意: 这里的处理简化了多 Block 的汇总
+        // 实际需要多个 Block 时需额外合并步骤
+        if (blockIdx.x == 0) {
+            *compacted_count = shared_scan[blockDim.x - 1] + flags[blockDim.x - 1];
+        }
+    }
+}
+</code></pre>
+<blockquote>
+<p><strong>注意</strong>：上述代码为了展示流压缩的三步模式，做了简化。生产环境推荐直接使用 CUB 库的 <code>cub::DeviceSelect</code>，它已经融合了所有优化（Warp Shuffle、循环展开、多 Block 汇总）。</p>
+</blockquote>
+<h3 id="summed-area-table">图形中的流压缩变体：Summed Area Table<a class="headerlink" href="#summed-area-table" title="Permanent link">&para;</a></h3>
+<p>你在图形渲染中可能已经用过另一种形式的 Scan——<strong>SAT (Summed Area Table)</strong>：</p>
+<ul>
+<li>对一张二维纹理做水平方向的前缀和，再做垂直方向的前缀和。</li>
+<li>得到 SAT 后，任意矩形的元素和只需 4 次纹理采样（O(1) 查询）。</li>
+<li>这就是<strong>二维 Scan</strong> 在渲染中的经典应用，常用于 Variance Shadow Map、HDR Bloom 等。</li>
+</ul>
+<h2 id="_6">总结<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">概念</th>
+<th style="text-align: left;">你早已掌握的图形经验</th>
+<th style="text-align: left;">在 AI 中的新应用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Scan (前缀和)</td>
+<td style="text-align: left;">Mipmap 的 Summed Area Table</td>
+<td style="text-align: left;">FlashAttention Online Softmax、动态偏移</td>
+</tr>
+<tr>
+<td style="text-align: left;">Stream Compaction</td>
+<td style="text-align: left;">Compute Shader 粒子剔除</td>
+<td style="text-align: left;">MoE 稀疏路由、Sparse Attention</td>
+</tr>
+<tr>
+<td style="text-align: left;">Gather</td>
+<td style="text-align: left;">纹理采样 (tex2D)</td>
+<td style="text-align: left;">Embedding 查表、Attention 的 V 查找</td>
+</tr>
+<tr>
+<td style="text-align: left;">Scatter</td>
+<td style="text-align: left;">UAV / Stream Out 写入</td>
+<td style="text-align: left;">梯度散射、Token 位置重排</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Scan 的核心理念</strong>：把一串不连续的 Flag 转换为一组连续的位置偏移——这就是 GPU 上所有\"稀疏变密集\"操作的基础。你写的每一行粒子剔除代码，本质都是在做这件事。现在只是在不同的数据上重复同一个模式。</p>
+</blockquote>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../6.1-reduce_tree_implementation/" class="btn btn-neutral float-left" title="6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../6.3-radix_sort_as_stream_compaction/" class="btn btn-neutral float-right" title="6.3 基数排序 (Radix Sort) = 逐位流压缩">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../6.1-reduce_tree_implementation/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../6.3-radix_sort_as_stream_compaction/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

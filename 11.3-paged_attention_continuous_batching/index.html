@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="zh_CN" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>11.3 PagedAttention 与 Continuous Batching: 从 PyTorch 到 CUDA - GPU 图形与 AI 推理知识手册</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "11.3 PagedAttention \u4e0e Continuous Batching: \u4ece PyTorch \u5230 CUDA";
+        var mkdocs_page_input_path = "11.3-paged_attention_continuous_batching.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GPU 图形与 AI 推理知识手册
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">首页</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">1. 图形渲染管线与 GPU 硬件基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.1-graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.2-render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.3-gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.4-graphics_passes_and_sync/">1.4 图形管线中的 Pass 与同步 (RenderPass, Barrier)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">2. GPU 并发模型与系统思维</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.1-cpu_gpu_async_pipeline/">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.2-command_buffer_ring_buffer/">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.3-multithreaded_rendering_and_pools/">2.3 多线程渲染与资源池管理</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.4-graphics_to_ai_first_principles/">2.4 从图形管线到 AI 推理的第一性原理映射</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">3. AI 模型与算子基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.1-model_structures_inference_view/">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.2-operator_taxonomy/">3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.3-convolution_math_implementation/">3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">4. AI 推理优化核心策略</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.1-operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.2-tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.3-async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.4-memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.1-thread_block_grid_mapping/">5.1 线程模型 (Thread, Block, Grid) 与映射</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.2-explicit_memory_shared_vs_cache/">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.3-warp_simd_simt_divergence/">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.4-synchronization_primitives/">5.4 同步原语: __syncthreads, __syncwarp, 内存屏障</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.5-warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.6-atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.1-reduce_tree_implementation/">6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.2-scan_stream_compaction/">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.3-radix_sort_as_stream_compaction/">6.3 基数排序 (Radix Sort) = 逐位流压缩</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.4-flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../7-llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../8-vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.1-tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.2-rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.3-computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.1-umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.2-driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.3-compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.4-graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../11.1-nano_vllm_from_scratch/">11.1 读 Nano-vLLM 源码: 一个推理引擎怎么组装起来</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.2-attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">11.3 PagedAttention 与 Continuous Batching: 从 PyTorch 到 CUDA</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#_1">这篇要造什么轮子</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_2">一、两个机制，一个根源</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1">1. 静态批处理浪费了什么</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2">2. 但是，位置腾出来了，显存呢？</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3">3. 所以它们必须一起做</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#pagedattention">二、PagedAttention 的核心：一次索引间接</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1_1">1. 借来的思想</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2_1">2. 三层地址</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3_1">3. 为什么这样就解决了问题</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4-block_size">4. block_size 怎么选</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#pytorch">三、用 PyTorch 把语义跑通</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-kv-cache">1. KV Cache 的物理布局</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-blockmanager">2. BlockManager：管页号，不管显存</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-attention">3. 分页版 Attention：核心就一行</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4">4. 和朴素版对拍：唯一可信的验证</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#continuous-batching">四、Continuous Batching：调度器在决定什么</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-prefill-decode">1. 先看清 Prefill 和 Decode 的形状差异</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-step">2. 一次 step() 要做的决策</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3_2">3. 抢占：显存不够时怎么办</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4_1">4. 一个能跑的最小调度器</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#5-trace">5. 走一遍 trace</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#cuda-pagedattention-kernel">五、落到 CUDA：完整的 PagedAttention Kernel</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-grid">1. 先想清楚 Grid 怎么映射</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-kernel">2. Kernel 代码</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3_3">3. 三个容易写错的地方</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4-kv-store-token">4. KV Store：新 token 写到哪</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#5-pytorch">5. 和 PyTorch 版对齐</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#bug">六、Bug 症状速查</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_3">七、验收清单</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_4">八、回到第一性原理</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.4-kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.5-inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.6-paged_attention_dx12_tensorrt_backend/">11.6 进阶: 把分页契约搬到 DX12 与 TensorRT 后端</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.1-career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.2-resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.3-knowledge_checklist/">A.3 关键知识点自检清单</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GPU 图形与 AI 推理知识手册</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">11. 推理引擎与算子实战</li>
+      <li class="breadcrumb-item active">11.3 PagedAttention 与 Continuous Batching: 从 PyTorch 到 CUDA</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="113-pagedattention-continuous-batching-pytorch-cuda">11.3 PagedAttention 与 Continuous Batching：从 PyTorch 到 CUDA<a class="headerlink" href="#113-pagedattention-continuous-batching-pytorch-cuda" title="Permanent link">&para;</a></h1>
+<h2 id="_1">这篇要造什么轮子<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>现代 LLM 推理引擎（vLLM、TensorRT-LLM、SGLang）的吞吐量优势，八成来自两个机制：</p>
+<ul>
+<li><strong>PagedAttention</strong> —— KV Cache 不再是每条序列一块连续显存，而是切成固定大小的页，按需分配；</li>
+<li><strong>Continuous Batching</strong> —— 批次不再是「凑齐一批一起跑完」，而是每一步都重新组批，谁完成谁走人，谁在排队谁补位。</li>
+</ul>
+<p>这两个机制经常被分开讲，但<strong>它们其实是同一个问题的两半</strong>，后面第一节会说清楚为什么。</p>
+<p>这篇的路线是：</p>
+<pre><code class="language-text">第一步  PyTorch 把语义跑通       ← 能 print、能断点、能和「朴素版」对拍
+第二步  落成可编译的 CUDA Kernel  ← 索引、Online Softmax、越界处理
+第三步  进阶：换后端（11.6）      ← 同一套契约搬到 DX12 / TensorRT
+</code></pre>
+<p><strong>为什么先写 PyTorch 再写 CUDA？</strong> 因为分页最容易错的地方是<strong>索引算错</strong>，而索引错误在 CUDA 里的表现是「输出数值不对」或者干脆非法访存，定位成本极高；在 PyTorch 里，你可以把 <code>slots</code> 张量直接打印出来，一眼看出第 5 个 token 被映射到了哪个物理槽位。<strong>先把「对不对」解决掉，再解决「快不快」</strong> —— 这两件事混在一起做，是新手写 Kernel 最大的时间黑洞。</p>
+<blockquote>
+<p>本篇是「自己造轮子」的视角。想看工业框架怎么把这些模块组装起来，去 <a href="../11.1-nano_vllm_from_scratch/">11.1 Nano-vLLM 导读</a>；想看它怎么上生产，去 <a href="../11.5-inference_runtime_deployment/">11.5 Runtime 与部署</a>。</p>
+</blockquote>
+<hr />
+<h2 id="_2">一、两个机制，一个根源<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<h3 id="1">1. 静态批处理浪费了什么<a class="headerlink" href="#1" title="Permanent link">&para;</a></h3>
+<p>假设同时来了 4 条请求，它们各自要生成的 token 数是 10、200、50、300。</p>
+<p>传统的静态批处理（Static Batching）把它们凑成一个 batch 一起跑，<strong>跑到最长的那条结束为止</strong>：</p>
+<pre><code class="language-text">step:   0 ......... 10 ......... 50 ......... 200 ......... 300
+req A   ████████████│                                        ← 第 10 步就完事了，之后一直占着位置
+req B   ████████████████████████████████████████│            ← 第 200 步结束
+req C   ████████████████████████│                            ← 第 50 步结束
+req D   ████████████████████████████████████████████████████ ← 第 300 步结束
+</code></pre>
+<p>算一下有效利用率：</p>
+<div class="arithmatex">\[
+\frac{10 + 200 + 50 + 300}{4 \times 300} = \frac{560}{1200} \approx 47\%
+\]</div>
+<p><strong>一半以上的 batch 槽位在算空气。</strong> 而且这还是乐观估计——真实流量里请求长度的差异比这个大得多。</p>
+<p>Continuous Batching 的做法很直白：<strong>每一步结束后重新组批</strong>。A 在第 10 步完成就立刻退出，把位置让给队列里等着的新请求。理想情况下 batch 始终是满的。</p>
+<h3 id="2">2. 但是，位置腾出来了，显存呢？<a class="headerlink" href="#2" title="Permanent link">&para;</a></h3>
+<p>这就是关键的一步推理，也是很多教程跳过的地方：</p>
+<blockquote>
+<p><strong>A 退出了，它占的 KV Cache 显存必须能立刻还给 D 或者新来的请求。</strong></p>
+</blockquote>
+<p>如果 KV Cache 是「每条序列预先分配一块连续显存」，这件事做不到，或者做得很难看：</p>
+<ul>
+<li><strong>预分配多少？</strong> 你不知道请求会生成多长。按 <code>max_model_len</code> = 4096 预留？那就是按最坏情况买单。</li>
+<li><strong>回收后能用吗？</strong> A 释放的那块能装 4096 token，新请求可能只需要 200 token 的空间——<strong>外部碎片</strong>开始积累。</li>
+<li><strong>不够了怎么办？</strong> 序列长到超出预留，就得重新分配一块更大的再把老 KV 拷过去。<strong>在 decode 的关键路径上做显存搬迁，灾难。</strong></li>
+</ul>
+<p>来算笔账。用 <a href="../11.2-attention_kernel_gqa_practice/">11.2</a> 里那个 8B 模型（36 层，<span class="arithmatex">\(H_{kv}=8\)</span>，<span class="arithmatex">\(D=128\)</span>，FP16），每个 token 的 KV Cache 是 <strong>144 KiB</strong>。假设一张卡上有 40 GiB 留给 KV Cache，请求的平均实际长度是 500 token：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">方案</th>
+<th style="text-align: right;">每条序列占用</th>
+<th style="text-align: right;">40 GiB 能装几条</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">按 <code>max_len=4096</code> 预分配</td>
+<td style="text-align: right;">576 MiB</td>
+<td style="text-align: right;"><strong>71 条</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">分页，按实际用量</td>
+<td style="text-align: right;">70 MiB</td>
+<td style="text-align: right;"><strong>582 条</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>8 倍的并发差距。</strong> 而 decode 是访存受限的，batch 越大，读一遍权重能摊给越多请求 —— 这 8 倍几乎直接兑换成吞吐量。</p>
+<h3 id="3">3. 所以它们必须一起做<a class="headerlink" href="#3" title="Permanent link">&para;</a></h3>
+<p>把这条链子串起来：</p>
+<pre><code class="language-text">想提高吞吐 → 需要大 batch
+需要大 batch → 需要请求随时进出（Continuous Batching）
+请求随时进出 → 需要显存随时分配和释放，粒度要细
+显存细粒度动态分配 → 必须分页（PagedAttention）
+</code></pre>
+<p>反过来也成立：<strong>只做分页不做连续批处理，省下的显存没人用；只做连续批处理不做分页，位置腾出来了显存却卡住。</strong> 这就是为什么 vLLM 那篇论文把两者放在一起讲，也是为什么这一篇要合并处理。</p>
+<hr />
+<h2 id="pagedattention">二、PagedAttention 的核心：一次索引间接<a class="headerlink" href="#pagedattention" title="Permanent link">&para;</a></h2>
+<h3 id="1_1">1. 借来的思想<a class="headerlink" href="#1_1" title="Permanent link">&para;</a></h3>
+<p>操作系统的虚拟内存干的就是这件事：进程看到的是连续的虚拟地址空间，实际物理页散落在内存各处，中间隔着一张页表。</p>
+<p>PagedAttention 把同一招用在 KV Cache 上：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">操作系统</th>
+<th style="text-align: left;">PagedAttention</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">虚拟地址</td>
+<td style="text-align: left;">逻辑 token 位置（第几个 token）</td>
+</tr>
+<tr>
+<td style="text-align: left;">页表</td>
+<td style="text-align: left;">Block Table（每条序列一张）</td>
+</tr>
+<tr>
+<td style="text-align: left;">物理页</td>
+<td style="text-align: left;">KV Cache 大 Buffer 里的一个 Block</td>
+</tr>
+<tr>
+<td style="text-align: left;">页大小 4 KiB</td>
+<td style="text-align: left;"><code>block_size</code> 个 token（vLLM 默认 16）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>但必须说清楚边界</strong>：这是<strong>应用层的逻辑分页</strong>，跟 MMU、跟 CUDA 的虚拟内存管理（<code>cuMemCreate</code> / <code>cuMemMap</code>）<strong>没有关系</strong>。我们只是 <code>cudaMalloc</code> 了一大块连续显存，然后自己在软件层面把它切成等长的片，用整数下标当"页号"。没有任何硬件地址翻译参与——所有的间接寻址都是 Kernel 里的一次数组访问。</p>
+<p>搞混这一点会导致两种错误理解：以为需要 Sparse/Tiled Resource 之类的硬件特性（不需要），或者以为间接寻址是免费的（不是，它是一次真实的内存访问）。</p>
+<h3 id="2_1">2. 三层地址<a class="headerlink" href="#2_1" title="Permanent link">&para;</a></h3>
+<pre><code class="language-text">逻辑层    序列 s 的第 t 个 token                    ← 模型看到的
+   ↓      logical_block = t / block_size
+   ↓      offset        = t % block_size
+页表层    block_table[s][logical_block] = 物理页号 p  ← 一次间接
+   ↓
+物理层    slot = p * block_size + offset             ← 显存里的实际位置
+</code></pre>
+<p>写成一行公式：</p>
+<div class="arithmatex">\[
+\text{slot}(s, t) = \text{blockTable}[s]\!\left[\left\lfloor t / B \right\rfloor\right] \times B + (t \bmod B)
+\]</div>
+<p>其中 <span class="arithmatex">\(B\)</span> 是 <code>block_size</code>。<strong>整篇文章的技术核心就是这一行。</strong> 后面所有的 PyTorch 代码、CUDA Kernel、DX12 Shader，都只是这个公式在不同语言里的写法。</p>
+<h3 id="3_1">3. 为什么这样就解决了问题<a class="headerlink" href="#3_1" title="Permanent link">&para;</a></h3>
+<p>序列从 4 个 token 长到 5 个（<code>block_size=4</code>）：</p>
+<pre><code class="language-text">之前: block_table = [7]          物理页 7 装了 token 0..3
+之后: block_table = [7, 2]       追加一页，token 4 落在物理页 2 的第 0 格
+</code></pre>
+<p><strong>页 7 里的 KV 一个字节都没动。</strong> 没有搬迁、没有重新分配、没有连续空间要求——只是往一个 Python list 里 append 了一个整数。</p>
+<p>序列结束时，把 <code>[7, 2]</code> 里的页号还回空闲池，立刻就能被别的请求拿走。<strong>外部碎片消失了</strong>，因为所有页大小相同，任何空闲页都能满足任何请求。</p>
+<p>代价是<strong>内部碎片</strong>：最后一页平均浪费半页。<code>block_size=16</code> 时是 8 个 token ≈ 1.1 MiB —— 相比省下的 500 MiB，可以忽略。</p>
+<h3 id="4-block_size">4. block_size 怎么选<a class="headerlink" href="#4-block_size" title="Permanent link">&para;</a></h3>
+<p>这是个真实的三方权衡：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;"><code>block_size</code></th>
+<th style="text-align: left;">内部碎片</th>
+<th style="text-align: left;">页表大小</th>
+<th style="text-align: left;">Kernel 效率</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">1</td>
+<td style="text-align: left;">零浪费</td>
+<td style="text-align: left;">每 token 一项，页表本身变大</td>
+<td style="text-align: left;">每个 token 都要查一次表，间接寻址开销最大</td>
+</tr>
+<tr>
+<td style="text-align: right;">16（vLLM 默认）</td>
+<td style="text-align: left;">≤15 token</td>
+<td style="text-align: left;">适中</td>
+<td style="text-align: left;">查一次表能连续读 16 个 token，访存合并友好</td>
+</tr>
+<tr>
+<td style="text-align: right;">256</td>
+<td style="text-align: left;">≤255 token ≈ 36 MiB/序列</td>
+<td style="text-align: left;">很小</td>
+<td style="text-align: left;">合并最好，但短请求浪费惊人</td>
+</tr>
+</tbody>
+</table>
+<p>选择逻辑是：<strong>block_size 应该大到让 Kernel 一次间接能换来一段值得合并访问的连续数据，小到内部碎片相对请求平均长度可以忽略。</strong> 平均长度 500 token 时，16 浪费 1.6%，256 浪费 25% —— 前者显然更合理。</p>
+<hr />
+<h2 id="pytorch">三、用 PyTorch 把语义跑通<a class="headerlink" href="#pytorch" title="Permanent link">&para;</a></h2>
+<h3 id="1-kv-cache">1. KV Cache 的物理布局<a class="headerlink" href="#1-kv-cache" title="Permanent link">&para;</a></h3>
+<p>先定死张量形状，后面所有代码都依赖它：</p>
+<pre><code class="language-python"># k_cache, v_cache: [num_blocks, block_size, num_kv_heads, head_size]
+#                     └─物理页号   └─页内偏移   └─GQA 的 KV 头   └─每个头的维度
+</code></pre>
+<p><strong>为什么维度是这个顺序？</strong> 因为最后两维 <code>[num_kv_heads, head_size]</code> 是一个 token 的完整 KV，必须连续 —— Kernel 拿到一个 slot 后要一次性把这段读走。而前两维 <code>[num_blocks, block_size]</code> 合起来正好是"第几个槽位"，所以可以直接 reshape 成一维：</p>
+<pre><code class="language-python">num_blocks, block_size = k_cache.shape[0], k_cache.shape[1]
+k_flat = k_cache.view(num_blocks * block_size, num_kv_heads, head_size)
+#                     └─ 这一维就是 slot，从 0 到 num_blocks*block_size-1
+</code></pre>
+<p>这个 <code>view</code> 是零拷贝的（内存布局本来就是这样），但它让第二节那个公式可以直接当索引用。<strong>记住这个 flatten，CUDA Kernel 里也是同一套算术。</strong></p>
+<h3 id="2-blockmanager">2. BlockManager：管页号，不管显存<a class="headerlink" href="#2-blockmanager" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">class BlockManager:
+    &quot;&quot;&quot;只管理整数页号的分配与回收，完全不碰张量。
+
+    这个分离很重要：显存是启动时一次性分配好的一整块，
+    运行期变化的只有「哪个页号归谁」这个映射关系。
+    &quot;&quot;&quot;
+
+    def __init__(self, num_blocks: int, block_size: int):
+        self.block_size = block_size
+        self.free = list(range(num_blocks))   # 空闲页号
+        self.ref = [0] * num_blocks           # 引用计数，为 Prefix Cache 预留
+
+    def allocate(self) -&gt; int:
+        if not self.free:
+            raise MemoryError(&quot;KV block pool exhausted&quot;)   # 调度器要能接住这个异常
+        block = self.free.pop()
+        self.ref[block] = 1
+        return block
+
+    def release(self, block: int) -&gt; None:
+        assert self.ref[block] &gt; 0, f&quot;double free on block {block}&quot;
+        self.ref[block] -= 1
+        if self.ref[block] == 0:
+            self.free.append(block)
+
+    def ensure_capacity(self, block_table: list[int], num_tokens: int) -&gt; None:
+        &quot;&quot;&quot;保证 block_table 能装下 num_tokens 个 token，不够就追加页。&quot;&quot;&quot;
+        needed = (num_tokens + self.block_size - 1) // self.block_size
+        while len(block_table) &lt; needed:
+            block_table.append(self.allocate())
+
+    def free_request(self, block_table: list[int]) -&gt; None:
+        for block in block_table:
+            self.release(block)
+        block_table.clear()
+
+    @property
+    def num_free(self) -&gt; int:
+        return len(self.free)
+</code></pre>
+<p>三个设计细节值得说：</p>
+<ul>
+<li><strong><code>allocate()</code> 抛异常而不是返回 <code>None</code>。</strong> 显存耗尽是调度器必须处理的正常业务状态（触发抢占），不是程序错误。让它显式抛出，调度器 <code>try/except</code> 接住，比返回 <code>None</code> 之后一路 <code>NoneType</code> 报错清楚得多。</li>
+<li><strong>引用计数现在用不上，但要留。</strong> 加 Prefix Cache（多条请求共享相同的 prompt 前缀）时，同一个物理页会被多条序列引用，那时 <code>release</code> 必须减到 0 才真正回收。现在写成 <code>ref</code> 而不是简单的 <code>in_use</code> 布尔值，是为了那一天不用重构。</li>
+<li><strong><code>ensure_capacity</code> 用向上取整而不是「满了才加」。</strong> 因为调度器需要在<strong>执行之前</strong>就知道显存够不够，不能等 Kernel 跑到一半发现越界。</li>
+</ul>
+<p>先测它，别急着跑模型：</p>
+<pre><code class="language-python">bm = BlockManager(num_blocks=12, block_size=4)
+table: list[int] = []
+
+bm.ensure_capacity(table, 1);   assert len(table) == 1    # 1 个 token → 1 页
+bm.ensure_capacity(table, 4);   assert len(table) == 1    # 正好装满，不追加
+bm.ensure_capacity(table, 5);   assert len(table) == 2    # 溢出 1 个 → 追加
+
+before = bm.num_free
+bm.free_request(table)
+assert bm.num_free == before + 2                          # 分配与释放对称
+</code></pre>
+<p>第二行那个 <code>ensure_capacity(table, 4)</code> 断言最容易挂 —— 如果你把向上取整写成 <code>num_tokens // block_size + 1</code>，边界正好在这里错。</p>
+<h3 id="3-attention">3. 分页版 Attention：核心就一行<a class="headerlink" href="#3-attention" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">import torch
+
+def paged_attention(
+    q,             # [num_seqs, num_q_heads, head_size]
+    k_cache,       # [num_blocks, block_size, num_kv_heads, head_size]
+    v_cache,       # 同上
+    block_tables,  # [num_seqs, max_blocks_per_seq]  int32，未用的槽填 -1
+    context_lens,  # [num_seqs]                      int32
+):
+    num_seqs, num_q_heads, head_size = q.shape
+    num_blocks, block_size, num_kv_heads, _ = k_cache.shape
+    group = num_q_heads // num_kv_heads          # GQA 组大小
+    scale = head_size ** -0.5
+
+    k_flat = k_cache.view(num_blocks * block_size, num_kv_heads, head_size)
+    v_flat = v_cache.view(num_blocks * block_size, num_kv_heads, head_size)
+
+    out = torch.empty_like(q)
+    for s in range(num_seqs):
+        T = int(context_lens[s])
+        t = torch.arange(T, device=q.device)
+
+        # ↓↓↓ 这三行就是 PagedAttention 的全部 ↓↓↓
+        logical_block = t // block_size
+        offset        = t %  block_size
+        slots = block_tables[s, logical_block] * block_size + offset   # [T]
+        # ↑↑↑ 逻辑位置 → 物理槽位，一次间接 ↑↑↑
+
+        k = k_flat[slots]        # [T, num_kv_heads, head_size]  ← gather
+        v = v_flat[slots]
+
+        for h in range(num_q_heads):
+            kv_h = h // group                       # GQA：多个 Q 头共享一个 KV 头
+            scores = (k[:, kv_h] @ q[s, h]) * scale # [T]
+            probs  = torch.softmax(scores, dim=0)   # PyTorch 内部已做减 max
+            out[s, h] = probs @ v[:, kv_h]
+    return out
+</code></pre>
+<p><strong>把 <code>slots</code> 打印出来</strong>，这是理解分页最快的方式：</p>
+<pre><code class="language-python">&gt;&gt;&gt; block_tables[0] = [7, 2, -1];  context_lens[0] = 6;  block_size = 4
+&gt;&gt;&gt; slots
+tensor([28, 29, 30, 31,  8,  9])
+#       └── 物理页 7 的 4 个格子 ──┘  └页 2 的前 2 格┘
+</code></pre>
+<p>逻辑上连续的 token 0–5，物理上落在两段完全不挨着的显存里。<strong>而 Attention 的数学一个字没改</strong> —— 它看到的仍然是一个 <code>[T, D]</code> 的 K 矩阵。这就是页表的价值：把「数据在哪」和「数据是什么」彻底解耦。</p>
+<h3 id="4">4. 和朴素版对拍：唯一可信的验证<a class="headerlink" href="#4" title="Permanent link">&para;</a></h3>
+<p>上面那段代码看起来对，但 <code>//</code>、<code>%</code>、<code>*</code> 三个运算里任何一个写错，结果都还是个「形状正确的张量」。所以必须和一个绝对朴素的版本比：</p>
+<pre><code class="language-python">def attention_contiguous(q, k, v, context_lens):
+    &quot;&quot;&quot;朴素版：K/V 就是普通的连续张量 [num_seqs, max_T, num_kv_heads, head_size]。
+    结构上刻意和分页版完全不同 —— 这样同一个索引 bug 不会在两边同时出现。
+    &quot;&quot;&quot;
+    num_seqs, num_q_heads, head_size = q.shape
+    group = num_q_heads // k.shape[2]
+    scale = head_size ** -0.5
+    out = torch.empty_like(q)
+    for s in range(num_seqs):
+        T = int(context_lens[s])
+        for h in range(num_q_heads):
+            kv_h = h // group
+            scores = (k[s, :T, kv_h] @ q[s, h]) * scale
+            out[s, h] = torch.softmax(scores, dim=0) @ v[s, :T, kv_h]
+    return out
+
+
+def test_paging_is_transparent():
+    torch.manual_seed(0)
+    num_seqs, Hq, Hkv, D = 2, 4, 2, 8
+    block_size, num_blocks, max_blocks = 4, 12, 3
+
+    context_lens = torch.tensor([6, 3], dtype=torch.int32)
+    # 故意用不连续、不递增的物理页 —— 写成连续 offset 的话这里必挂
+    block_tables = torch.tensor([[7, 2, -1],
+                                 [5, -1, -1]], dtype=torch.int32)
+
+    q = torch.randn(num_seqs, Hq, D, dtype=torch.float64)
+    k_cache = torch.randn(num_blocks, block_size, Hkv, D, dtype=torch.float64)
+    v_cache = torch.randn(num_blocks, block_size, Hkv, D, dtype=torch.float64)
+
+    # 把分页数据「摊平」成连续布局，喂给朴素版
+    max_T = int(context_lens.max())
+    k_lin = torch.zeros(num_seqs, max_T, Hkv, D, dtype=torch.float64)
+    v_lin = torch.zeros_like(k_lin)
+    for s in range(num_seqs):
+        for t in range(int(context_lens[s])):
+            b, o = block_tables[s, t // block_size], t % block_size
+            k_lin[s, t] = k_cache[b, o]
+            v_lin[s, t] = v_cache[b, o]
+
+    ref  = attention_contiguous(q, k_lin, v_lin, context_lens)
+    got  = paged_attention(q, k_cache, v_cache, block_tables, context_lens)
+    torch.testing.assert_close(got, ref, rtol=0, atol=1e-12)
+</code></pre>
+<p>几个刻意的选择：</p>
+<ul>
+<li><strong>用 <code>float64</code>，容差设 <code>1e-12</code>。</strong> 这一步验证的是<strong>索引逻辑</strong>，不是数值精度。用 FP32 跑，容差得放到 1e-5，那时候「索引错了一个 token」和「浮点误差」就区分不开了。精度问题留到 CUDA 那一步再单独处理。</li>
+<li><strong>页表写成 <code>[[7,2,-1],[5,-1,-1]]</code>。</strong> 非连续、非递增、还带 padding。如果哪天有人把 <code>slots</code> 简化成 <code>t + s * max_T</code> 这种「反正也能跑」的写法，这个测试立刻挂。</li>
+<li><strong>摊平那段循环故意写得很笨。</strong> 它是 ground truth 的一部分，笨到不可能写错才有价值。</li>
+</ul>
+<hr />
+<h2 id="continuous-batching">四、Continuous Batching：调度器在决定什么<a class="headerlink" href="#continuous-batching" title="Permanent link">&para;</a></h2>
+<h3 id="1-prefill-decode">1. 先看清 Prefill 和 Decode 的形状差异<a class="headerlink" href="#1-prefill-decode" title="Permanent link">&para;</a></h3>
+<p>这是理解调度的前提：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;"></th>
+<th style="text-align: left;">Prefill</th>
+<th style="text-align: left;">Decode</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">一次处理的 token 数</td>
+<td style="text-align: left;">整个 prompt，几百到几千</td>
+<td style="text-align: left;">每条序列 1 个</td>
+</tr>
+<tr>
+<td style="text-align: left;">计算特征</td>
+<td style="text-align: left;">矩阵 × 矩阵，<strong>算力受限</strong></td>
+<td style="text-align: left;">矩阵 × 向量，<strong>访存受限</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">一步耗时</td>
+<td style="text-align: left;">长（正比于 prompt 长度）</td>
+<td style="text-align: left;">短且稳定</td>
+</tr>
+<tr>
+<td style="text-align: left;">KV Cache</td>
+<td style="text-align: left;">一次写入 T 个 token</td>
+<td style="text-align: left;">每步追加 1 个</td>
+</tr>
+</tbody>
+</table>
+<p><strong>关键推论</strong>：Decode 步的耗时几乎和 batch 大小无关（因为瓶颈是读权重和 KV，而权重只读一次）。所以 <strong>batch 越大，每 token 的成本越低</strong> —— 这就是连续批处理拼命想把 batch 填满的原因。</p>
+<p>而 Prefill 是算力受限的，塞太多进去只会线性变慢。所以调度器对两者的预算是分开算的。</p>
+<h3 id="2-step">2. 一次 <code>step()</code> 要做的决策<a class="headerlink" href="#2-step" title="Permanent link">&para;</a></h3>
+<pre><code class="language-text">┌─ 有等待中的请求 且 显存够 且 prefill 预算没用完？
+│      → 优先跑 Prefill，把新请求拉进 running 集合
+│
+└─ 否则跑 Decode：
+       running 集合里每条序列各生成 1 个 token
+       ├─ 谁需要新页？ → ensure_capacity
+       ├─ 显存不够了？ → 抢占：踢掉最晚来的，释放它的页
+       └─ 谁生成了 EOS 或达到长度上限？ → 完成，释放页，让位
+</code></pre>
+<p><strong>为什么优先 Prefill？</strong> 因为新请求不做 Prefill 就进不了 running 集合，batch 就填不满。这是个「先投资再收租」的关系。但也不能无脑优先——一个 8000 token 的 prompt 会把这一步拖到几百毫秒，让所有正在 decode 的请求卡住（<strong>队头阻塞</strong>）。工业框架的解法是 <strong>Chunked Prefill</strong>：把长 prompt 切成几段，每步只做一段，和 decode 混着跑。</p>
+<h3 id="3_2">3. 抢占：显存不够时怎么办<a class="headerlink" href="#3_2" title="Permanent link">&para;</a></h3>
+<p>这是连续批处理里最容易被忽略、也最能体现设计的一环。</p>
+<p>序列在 decode 过程中会不断变长，也就不断需要新页。<strong>总会有一步，某条序列要新页而池子空了。</strong> 这时候有两个选择：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">策略</th>
+<th style="text-align: left;">做法</th>
+<th style="text-align: left;">代价</th>
+<th style="text-align: left;">适用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Recompute</strong></td>
+<td style="text-align: left;">直接丢掉被抢占序列的所有 KV，把它退回等待队列，将来重新 Prefill</td>
+<td style="text-align: left;">浪费已算过的 Prefill</td>
+<td style="text-align: left;">序列还短时最划算</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Swap</strong></td>
+<td style="text-align: left;">把它的 KV 页拷到 CPU 内存，之后再拷回来</td>
+<td style="text-align: left;">占用 PCIe 带宽和 CPU 内存</td>
+<td style="text-align: left;">序列很长、重算太贵时</td>
+</tr>
+</tbody>
+</table>
+<p>选谁被抢占？<strong>最晚进来的那条</strong>（LIFO）。因为它算过的 KV 最少，丢掉损失最小；而且这样能保证先来的请求不会被反复抢占饿死。</p>
+<h3 id="4_1">4. 一个能跑的最小调度器<a class="headerlink" href="#4_1" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">from dataclasses import dataclass, field
+from collections import deque
+
+@dataclass
+class Sequence:
+    seq_id: int
+    prompt_len: int
+    max_new_tokens: int
+    num_tokens: int = 0                       # 已在 KV Cache 里的 token 数
+    num_generated: int = 0
+    finished: bool = False
+    block_table: list[int] = field(default_factory=list)
+
+    @property
+    def needs_prefill(self) -&gt; bool:
+        return self.num_tokens == 0
+
+
+class Scheduler:
+    def __init__(self, bm: BlockManager, max_batch: int, prefill_token_budget: int):
+        self.bm = bm
+        self.max_batch = max_batch
+        self.prefill_token_budget = prefill_token_budget
+        self.waiting: deque[Sequence] = deque()
+        self.running: list[Sequence] = []
+
+    def add(self, seq: Sequence) -&gt; None:
+        self.waiting.append(seq)
+
+    def schedule(self) -&gt; tuple[list[Sequence], bool]:
+        &quot;&quot;&quot;返回 (这一步要跑的序列, 是否是 prefill 批)。&quot;&quot;&quot;
+        # ---- 优先 Prefill：把等待队列里的请求拉进来 ----
+        batch, budget = [], self.prefill_token_budget
+        while self.waiting and len(self.running) + len(batch) &lt; self.max_batch:
+            seq = self.waiting[0]
+            if seq.prompt_len &gt; budget:
+                break                          # 这一步塞不下了，下一步再说
+            try:
+                self.bm.ensure_capacity(seq.block_table, seq.prompt_len)
+            except MemoryError:
+                break                          # 显存不够，先不接新请求
+            self.waiting.popleft()
+            seq.num_tokens = seq.prompt_len
+            budget -= seq.prompt_len
+            batch.append(seq)
+        if batch:
+            self.running.extend(batch)
+            return batch, True
+
+        # ---- 否则 Decode：running 里每条各出 1 个 token ----
+        for seq in list(self.running):
+            try:
+                self.bm.ensure_capacity(seq.block_table, seq.num_tokens + 1)
+            except MemoryError:
+                if not self._preempt():        # 腾不出来了，这一步只能少跑一条
+                    self.running.remove(seq)
+                    self.waiting.appendleft(seq)
+                    self._recompute(seq)
+                    continue
+                self.bm.ensure_capacity(seq.block_table, seq.num_tokens + 1)
+        return list(self.running), False
+
+    def _preempt(self) -&gt; bool:
+        &quot;&quot;&quot;抢占最晚进来的序列（Recompute 策略），成功返回 True。&quot;&quot;&quot;
+        if len(self.running) &lt;= 1:
+            return False                       # 只剩一条，抢占它没意义
+        victim = self.running.pop()            # LIFO：最后进来的先出去
+        self._recompute(victim)
+        self.waiting.appendleft(victim)
+        return True
+
+    def _recompute(self, seq: Sequence) -&gt; None:
+        &quot;&quot;&quot;丢弃 KV，退回等待队列。下次调度时重新 Prefill。&quot;&quot;&quot;
+        self.bm.free_request(seq.block_table)
+        seq.num_tokens = 0
+        seq.num_generated = 0                  # 注意：已生成的 token 要并进 prompt
+
+    def postprocess(self, batch: list[Sequence], next_tokens, eos_id: int) -&gt; None:
+        &quot;&quot;&quot;模型跑完之后提交状态。这一步必须是原子的。&quot;&quot;&quot;
+        for seq, token in zip(batch, next_tokens):
+            seq.num_tokens += 1
+            seq.num_generated += 1
+            if token == eos_id or seq.num_generated &gt;= seq.max_new_tokens:
+                seq.finished = True
+                self.bm.free_request(seq.block_table)     # 立刻还显存
+                self.running.remove(seq)
+</code></pre>
+<p><strong>几个必须讲清楚的点：</strong></p>
+<ul>
+<li><strong><code>ensure_capacity</code> 在执行之前调用，不是之后。</strong> 调度器必须先确认「这一步的显存够」，才能把批交给模型。等 Kernel 跑到一半发现页表里是 -1，那就是非法访存。</li>
+<li><strong><code>postprocess</code> 是事务提交点。</strong> 模型跑完之前，序列状态不能变——因为这一步可能失败、可能被取消。把「推进状态」和「决定跑什么」分成两个函数，是所有推理引擎的共同结构。</li>
+<li><strong>完成的序列立刻 <code>free_request</code>。</strong> 这一行就是连续批处理省显存的地方。晚一步释放，下一步就少一个可用页。</li>
+<li><strong><code>_recompute</code> 里 <code>num_generated = 0</code> 有个坑</strong>：真实实现中，被抢占序列已经生成的 token 必须并入新的 prompt 重新 Prefill，否则重启后会丢输出。这份最小实现为了聚焦调度骨架省略了拼接逻辑，<strong>上生产必须补上</strong>。</li>
+</ul>
+<h3 id="5-trace">5. 走一遍 trace<a class="headerlink" href="#5-trace" title="Permanent link">&para;</a></h3>
+<p><code>block_size=4</code>、池子 6 页（24 token）、<code>max_batch=3</code>：</p>
+<pre><code class="language-text">step 1  waiting=[A(prompt=6), B(prompt=3)]  running=[]
+        → Prefill A：ensure_capacity(6) → 需 2 页 → table=[0,1]，剩 4 页
+        → Prefill B：ensure_capacity(3) → 需 1 页 → table=[2],   剩 3 页
+        执行 Prefill 批 [A, B]
+
+step 2  running=[A(6), B(3)]
+        → A 要第 7 个 token：⌈7/4⌉=2 页，已有 2 页，不用加
+        → B 要第 4 个 token：⌈4/4⌉=1 页，已有 1 页，不用加
+        执行 Decode 批 [A, B]                      ← 这一步零分配，很常见
+
+step 3  running=[A(7), B(4)]
+        → A 要第 8 个：还是 2 页，够
+        → B 要第 5 个：⌈5/4⌉=2 页 → 追加 1 页 → table=[2,3]，剩 2 页
+        执行 Decode 批 [A, B]
+
+step 4  B 生成 EOS
+        → postprocess：B.finished，free_request([2,3]) → 剩 4 页
+        → C 在等待队列里，下一步就能被 Prefill 进来      ← 位置和显存同时腾出
+</code></pre>
+<p><strong>注意 step 2</strong>：大多数 decode 步是不分配显存的，只有跨越 <code>block_size</code> 边界那一步才追加。<code>block_size</code> 越大，分配越稀疏——这是选它的另一个考量。</p>
+<hr />
+<h2 id="cuda-pagedattention-kernel">五、落到 CUDA：完整的 PagedAttention Kernel<a class="headerlink" href="#cuda-pagedattention-kernel" title="Permanent link">&para;</a></h2>
+<p>PyTorch 版验证过了，现在把它变成一个真 Kernel。这一节的代码是<strong>可以直接编译</strong>的。</p>
+<h3 id="1-grid">1. 先想清楚 Grid 怎么映射<a class="headerlink" href="#1-grid" title="Permanent link">&para;</a></h3>
+<p>Decode 时的并行度来源有三个：<code>num_seqs</code>、<code>num_q_heads</code>、<code>head_size</code>。Context 维 <span class="arithmatex">\(T\)</span> 是要被归约掉的，不能直接并行。</p>
+<p>最直接的映射：</p>
+<pre><code class="language-text">grid  = (num_q_heads, num_seqs)     一个 CTA 负责一条序列的一个 Q 头
+block = 128 线程 = 4 个 warp        沿 T 维流式处理，沿 D 维并行
+</code></pre>
+<p>一个 CTA 内的分工：</p>
+<ul>
+<li><strong>QK 阶段</strong>：4 个 warp 各负责 1 个 token，warp 内 32 个 lane 沿 <span class="arithmatex">\(D\)</span> 维分摊点积，再用 shuffle 归约。这样 lane 读的是连续地址，<strong>访存合并</strong>。</li>
+<li><strong>PV 阶段</strong>：128 个线程沿 <span class="arithmatex">\(D\)</span> 维分摊输出累加器。</li>
+</ul>
+<p>因为一个 CTA 一次只处理 4 个 token，<span class="arithmatex">\(T=4096\)</span> 要循环 1024 轮。<strong>这是个清晰但不是最优的结构</strong> —— vLLM 的 Kernel 会让每个 warp 一次处理多个 token 来提高 ILP。这里优先可读性，性能优化留给 Profiler 引导（见 <a href="../11.4-kernel_profiling_linear_h2d/">11.4</a>）。</p>
+<h3 id="2-kernel">2. Kernel 代码<a class="headerlink" href="#2-kernel" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cuda">#include &lt;cuda_runtime.h&gt;
+#include &lt;math_constants.h&gt;
+
+#define WARP_SIZE 32
+#define FULL_MASK 0xffffffffu
+
+__inline__ __device__ float warpReduceSum(float v) {
+#pragma unroll
+    for (int offset = WARP_SIZE / 2; offset &gt; 0; offset &gt;&gt;= 1)
+        v += __shfl_down_sync(FULL_MASK, v, offset);
+    return v;   // 结果在 lane 0
+}
+
+// out         [num_seqs, num_q_heads, HEAD_SIZE]
+// q           [num_seqs, num_q_heads, HEAD_SIZE]
+// k_cache     [num_blocks, block_size, num_kv_heads, HEAD_SIZE]
+// v_cache     同上
+// block_table [num_seqs, max_blocks_per_seq]   int32
+// ctx_lens    [num_seqs]                       int32
+template &lt;int HEAD_SIZE, int NUM_THREADS&gt;
+__global__ void paged_attention_decode(
+        float* __restrict__       out,
+        const float* __restrict__ q,
+        const float* __restrict__ k_cache,
+        const float* __restrict__ v_cache,
+        const int*   __restrict__ block_tables,
+        const int*   __restrict__ ctx_lens,
+        int   num_q_heads,
+        int   num_kv_heads,
+        int   block_size,
+        int   max_blocks_per_seq,
+        float scale)
+{
+    constexpr int NUM_WARPS = NUM_THREADS / WARP_SIZE;
+
+    const int q_head = blockIdx.x;
+    const int seq    = blockIdx.y;
+    const int tid    = threadIdx.x;
+    const int warp   = tid / WARP_SIZE;
+    const int lane   = tid % WARP_SIZE;
+
+    const int ctx_len = ctx_lens[seq];
+    const int kv_head = q_head / (num_q_heads / num_kv_heads);   // GQA 映射
+    const int* block_table = block_tables + (size_t)seq * max_blocks_per_seq;
+
+    __shared__ float q_s[HEAD_SIZE];        // 当前 Q 头，整个 CTA 复用
+    __shared__ float acc_s[HEAD_SIZE];      // 未归一化的输出累加器
+    __shared__ float logit_s[NUM_WARPS];    // 本轮 NUM_WARPS 个 token 的 score
+
+    // ---- 载入 Q（顺便把 scale 预乘进去，省掉后面每次点积的一次乘法）----
+    for (int d = tid; d &lt; HEAD_SIZE; d += NUM_THREADS) {
+        q_s[d]   = q[((size_t)seq * num_q_heads + q_head) * HEAD_SIZE + d] * scale;
+        acc_s[d] = 0.0f;
+    }
+    __syncthreads();
+
+    if (ctx_len &lt;= 0) {                     // 防御：空序列不该进来，但别让它写出 NaN
+        for (int d = tid; d &lt; HEAD_SIZE; d += NUM_THREADS)
+            out[((size_t)seq * num_q_heads + q_head) * HEAD_SIZE + d] = 0.0f;
+        return;
+    }
+
+    // ---- Online Softmax 的三个运行状态 ----
+    // running_max / denom 每个线程各存一份，但所有线程算出的值完全相同，
+    // 因为它们读的是同一份 logit_s。这样就不需要为它们再做跨线程归约。
+    float running_max = -CUDART_INF_F;
+    float denom       = 0.0f;
+
+    for (int base = 0; base &lt; ctx_len; base += NUM_WARPS) {
+        // ================= QK：每个 warp 负责 1 个 token =================
+        const int token = base + warp;
+        if (token &lt; ctx_len) {
+            // ↓↓↓ 第二节那行公式，在 CUDA 里的样子 ↓↓↓
+            const int logical_block = token / block_size;
+            const int offset        = token % block_size;
+            const int phys_block    = block_table[logical_block];
+            const size_t slot       = (size_t)phys_block * block_size + offset;
+            const float* k_ptr = k_cache + (slot * num_kv_heads + kv_head) * HEAD_SIZE;
+            // ↑↑↑ 分页的全部开销：多读一个 int，多做两次整数运算 ↑↑↑
+
+            float partial = 0.0f;
+            for (int d = lane; d &lt; HEAD_SIZE; d += WARP_SIZE)   // 跨步 → 访存合并
+                partial += q_s[d] * k_ptr[d];
+            partial = warpReduceSum(partial);
+            if (lane == 0) logit_s[warp] = partial;
+        } else if (lane == 0) {
+            logit_s[warp] = -CUDART_INF_F;   // 尾部 padding：权重会算成 0
+        }
+        __syncthreads();                     // logit_s 写完才能读
+
+        // ================= Online Softmax 状态更新 =================
+        float tile_max = -CUDART_INF_F;
+#pragma unroll
+        for (int w = 0; w &lt; NUM_WARPS; ++w)
+            tile_max = fmaxf(tile_max, logit_s[w]);
+
+        const float new_max   = fmaxf(running_max, tile_max);
+        // 首轮 running_max = -inf，expf(-inf) = 0，正好把初始的 0 状态清成 0，不必特判
+        const float correction = __expf(running_max - new_max);
+
+        for (int d = tid; d &lt; HEAD_SIZE; d += NUM_THREADS)
+            acc_s[d] *= correction;          // 每个线程只碰自己那几个 d，无竞争
+        denom *= correction;
+
+        // ================= PV：把这一轮的 token 累加进去 =================
+        for (int w = 0; w &lt; NUM_WARPS; ++w) {
+            const int t = base + w;
+            if (t &gt;= ctx_len) break;         // 所有线程同时 break，不产生分歧
+
+            const float weight = __expf(logit_s[w] - new_max);
+            denom += weight;
+
+            const int logical_block = t / block_size;
+            const int offset        = t % block_size;
+            const size_t slot = (size_t)block_table[logical_block] * block_size + offset;
+            const float* v_ptr = v_cache + (slot * num_kv_heads + kv_head) * HEAD_SIZE;
+
+            for (int d = tid; d &lt; HEAD_SIZE; d += NUM_THREADS)
+                acc_s[d] += weight * v_ptr[d];
+        }
+        running_max = new_max;
+        __syncthreads();                     // 下一轮要覆盖 logit_s
+    }
+
+    // ---- 全程唯一一次归一化 ----
+    for (int d = tid; d &lt; HEAD_SIZE; d += NUM_THREADS)
+        out[((size_t)seq * num_q_heads + q_head) * HEAD_SIZE + d] = acc_s[d] / denom;
+}
+</code></pre>
+<p>启动方式：</p>
+<pre><code class="language-cuda">void launch_paged_attention(
+        float* out, const float* q, const float* k_cache, const float* v_cache,
+        const int* block_tables, const int* ctx_lens,
+        int num_seqs, int num_q_heads, int num_kv_heads, int head_size,
+        int block_size, int max_blocks_per_seq, cudaStream_t stream)
+{
+    const dim3 grid(num_q_heads, num_seqs);
+    const float scale = rsqrtf((float)head_size);
+    // head_size 是编译期常量 → dispatch 到对应特化（见 11.2 第九节）
+    switch (head_size) {
+    case 64:
+        paged_attention_decode&lt;64, 128&gt;&lt;&lt;&lt;grid, 128, 0, stream&gt;&gt;&gt;(
+            out, q, k_cache, v_cache, block_tables, ctx_lens,
+            num_q_heads, num_kv_heads, block_size, max_blocks_per_seq, scale);
+        break;
+    case 128:
+        paged_attention_decode&lt;128, 128&gt;&lt;&lt;&lt;grid, 128, 0, stream&gt;&gt;&gt;(
+            out, q, k_cache, v_cache, block_tables, ctx_lens,
+            num_q_heads, num_kv_heads, block_size, max_blocks_per_seq, scale);
+        break;
+    default:
+        // 生产环境这里要回退到通用实现，而不是静默出错
+        break;
+    }
+}
+</code></pre>
+<h3 id="3_3">3. 三个容易写错的地方<a class="headerlink" href="#3_3" title="Permanent link">&para;</a></h3>
+<p><strong>同步点只有两个，而且都必要。</strong></p>
+<pre><code class="language-text">__syncthreads() #1  在 QK 写完 logit_s 之后    → 保证所有线程读到完整的 logit_s
+__syncthreads() #2  在循环末尾                → 保证 PV 读完 logit_s，才被下一轮覆盖
+</code></pre>
+<p>漏掉 #2 是最隐蔽的 bug：小 <code>ctx_len</code> 时可能碰巧不出错（只有一轮循环），长上下文才随机出现数值偏差。</p>
+<p><strong><code>acc_s[d] *= correction</code> 为什么不需要同步？</strong> 因为线程 <code>tid</code> 只碰 <code>d = tid, tid+128, tid+256, ...</code>，各线程的 <code>d</code> 集合互不相交，缩放和累加都是自己读自己写。<strong>共享内存不等于必须同步——只有跨线程的读写依赖才需要。</strong></p>
+<p><strong><code>denom</code> 为什么不用归约？</strong> 因为每个线程都读同一份 <code>logit_s</code>、执行同样的加法序列，算出的 <code>denom</code> 逐位相同。用一个冗余计算换掉一次 block 级归约，划算。</p>
+<h3 id="4-kv-store-token">4. KV Store：新 token 写到哪<a class="headerlink" href="#4-kv-store-token" title="Permanent link">&para;</a></h3>
+<p>Decode 每一步都会产生新的 K/V，得写进 cache 对应的槽位。调度器算好 <code>slot_mapping</code> 递给 Kernel：</p>
+<pre><code class="language-cuda">// k_new / v_new: [num_tokens, num_kv_heads, HEAD_SIZE]
+// slot_mapping:  [num_tokens]，-1 表示 padding，不写
+__global__ void store_kv_cache(
+        float* __restrict__       k_cache,
+        float* __restrict__       v_cache,
+        const float* __restrict__ k_new,
+        const float* __restrict__ v_new,
+        const int*   __restrict__ slot_mapping,
+        int num_kv_heads,
+        int head_size)
+{
+    const int token = blockIdx.x;
+    const int slot  = slot_mapping[token];
+    if (slot &lt; 0) return;                       // padding，跳过
+
+    const int n = num_kv_heads * head_size;     // 一个 token 的 KV 元素数
+    const float* src_k = k_new   + (size_t)token * n;
+    const float* src_v = v_new   + (size_t)token * n;
+    float*       dst_k = k_cache + (size_t)slot  * n;
+    float*       dst_v = v_cache + (size_t)slot  * n;
+
+    for (int i = threadIdx.x; i &lt; n; i += blockDim.x) {
+        dst_k[i] = src_k[i];
+        dst_v[i] = src_v[i];
+    }
+}
+</code></pre>
+<p>Host 侧算 <code>slot_mapping</code>，和第二节的公式一模一样：</p>
+<pre><code class="language-python">def build_slot_mapping(seqs, block_size):
+    &quot;&quot;&quot;每条序列的下一个待写 token → 物理槽位。&quot;&quot;&quot;
+    slots = []
+    for seq in seqs:
+        t = seq.num_tokens                       # 新 token 的逻辑位置
+        block = seq.block_table[t // block_size]
+        slots.append(block * block_size + t % block_size)
+    return torch.tensor(slots, dtype=torch.int32, device=&quot;cuda&quot;)
+</code></pre>
+<p><strong>这里最常见的 bug 是差一</strong>：新 token 的逻辑位置是 <code>num_tokens</code>（还没自增），不是 <code>num_tokens - 1</code>。写错的话，每一步都会覆盖掉上一个 token 的 KV——而输出看起来只是"质量差了点"，很难联想到索引。</p>
+<h3 id="5-pytorch">5. 和 PyTorch 版对齐<a class="headerlink" href="#5-pytorch" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">def test_cuda_matches_torch():
+    torch.manual_seed(0)
+    num_seqs, Hq, Hkv, D = 2, 4, 2, 128
+    block_size, num_blocks, max_blocks = 16, 64, 8
+
+    ctx_lens     = torch.tensor([37, 5], dtype=torch.int32, device=&quot;cuda&quot;)  # 非整块
+    block_tables = torch.full((num_seqs, max_blocks), -1, dtype=torch.int32)
+    block_tables[0, :3] = torch.tensor([9, 1, 40])   # 乱序、不连续
+    block_tables[1, :1] = torch.tensor([17])
+    block_tables = block_tables.cuda()
+
+    q       = torch.randn(num_seqs, Hq, D, device=&quot;cuda&quot;)
+    k_cache = torch.randn(num_blocks, block_size, Hkv, D, device=&quot;cuda&quot;)
+    v_cache = torch.randn(num_blocks, block_size, Hkv, D, device=&quot;cuda&quot;)
+
+    ref = paged_attention(q, k_cache, v_cache, block_tables, ctx_lens)   # 第三节的 PyTorch 版
+    got = my_ext.paged_attention(q, k_cache, v_cache, block_tables, ctx_lens, block_size)
+
+    torch.testing.assert_close(got, ref, rtol=2e-3, atol=2e-3)
+</code></pre>
+<p><strong>测试数据的每一处都在抓特定 bug：</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">设计</th>
+<th style="text-align: left;">抓什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>ctx_len=37</code>，<code>block_size=16</code></td>
+<td style="text-align: left;">37 = 2×16+5，最后一块只用了 5 格。抓尾部越界和 padding 处理</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>ctx_len=5</code> &lt; <code>block_size</code></td>
+<td style="text-align: left;">只占一块的短序列。抓「至少一块」的边界</td>
+</tr>
+<tr>
+<td style="text-align: left;">页表 <code>[9, 1, 40]</code> 乱序</td>
+<td style="text-align: left;">抓把 slot 写成 <code>t</code> 或 <code>logical_block*block_size+offset</code>（漏了查表）</td>
+</tr>
+<tr>
+<td style="text-align: left;">两条序列长度不同</td>
+<td style="text-align: left;">抓 batch 维度上下标串台</td>
+</tr>
+<tr>
+<td style="text-align: left;">容差 2e-3</td>
+<td style="text-align: left;">FP32 + <code>__expf</code> 快速数学的合理范围。<strong>收紧到 1e-6 会假报警</strong></td>
+</tr>
+</tbody>
+</table>
+<p>注意容差从 PyTorch 那步的 <code>1e-12</code> 放宽到了 <code>2e-3</code>。因为这一步验证的是 <strong>Kernel 实现</strong>，误差里包含了 <code>__expf</code> 的近似、不同的累加顺序等真实数值差异。<strong>分两步、用两个容差</strong>，才能把「索引错了」和「精度差异」分开——这正是先写 PyTorch 版的价值所在。</p>
+<hr />
+<h2 id="bug">六、Bug 症状速查<a class="headerlink" href="#bug" title="Permanent link">&para;</a></h2>
+<p>分页系统的 bug 有很强的规律性，症状能直接指向原因：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">症状</th>
+<th style="text-align: left;">大概率原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">非法访存 / <code>illegal memory access</code></td>
+<td style="text-align: left;">页表里读到了 -1（padding），或 <code>ctx_len</code> 与页表长度不匹配</td>
+</tr>
+<tr>
+<td style="text-align: left;">输出全是 <code>NaN</code></td>
+<td style="text-align: left;"><code>denom</code> 为 0（<code>ctx_len=0</code>），或 Online Softmax 里 <code>-inf - -inf</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">短序列对、长序列错</td>
+<td style="text-align: left;">跨 <code>block_size</code> 边界的地方算错，或漏了循环末尾的 <code>__syncthreads()</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">第一个 token 对、后面全错</td>
+<td style="text-align: left;"><code>slot_mapping</code> 差一，新 KV 覆盖了旧的</td>
+</tr>
+<tr>
+<td style="text-align: left;">结果对但和"页表顺序"相关</td>
+<td style="text-align: left;">根本没查表，直接用了连续 offset。换个乱序页表就现形</td>
+</tr>
+<tr>
+<td style="text-align: left;">偶发错误，重跑就好</td>
+<td style="text-align: left;">释放的页被立刻重新分配，但上一步的 Kernel 还没跑完（缺 stream 同步）</td>
+</tr>
+<tr>
+<td style="text-align: left;">显存持续增长直到 OOM</td>
+<td style="text-align: left;"><code>free_request</code> 漏调用，或抢占路径上没释放</td>
+</tr>
+</tbody>
+</table>
+<p>最后两条特别值得展开：</p>
+<p><strong>页的释放必须晚于使用它的 Kernel。</strong> <code>postprocess</code> 里调 <code>free_request</code> 时，上一步的 attention kernel 可能还在 GPU 上跑。如果这个页立刻被分配给别的请求并写入新 KV，就会踩到正在读的数据。解法是让释放和执行在同一个 stream 上有序，或者用 event 卡一道。<strong>这是 CPU 侧逻辑正确、GPU 侧数据被踩的典型异步 bug</strong>，在单序列测试里永远复现不出来。</p>
+<p><strong>引用计数的对称性要用断言守住。</strong> <code>BlockManager</code> 里那句 <code>assert self.ref[block] &gt; 0</code> 不是装饰——双重释放会让同一个页号在空闲列表里出现两次，接着被两条序列同时持有。那之后的错误现象会离案发现场非常远。</p>
+<hr />
+<h2 id="_3">七、验收清单<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<p><strong>分页正确性</strong></p>
+<ul>
+<li>[ ] <code>BlockManager</code> 分配与释放数量对称（跑一轮压力测试后 <code>num_free</code> 回到初值）</li>
+<li>[ ] <code>ensure_capacity(n)</code> 在 <code>n</code> 恰好等于 <code>block_size</code> 整数倍时不多分配</li>
+<li>[ ] 乱序、不连续的页表能出正确结果</li>
+<li>[ ] 交换两个物理页的内容并同步改页表，输出不变 —— <strong>这条最能证明"只是间接寻址"</strong></li>
+<li>[ ] <code>ctx_len</code> 不是 <code>block_size</code> 整数倍时不越界</li>
+<li>[ ] padding 页号（-1）永远不被 Kernel 访问</li>
+</ul>
+<p><strong>连续批处理</strong></p>
+<ul>
+<li>[ ] 序列完成后显存立刻回到池子（对比 <code>num_free</code> 前后）</li>
+<li>[ ] 池子耗尽时触发抢占而不是崩溃</li>
+<li>[ ] 被抢占的序列能正确恢复并产出与未被抢占时相同的输出</li>
+<li>[ ] 不同长度的请求混批，输出与单独跑逐条一致</li>
+</ul>
+<p><strong>Kernel</strong></p>
+<ul>
+<li>[ ] CUDA 版与 PyTorch 版在乱序页表 + 非整块长度下对齐</li>
+<li>[ ] <code>compute-sanitizer --tool memcheck</code> 无报告</li>
+<li>[ ] <code>compute-sanitizer --tool racecheck</code> 无共享内存竞争</li>
+<li>[ ] 释放页与使用它的 Kernel 之间有明确的同步关系</li>
+</ul>
+<p><strong>性能</strong>（方法见 <a href="../11.4-kernel_profiling_linear_h2d/">11.4</a>）</p>
+<ul>
+<li>[ ] DRAM Throughput 接近带宽上限（decode attention 是访存受限的）</li>
+<li>[ ] 页表查询没有成为额外的 latency 瓶颈（对比不分页的 baseline）</li>
+<li>[ ] 每个数字都绑定了硬件、Shape、<code>block_size</code> 和测量范围</li>
+</ul>
+<hr />
+<h2 id="_4">八、回到第一性原理<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<p>这一篇做的两件事，抽象掉实现细节之后是同一句话：</p>
+<blockquote>
+<p><strong>把"资源在哪"和"资源是什么"解耦开，代价是一次间接，换来的是弹性。</strong></p>
+</blockquote>
+<ul>
+<li>PagedAttention 在<strong>空间</strong>上解耦：逻辑序列不必对应连续显存，于是显存可以按需分配、即时回收、跨请求共享。</li>
+<li>Continuous Batching 在<strong>时间</strong>上解耦：请求的生命周期不必对齐到批次边界，于是槽位可以随时腾挪。</li>
+</ul>
+<p>而它们必须一起做，是因为<strong>弹性必须两端都有</strong>——时间上腾出的位置，需要空间上腾出的显存来兑现。</p>
+<p>这个模式你在图形里见过：Bindless Handle Table 让 Shader 不必知道资源绑定在哪个槽位；虚拟纹理让采样不必要求整张贴图常驻。<strong>都是"多查一次表，换掉一个刚性约束"。</strong> 区别只在于代价评估：图形里那次间接落在纹理 Cache 上，这里落在 L2 上，值不值得取决于它换来的弹性有多大——本篇第一节算出的 8 倍并发，就是这个答案。</p>
+<p><strong>接下来</strong>：</p>
+<ul>
+<li>想看工业框架怎么把这些拼成完整引擎 → <a href="../11.1-nano_vllm_from_scratch/">11.1 Nano-vLLM 导读</a></li>
+<li>想把这套契约搬到别的后端（DX12 / TensorRT）→ <a href="../11.6-paged_attention_dx12_tensorrt_backend/">11.6 后端移植</a></li>
+<li>想把 Kernel 调快 → <a href="../11.4-kernel_profiling_linear_h2d/">11.4 性能分析</a></li>
+<li>Attention Kernel 本身的融合与 Online Softmax 推导 → <a href="../11.2-attention_kernel_gqa_practice/">11.2</a></li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../11.2-attention_kernel_gqa_practice/" class="btn btn-neutral float-left" title="11.2 Attention Kernel: QK、Softmax、PV 与 GQA"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../11.4-kernel_profiling_linear_h2d/" class="btn btn-neutral float-right" title="11.4 性能分析: Nsight、Decode Linear 与 H2D">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../11.2-attention_kernel_gqa_practice/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../11.4-kernel_profiling_linear_h2d/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

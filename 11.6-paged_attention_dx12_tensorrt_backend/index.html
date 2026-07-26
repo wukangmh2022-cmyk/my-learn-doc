@@ -1,0 +1,1475 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="zh_CN" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>11.6 进阶: 把分页契约搬到 DX12 与 TensorRT 后端 - GPU 图形与 AI 推理知识手册</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "11.6 \u8fdb\u9636: \u628a\u5206\u9875\u5951\u7ea6\u642c\u5230 DX12 \u4e0e TensorRT \u540e\u7aef";
+        var mkdocs_page_input_path = "11.6-paged_attention_dx12_tensorrt_backend.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GPU 图形与 AI 推理知识手册
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">首页</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">1. 图形渲染管线与 GPU 硬件基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.1-graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.2-render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.3-gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.4-graphics_passes_and_sync/">1.4 图形管线中的 Pass 与同步 (RenderPass, Barrier)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">2. GPU 并发模型与系统思维</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.1-cpu_gpu_async_pipeline/">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.2-command_buffer_ring_buffer/">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.3-multithreaded_rendering_and_pools/">2.3 多线程渲染与资源池管理</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.4-graphics_to_ai_first_principles/">2.4 从图形管线到 AI 推理的第一性原理映射</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">3. AI 模型与算子基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.1-model_structures_inference_view/">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.2-operator_taxonomy/">3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.3-convolution_math_implementation/">3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">4. AI 推理优化核心策略</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.1-operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.2-tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.3-async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.4-memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.1-thread_block_grid_mapping/">5.1 线程模型 (Thread, Block, Grid) 与映射</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.2-explicit_memory_shared_vs_cache/">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.3-warp_simd_simt_divergence/">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.4-synchronization_primitives/">5.4 同步原语: __syncthreads, __syncwarp, 内存屏障</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.5-warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.6-atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.1-reduce_tree_implementation/">6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.2-scan_stream_compaction/">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.3-radix_sort_as_stream_compaction/">6.3 基数排序 (Radix Sort) = 逐位流压缩</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.4-flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../7-llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../8-vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.1-tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.2-rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.3-computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.1-umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.2-driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.3-compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.4-graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../11.1-nano_vllm_from_scratch/">11.1 读 Nano-vLLM 源码: 一个推理引擎怎么组装起来</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.2-attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.3-paged_attention_continuous_batching/">11.3 PagedAttention 与 Continuous Batching: 从 PyTorch 到 CUDA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.4-kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.5-inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">11.6 进阶: 把分页契约搬到 DX12 与 TensorRT 后端</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#_1">这一篇的前置与定位</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#committed-default-resource">一、关键判断：为什么使用 Committed Default Resource</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1">1. “分页”发生在哪一层</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-committedplacedreserved">2. Committed、Placed、Reserved 不要混在一起</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-block-committed-resource">3. 为什么不为每个 Block 创建一个 Committed Resource</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_2">二、先看完整的数据与命令流水线</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#dispatch-resource">一次 Dispatch 前后的 Resource 状态</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#windows">三、准备 Windows 开发环境</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-c">1. 安装 C++ 工具链</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2">2. 创建工程目录</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-cmake">3. CMake</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#113">复用 11.3 的测试资产</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#d3d12">四、创建 D3D12 设备与调试环境</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-debug-layer">1. Debug Layer 要在创建设备前开启</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-gpu-based-validation">2. 开启 GPU-based Validation</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#kv">五、创建真正的物理 KV 页池</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-committed-buffer-helper">1. 通用 Committed Buffer Helper</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-kv-cache-default-heap-committed-resource">2. K/V Cache 是 Default Heap Committed Resource</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-default-buffer">3. 其他 Default Buffer</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#upload-resource-default-resource">六、用 Upload Resource 把数据送进 Default Resource</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-map">1. Map 一次，持续使用</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-copy">2. Copy 后转换状态</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-upload-ring">3. 稳态时使用 Upload Ring</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#descriptorroot-signature">七、Descriptor、Root Signature 与资源视图</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-srv">1. 为什么页表是 SRV</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-structuredbuffer">2. StructuredBuffer 视图</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3">3. 常量布局</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#shader-k">八、第一条关键 Shader：通过页表读取 K</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_3">逐层检查地址</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#dispatch">Dispatch</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#softmax-pv-pass">九、Softmax 与 PV：先保持三个 Pass</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-qk-softmax-uav-barrier">1. QK 到 Softmax 需要 UAV Barrier</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-softmax-shader">2. Softmax Shader 的组织</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-pv-v">3. PV 再次通过同一页表读取 V</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_4">十、读回结果并建立第一条正确性闭环</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-readback-resource">1. Readback Resource</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2_1">2. 误差检查</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-kv">3. 先改变页表，不改变 K/V</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#decode-step">十一、把静态测试推进到真实 Decode Step</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-slot-mapping">1. Slot Mapping</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-kv-store-pass">2. KV Store Pass</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-block">3. 请求跨 Block 边界</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_5">十二、从正确版本走向融合版本</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#pix">十三、如何用 PIX 调试这个项目</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1_1">1. 给资源和命令命名</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2_2">2. 抓帧时按这个顺序看</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3_1">3. 性能分析时再关闭验证层</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#tensorrt">十四、迁移到 TensorRT：保留契约，替换后端</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1_2">1. 哪些部分保持不变</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2_3">2. 哪些部分替换</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-tensorrt">3. 准备 TensorRT 环境</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4-plugin-tensor">4. Plugin Tensor 契约</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#5-plugin-enqueue">5. Plugin enqueue()</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#6">6. 用同一测试向量验收迁移</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_6">十五、完整验收清单</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_7">工程能够推进</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_8">分页逻辑正确</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#gpu">GPU 流水线正确</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_9">后端迁移正确</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_10">十六、回到第一性原理</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_11">回看：这次移植证明了什么</a>
+    </li>
+    </ul>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.1-career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.2-resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.3-knowledge_checklist/">A.3 关键知识点自检清单</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GPU 图形与 AI 推理知识手册</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">11. 推理引擎与算子实战</li>
+      <li class="breadcrumb-item active">11.6 进阶: 把分页契约搬到 DX12 与 TensorRT 后端</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="116-dx12-tensorrt">11.6 进阶：把分页契约搬到 DX12 与 TensorRT 后端<a class="headerlink" href="#116-dx12-tensorrt" title="Permanent link">&para;</a></h1>
+<h2 id="_1">这一篇的前置与定位<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p><strong>前置</strong>：<a href="../11.3-paged_attention_continuous_batching/">11.3 PagedAttention 与 Continuous Batching</a>。那一篇已经用 PyTorch 和 CUDA 把分页 KV Cache 跑通并验证过了，你手上应该已经有：</p>
+<ul>
+<li>一个 CPU 侧的 <code>BlockManager</code>（分配 / 释放 / 引用计数）；</li>
+<li>每个请求的 Block Table；</li>
+<li>一份数值可信的 CPU Reference 和一组小到能手算的测试向量。</li>
+</ul>
+<p><strong>这一篇要回答的问题</strong>：换一套完全不同的后端，这份契约还成立吗？</p>
+<p>答案是成立，而且这正是它的价值所在。分页 KV Cache 的本质是<strong>一次索引间接</strong>——它不依赖任何特定的 GPU API。所以我们把同一件事再做两遍：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">后端</th>
+<th style="text-align: left;">显存怎么来</th>
+<th style="text-align: left;">Kernel 用什么写</th>
+<th style="text-align: left;">同步靠什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">CUDA（11.3 已完成）</td>
+<td style="text-align: left;"><code>cudaMalloc</code> 一大块</td>
+<td style="text-align: left;">CUDA C++</td>
+<td style="text-align: left;">Stream / Event</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>D3D12</strong>（本篇主体）</td>
+<td style="text-align: left;">Default Heap 上的 Committed Buffer</td>
+<td style="text-align: left;">HLSL Compute Shader</td>
+<td style="text-align: left;">Resource Barrier / Fence</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>TensorRT</strong>（本篇末尾）</td>
+<td style="text-align: left;">Plugin Workspace + 外部绑定</td>
+<td style="text-align: left;">CUDA Plugin</td>
+<td style="text-align: left;">TensorRT 传入的 Stream</td>
+</tr>
+</tbody>
+</table>
+<p><strong>变的是 API，不变的是三样东西</strong>：BlockManager 的分配语义、Block Table 的页表公式、Context Length 的含义。做完你会发现，移植的工作量几乎全在资源创建和同步上，Attention 的数学一行没动。</p>
+<p>如果你不做图形方向，可以只读最后两节（TensorRT 迁移 + 回到第一性原理）；中间的 D3D12 工程部分是给有图形背景、或者想理解「一套算法怎么在两种资源模型上落地」的读者准备的。</p>
+<hr />
+<h2 id="committed-default-resource">一、关键判断：为什么使用 Committed Default Resource<a class="headerlink" href="#committed-default-resource" title="Permanent link">&para;</a></h2>
+<h3 id="1">1. “分页”发生在哪一层<a class="headerlink" href="#1" title="Permanent link">&para;</a></h3>
+<p>PagedAttention 的分页是<strong>应用层的逻辑分页</strong>。它不要求操作系统或 D3D12 为每个 KV Block 建立独立 Resource，也不要求使用 Reserved Resource。</p>
+<p>本项目只创建两块大的 GPU Buffer：</p>
+<pre><code class="language-text">KCache: Default Heap Committed Buffer
+VCache: Default Heap Committed Buffer
+</code></pre>
+<p>假设 <code>block_size=4</code>、总共有 12 个物理 Block：</p>
+<pre><code class="language-text">KCache physical layout
+
+block 0  block 1  block 2  block 3  ...  block 11
+[0..3]   [4..7]   [8..11]  [12..15]      [44..47] token slots
+</code></pre>
+<p>BlockManager 在这块大 Buffer 内分配整数 Block ID。每个请求保存一组页号：</p>
+<pre><code class="language-text">request A block table = [7, 2, 11]
+request B block table = [5, 9]
+</code></pre>
+<p>HLSL 用整数页号计算 Buffer Offset。也就是说：</p>
+<pre><code class="language-text">D3D12 Resource 层：一块连续的大 Buffer
+应用分页层：许多固定大小的逻辑物理页
+请求层：每个请求有自己的逻辑页表
+</code></pre>
+<h3 id="2-committedplacedreserved">2. Committed、Placed、Reserved 不要混在一起<a class="headerlink" href="#2-committedplacedreserved" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">D3D12 资源方式</th>
+<th style="text-align: left;">含义</th>
+<th style="text-align: left;">是否适合本教学项目</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Committed Resource</td>
+<td style="text-align: left;">创建 Resource 时由 D3D12 同时为它分配 Heap</td>
+<td style="text-align: left;"><strong>适合</strong>，代码最清楚</td>
+</tr>
+<tr>
+<td style="text-align: left;">Placed Resource</td>
+<td style="text-align: left;">应用先创建大 Heap，再把多个 Resource 放进去</td>
+<td style="text-align: left;">暂时不需要；可用于管理多个大资源</td>
+</tr>
+<tr>
+<td style="text-align: left;">Reserved Resource</td>
+<td style="text-align: left;">创建虚拟地址范围，再用 Tile Mapping 映射物理页</td>
+<td style="text-align: left;">不需要；这是 D3D12 Sparse/Tiled Resource 机制</td>
+</tr>
+</tbody>
+</table>
+<p>这里的 <code>Committed</code> 描述资源与 Heap 的创建方式；<code>Default</code> 描述 Heap 类型。它们可以同时成立：</p>
+<pre><code class="language-cpp">device-&gt;CreateCommittedResource(
+    &amp;CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+    D3D12_HEAP_FLAG_NONE,
+    &amp;bufferDesc,
+    initialState,
+    nullptr,
+    IID_PPV_ARGS(&amp;resource));
+</code></pre>
+<p>因此准确表述是：<strong>在 Default Heap 上创建 Committed Buffer，再由应用在 Buffer 内实现 KV Block 分页。</strong></p>
+<h3 id="3-block-committed-resource">3. 为什么不为每个 Block 创建一个 Committed Resource<a class="headerlink" href="#3-block-committed-resource" title="Permanent link">&para;</a></h3>
+<p>如果每个 KV Block 都是一个 Resource：</p>
+<ul>
+<li>Resource 对象和 Descriptor 数量迅速增长；</li>
+<li>每次 Attention 需要访问 Descriptor 数组或频繁换绑定；</li>
+<li>小 Resource 的分配与对齐开销不利于细粒度 Block；</li>
+<li>页表不再只是简单整数 Offset。</li>
+</ul>
+<p>一个大 Buffer 配合整数 Block ID 更接近 vLLM 的物理 KV Cache，也更适合 HLSL 的 <code>StructuredBuffer</code> 或 <code>ByteAddressBuffer</code>。</p>
+<hr />
+<h2 id="_2">二、先看完整的数据与命令流水线<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<pre><code class="language-mermaid">flowchart TB
+    subgraph CPU[&quot;CPU / Runtime&quot;]
+        REQ[&quot;Request: context length&quot;] --&gt; BM[&quot;BlockManager&quot;]
+        BM --&gt; BT[&quot;Block Table&quot;]
+        BT --&gt; UP[&quot;Upload Ring&quot;]
+    end
+
+    subgraph GPU[&quot;GPU / DX12&quot;]
+        COPY[&quot;Copy BlockTable + ContextLens&quot;] --&gt; QK[&quot;QK Shader: page-table gather&quot;]
+        QK --&gt; SM[&quot;Softmax Shader&quot;]
+        SM --&gt; PV[&quot;PV Shader: page-table gather&quot;]
+        KC[&quot;KCache committed default buffer&quot;] --&gt; QK
+        VC[&quot;VCache committed default buffer&quot;] --&gt; PV
+    end
+
+    UP --&gt; COPY
+    Q[&quot;Q buffer&quot;] --&gt; QK
+    PV --&gt; OUT[&quot;Output buffer&quot;]
+</code></pre>
+<p>第一版使用三个 Dispatch：</p>
+<pre><code class="language-text">QK → Softmax → PV
+</code></pre>
+<p>这个版本优先保证可观察性，先确认：</p>
+<ul>
+<li>QK 是否从正确的物理 K Block 读取；</li>
+<li>Softmax 是否数值稳定；</li>
+<li>PV 是否使用同一页表从 V Cache 读取；</li>
+<li>每一阶段是否与 CPU Reference 对齐。</li>
+</ul>
+<p>等分页逻辑完全正确后，再把 QK、Online Softmax、PV 融合。否则一开始就写融合 Kernel，一旦输出错误，很难判断是页表、Reduce 还是数值校正出了问题。</p>
+<p>整个实战会反复经过同一条递进路线。第一次看到 Block Table，它是一个地址公式；写到 HLSL 时，它变成 Gather 的访存模式；开始优化时，又会发现物理页排列影响 L2 命中和预取。Softmax 也一样：先把它当数学公式，再实现为 Group Reduce，最后和 QK/PV 融合以缩短中间数据生命周期。每当工程约束变得具体，相关知识就向下再走一层。</p>
+<h3 id="dispatch-resource">一次 Dispatch 前后的 Resource 状态<a class="headerlink" href="#dispatch-resource" title="Permanent link">&para;</a></h3>
+<pre><code class="language-text">CPU fill upload metadata
+    ↓
+CopyBufferRegion(upload → default metadata buffer)
+    ↓
+COPY_DEST → NON_PIXEL_SHADER_RESOURCE
+    ↓
+Dispatch QK
+    ↓ UAV Barrier
+Dispatch Softmax
+    ↓ UAV Barrier
+Dispatch PV
+    ↓
+Output UAV → COPY_SOURCE（测试读回时）
+</code></pre>
+<p>K/V 如果由前一个 Compute Pass 写入，则需要 UAV 顺序保证；如果本测试从 CPU 初始化，则先通过 Copy Upload 到 Default Buffer，再转为 Shader Resource。</p>
+<hr />
+<h2 id="windows">三、准备 Windows 开发环境<a class="headerlink" href="#windows" title="Permanent link">&para;</a></h2>
+<p>下面使用 Windows 11、Visual Studio 2022、CMake 和 DXC。命令在 PowerShell 中执行。</p>
+<h3 id="1-c">1. 安装 C++ 工具链<a class="headerlink" href="#1-c" title="Permanent link">&para;</a></h3>
+<p>安装 Visual Studio 2022 Community，并包含“使用 C++ 的桌面开发”工作负载：</p>
+<pre><code class="language-powershell">winget install --id Microsoft.VisualStudio.2022.Community `
+  --override &quot;--wait --passive --add Microsoft.VisualStudio.Workload.NativeDesktop --includeRecommended&quot;
+</code></pre>
+<p>安装 CMake：</p>
+<pre><code class="language-powershell">winget install --id Kitware.CMake
+</code></pre>
+<p>安装后打开新的 “Developer PowerShell for VS 2022”，检查：</p>
+<pre><code class="language-powershell">cmake --version
+cl
+</code></pre>
+<p>DXC 的可用位置取决于 Windows SDK/开发环境。先检查：</p>
+<pre><code class="language-powershell">Get-Command dxc.exe -ErrorAction SilentlyContinue
+</code></pre>
+<p>若没有找到，可从 Microsoft DirectXShaderCompiler Release 安装，并把 <code>dxc.exe</code> 所在目录加入 <code>PATH</code>。不要继续到 CMake 阶段才排查 Shader 编译器。</p>
+<h3 id="2">2. 创建工程目录<a class="headerlink" href="#2" title="Permanent link">&para;</a></h3>
+<pre><code class="language-powershell">mkdir dx12-paged-attention
+cd dx12-paged-attention
+mkdir src, shaders, tests, build
+</code></pre>
+<p>最终目录：</p>
+<pre><code class="language-text">dx12-paged-attention/
+├── CMakeLists.txt
+├── src/
+│   ├── main.cpp
+│   ├── d3d12_context.h
+│   ├── d3d12_context.cpp
+│   ├── block_manager.h
+│   ├── block_manager.cpp
+│   ├── paged_attention.h
+│   └── paged_attention.cpp
+├── shaders/
+│   ├── qk_paged.hlsl
+│   ├── softmax.hlsl
+│   └── pv_paged.hlsl
+└── tests/
+    └── cpu_reference.cpp
+</code></pre>
+<h3 id="3-cmake">3. CMake<a class="headerlink" href="#3-cmake" title="Permanent link">&para;</a></h3>
+<p>先让项目可以编译和找到 D3D12：</p>
+<pre><code class="language-cmake">cmake_minimum_required(VERSION 3.24)
+project(dx12_paged_attention LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+add_executable(dx12_paged_attention
+    src/main.cpp
+    src/d3d12_context.cpp
+    src/block_manager.cpp
+    src/paged_attention.cpp
+    tests/cpu_reference.cpp)
+
+target_include_directories(dx12_paged_attention PRIVATE src)
+target_link_libraries(dx12_paged_attention PRIVATE d3d12 dxgi dxguid)
+
+set(SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
+set(SHADER_OUT ${CMAKE_CURRENT_BINARY_DIR}/shaders)
+file(MAKE_DIRECTORY ${SHADER_OUT})
+
+foreach(shader qk_paged softmax pv_paged)
+    add_custom_command(
+        OUTPUT ${SHADER_OUT}/${shader}.cso
+        COMMAND dxc -T cs_6_6 -E CSMain
+            ${SHADER_DIR}/${shader}.hlsl
+            -Fo ${SHADER_OUT}/${shader}.cso
+            -Zi -Qembed_debug
+        DEPENDS ${SHADER_DIR}/${shader}.hlsl)
+    list(APPEND SHADER_BINARIES ${SHADER_OUT}/${shader}.cso)
+endforeach()
+
+add_custom_target(shaders ALL DEPENDS ${SHADER_BINARIES})
+add_dependencies(dx12_paged_attention shaders)
+</code></pre>
+<p>先创建三个可以编译的占位 Shader。第一次构建成功后，编译环境就有了独立验收结果：</p>
+<pre><code class="language-powershell">$stub = @'
+[numthreads(1, 1, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID) {}
+'@
+$stub | Set-Content shaders/qk_paged.hlsl
+$stub | Set-Content shaders/softmax.hlsl
+$stub | Set-Content shaders/pv_paged.hlsl
+</code></pre>
+<p>现在配置和构建：</p>
+<pre><code class="language-powershell">cmake -S . -B build -G &quot;Visual Studio 17 2022&quot; -A x64
+cmake --build build --config Debug
+</code></pre>
+<p>若这里失败，问题只可能位于编译器、SDK、CMake 或 DXC 路径。先把构建链修通，再进入算法实现。一个良好的实战步骤应当让每次失败都只剩少数可能原因。</p>
+<hr />
+<hr />
+<h2 id="113">复用 11.3 的测试资产<a class="headerlink" href="#113" title="Permanent link">&para;</a></h2>
+<p>下面开始 D3D12 的具体工程。在写第一行 D3D12 代码之前，请确认你手上有 11.3 里那套东西：</p>
+<ul>
+<li><strong>固定的小测试 Shape</strong>（比如 <code>block_size=4</code>、<code>context_len=10</code>、<code>Hq=4</code>、<code>Hkv=2</code>、<code>D=8</code>）——小到可以手算，大到能跨 Block 边界；</li>
+<li><strong>CPU Reference 的输出</strong>，作为 GPU 结果的比对基准；</li>
+<li><strong>一组刻意打乱的 Block Table</strong>（如 <code>[7, 2, 11]</code>），用来证明物理页不连续也能出正确结果。</li>
+</ul>
+<p>这三样在本篇不重新推导，直接当作已知条件用。<strong>用同一份测试向量验收两个后端</strong>，是这次移植唯一可靠的判据——否则你分不清「DX12 版本错了」还是「DX12 版本对了但和 CUDA 版本理解不一致」。</p>
+<hr />
+<h2 id="d3d12">四、创建 D3D12 设备与调试环境<a class="headerlink" href="#d3d12" title="Permanent link">&para;</a></h2>
+<h3 id="1-debug-layer">1. Debug Layer 要在创建设备前开启<a class="headerlink" href="#1-debug-layer" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">#if defined(_DEBUG)
+ComPtr&lt;ID3D12Debug&gt; debug;
+if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&amp;debug)))) {
+    debug-&gt;EnableDebugLayer();
+}
+#endif
+</code></pre>
+<p>然后创建 DXGI Factory、选择支持 D3D12 的 Adapter，再创建 Device、Compute Command Queue、Command Allocator、Command List 和 Fence。这些属于常规 DX12 初始化，建议封装到 <code>D3D12Context</code>：</p>
+<pre><code class="language-cpp">struct D3D12Context {
+    ComPtr&lt;ID3D12Device&gt; device;
+    ComPtr&lt;ID3D12CommandQueue&gt; queue;
+    ComPtr&lt;ID3D12CommandAllocator&gt; allocator;
+    ComPtr&lt;ID3D12GraphicsCommandList&gt; commandList;
+    ComPtr&lt;ID3D12Fence&gt; fence;
+    HANDLE fenceEvent{};
+    uint64_t nextFenceValue{1};
+
+    void executeAndWait();
+};
+</code></pre>
+<p>教学版本每个测试 Dispatch 后可以 <code>executeAndWait()</code>，让错误边界清楚。确认正确后，再改成多帧/多 Step 异步执行，避免 CPU 每步等待。</p>
+<h3 id="2-gpu-based-validation">2. 开启 GPU-based Validation<a class="headerlink" href="#2-gpu-based-validation" title="Permanent link">&para;</a></h3>
+<p>如果页表错误导致 Descriptor 或 Buffer 越界，GPU-based Validation 比肉眼检查输出更有效：</p>
+<pre><code class="language-cpp">#if defined(_DEBUG)
+ComPtr&lt;ID3D12Debug1&gt; debug1;
+if (SUCCEEDED(debug.As(&amp;debug1))) {
+    debug1-&gt;SetEnableGPUBasedValidation(TRUE);
+}
+#endif
+</code></pre>
+<p>它会显著降低性能，只用于 Debug Build 和小 Shape。</p>
+<hr />
+<h2 id="kv">五、创建真正的物理 KV 页池<a class="headerlink" href="#kv" title="Permanent link">&para;</a></h2>
+<h3 id="1-committed-buffer-helper">1. 通用 Committed Buffer Helper<a class="headerlink" href="#1-committed-buffer-helper" title="Permanent link">&para;</a></h3>
+<p>现在才创建本项目最重要的资源。先写一个 Helper，把 Heap 类型、Flag 和初始状态显式传入：</p>
+<pre><code class="language-cpp">ComPtr&lt;ID3D12Resource&gt; createCommittedBuffer(
+    ID3D12Device* device,
+    uint64_t bytes,
+    D3D12_HEAP_TYPE heapType,
+    D3D12_RESOURCE_FLAGS flags,
+    D3D12_RESOURCE_STATES initialState)
+{
+    D3D12_HEAP_PROPERTIES heap{};
+    heap.Type = heapType;
+
+    D3D12_RESOURCE_DESC desc{};
+    desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+    desc.Width = bytes;
+    desc.Height = 1;
+    desc.DepthOrArraySize = 1;
+    desc.MipLevels = 1;
+    desc.SampleDesc.Count = 1;
+    desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+    desc.Flags = flags;
+
+    ComPtr&lt;ID3D12Resource&gt; resource;
+    throwIfFailed(device-&gt;CreateCommittedResource(
+        &amp;heap,
+        D3D12_HEAP_FLAG_NONE,
+        &amp;desc,
+        initialState,
+        nullptr,
+        IID_PPV_ARGS(&amp;resource)));
+    return resource;
+}
+</code></pre>
+<h3 id="2-kv-cache-default-heap-committed-resource">2. K/V Cache 是 Default Heap Committed Resource<a class="headerlink" href="#2-kv-cache-default-heap-committed-resource" title="Permanent link">&para;</a></h3>
+<p>测试阶段需要从 CPU 上传初始 K/V，之后 Shader 只读：</p>
+<pre><code class="language-cpp">const uint64_t kvElements =
+    uint64_t(shape.num_physical_blocks)
+    * shape.block_size
+    * shape.num_kv_heads
+    * shape.head_size;
+const uint64_t kvBytes = kvElements * sizeof(float);
+
+auto kCache = createCommittedBuffer(
+    device,
+    kvBytes,
+    D3D12_HEAP_TYPE_DEFAULT,
+    D3D12_RESOURCE_FLAG_NONE,
+    D3D12_RESOURCE_STATE_COPY_DEST);
+
+auto vCache = createCommittedBuffer(
+    device,
+    kvBytes,
+    D3D12_HEAP_TYPE_DEFAULT,
+    D3D12_RESOURCE_FLAG_NONE,
+    D3D12_RESOURCE_STATE_COPY_DEST);
+</code></pre>
+<p>如果 K/V 由前一个 QKV Pass 在 GPU 写入，应创建为 UAV：</p>
+<pre><code class="language-cpp">D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS
+</code></pre>
+<p>然后在 KV Store Pass 后插入 UAV Barrier，再由 PagedAttention 读取。Resource 仍然是同一个 Committed Default Buffer，变化的是使用状态和访问方式。</p>
+<h3 id="3-default-buffer">3. 其他 Default Buffer<a class="headerlink" href="#3-default-buffer" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">auto qBuffer = createCommittedBuffer(
+    device, qBytes,
+    D3D12_HEAP_TYPE_DEFAULT,
+    D3D12_RESOURCE_FLAG_NONE,
+    D3D12_RESOURCE_STATE_COPY_DEST);
+
+auto blockTableBuffer = createCommittedBuffer(
+    device, blockTableBytes,
+    D3D12_HEAP_TYPE_DEFAULT,
+    D3D12_RESOURCE_FLAG_NONE,
+    D3D12_RESOURCE_STATE_COPY_DEST);
+
+auto contextLensBuffer = createCommittedBuffer(
+    device, contextLensBytes,
+    D3D12_HEAP_TYPE_DEFAULT,
+    D3D12_RESOURCE_FLAG_NONE,
+    D3D12_RESOURCE_STATE_COPY_DEST);
+
+auto scoresBuffer = createCommittedBuffer(
+    device, scoresBytes,
+    D3D12_HEAP_TYPE_DEFAULT,
+    D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+    D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+auto probabilitiesBuffer = createCommittedBuffer(
+    device, scoresBytes,
+    D3D12_HEAP_TYPE_DEFAULT,
+    D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+    D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+auto outputBuffer = createCommittedBuffer(
+    device, outputBytes,
+    D3D12_HEAP_TYPE_DEFAULT,
+    D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+    D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+</code></pre>
+<p>这就是物理层。到目前为止没有创建任何“每请求 Resource”。请求差异全部存在 Block Table 和 Context Length 中。</p>
+<hr />
+<h2 id="upload-resource-default-resource">六、用 Upload Resource 把数据送进 Default Resource<a class="headerlink" href="#upload-resource-default-resource" title="Permanent link">&para;</a></h2>
+<p>Default Heap 不能由 CPU 直接 <code>Map</code>。初始化数据和每 Step 元数据通过 Upload Heap：</p>
+<pre><code class="language-cpp">auto upload = createCommittedBuffer(
+    device,
+    totalUploadBytes,
+    D3D12_HEAP_TYPE_UPLOAD,
+    D3D12_RESOURCE_FLAG_NONE,
+    D3D12_RESOURCE_STATE_GENERIC_READ);
+</code></pre>
+<h3 id="1-map">1. Map 一次，持续使用<a class="headerlink" href="#1-map" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">std::byte* mapped = nullptr;
+D3D12_RANGE noCpuRead{0, 0};
+throwIfFailed(upload-&gt;Map(
+    0,
+    &amp;noCpuRead,
+    reinterpret_cast&lt;void**&gt;(&amp;mapped)));
+</code></pre>
+<p>把 Q、K、V、Block Table 和 Context Length 写入不同 Offset，再录制 Copy：</p>
+<pre><code class="language-cpp">std::memcpy(mapped + qUploadOffset, q.data(), qBytes);
+std::memcpy(mapped + kUploadOffset, k.data(), kvBytes);
+std::memcpy(mapped + vUploadOffset, v.data(), kvBytes);
+std::memcpy(mapped + blockTableOffset, blockTables.data(), blockTableBytes);
+std::memcpy(mapped + contextLensOffset, contextLens.data(), contextLensBytes);
+
+commandList-&gt;CopyBufferRegion(qBuffer.Get(), 0, upload.Get(), qUploadOffset, qBytes);
+commandList-&gt;CopyBufferRegion(kCache.Get(), 0, upload.Get(), kUploadOffset, kvBytes);
+commandList-&gt;CopyBufferRegion(vCache.Get(), 0, upload.Get(), vUploadOffset, kvBytes);
+commandList-&gt;CopyBufferRegion(
+    blockTableBuffer.Get(), 0, upload.Get(), blockTableOffset, blockTableBytes);
+commandList-&gt;CopyBufferRegion(
+    contextLensBuffer.Get(), 0, upload.Get(), contextLensOffset, contextLensBytes);
+</code></pre>
+<h3 id="2-copy">2. Copy 后转换状态<a class="headerlink" href="#2-copy" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">std::array barriers{
+    CD3DX12_RESOURCE_BARRIER::Transition(
+        qBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
+    CD3DX12_RESOURCE_BARRIER::Transition(
+        kCache.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
+    CD3DX12_RESOURCE_BARRIER::Transition(
+        vCache.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
+    CD3DX12_RESOURCE_BARRIER::Transition(
+        blockTableBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
+    CD3DX12_RESOURCE_BARRIER::Transition(
+        contextLensBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST,
+        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
+};
+commandList-&gt;ResourceBarrier(
+    static_cast&lt;UINT&gt;(barriers.size()), barriers.data());
+</code></pre>
+<p>如果工程没有使用 <code>d3dx12.h</code>，可手动填写 <code>D3D12_RESOURCE_BARRIER</code>。Helper 用于减少样板代码，状态语义保持不变。</p>
+<h3 id="3-upload-ring">3. 稳态时使用 Upload Ring<a class="headerlink" href="#3-upload-ring" title="Permanent link">&para;</a></h3>
+<p>K/V 权重和 Cache 不会每 Step 从 CPU 全量上传。稳态主要更新：</p>
+<ul>
+<li>Block Table；</li>
+<li>Context Length；</li>
+<li>新 Token、Position 或 Slot Mapping。</li>
+</ul>
+<p>为这些小元数据准备 2 至 3 个 Upload Slot：</p>
+<pre><code class="language-text">slot 0: CPU writes step N+2
+slot 1: copy for step N+1
+slot 2: GPU consumes step N
+</code></pre>
+<p>每个 Slot 记录 Fence Value。CPU 写入前确认 GPU 已完成使用，避免覆盖仍在 Copy 队列中的数据。</p>
+<p>这一步把 Communication behind compute 从抽象原则落到了资源生命周期上。想让 Step N+1 的 Metadata Copy 与 Step N 的 Attention 重叠，至少需要两个独立 Slot、正确的 Queue/Stream 依赖，以及足够长的计算窗口。真实重叠由这些条件共同建立；PIX 时间线中的并行区间可以验证流水线是否已经重叠执行。</p>
+<hr />
+<h2 id="descriptorroot-signature">七、Descriptor、Root Signature 与资源视图<a class="headerlink" href="#descriptorroot-signature" title="Permanent link">&para;</a></h2>
+<h3 id="1-srv">1. 为什么页表是 SRV<a class="headerlink" href="#1-srv" title="Permanent link">&para;</a></h3>
+<p>Q、K、V、Block Table、Context Length 都由 Shader 读取，使用 SRV；Scores、Probabilities、Output 由 Shader 写入，使用 UAV。</p>
+<p>第一版 Root Signature：</p>
+<pre><code class="language-text">root parameter 0: CBV - AttentionConstants
+root parameter 1: SRV descriptor table
+    t0 Q
+    t1 KCache
+    t2 VCache
+    t3 BlockTable
+    t4 ContextLens
+root parameter 2: UAV descriptor table
+    u0 Scores
+    u1 Probabilities
+    u2 Output
+</code></pre>
+<h3 id="2-structuredbuffer">2. StructuredBuffer 视图<a class="headerlink" href="#2-structuredbuffer" title="Permanent link">&para;</a></h3>
+<p>以 KCache 为例：</p>
+<pre><code class="language-cpp">D3D12_SHADER_RESOURCE_VIEW_DESC srv{};
+srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+srv.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+srv.Format = DXGI_FORMAT_UNKNOWN;
+srv.Buffer.FirstElement = 0;
+srv.Buffer.NumElements = static_cast&lt;UINT&gt;(kvElements);
+srv.Buffer.StructureByteStride = sizeof(float);
+device-&gt;CreateShaderResourceView(kCache.Get(), &amp;srv, kCacheCpuHandle);
+</code></pre>
+<p>Block Table 使用 <code>StructureByteStride=sizeof(int32_t)</code>。Descriptor 的 <code>NumElements</code> 填写元素数量。</p>
+<h3 id="3">3. 常量布局<a class="headerlink" href="#3" title="Permanent link">&para;</a></h3>
+<p>C++ 与 HLSL 使用相同 16 字节分组：</p>
+<pre><code class="language-cpp">struct alignas(16) AttentionConstants {
+    uint32_t batchSize;
+    uint32_t numQHeads;
+    uint32_t numKVHeads;
+    uint32_t headSize;
+
+    uint32_t blockSize;
+    uint32_t maxBlocksPerSequence;
+    uint32_t maxContextLength;
+    float scale;
+};
+static_assert(sizeof(AttentionConstants) % 16 == 0);
+</code></pre>
+<p>不要依赖“看起来字段一样”。把 <code>sizeof</code>、字段 Offset 和 Shader 常量打印出来，是排查绑定错误的低成本方法。</p>
+<hr />
+<h2 id="shader-k">八、第一条关键 Shader：通过页表读取 K<a class="headerlink" href="#shader-k" title="Permanent link">&para;</a></h2>
+<p>现在写 <code>qk_paged.hlsl</code>。第一轮聚焦逻辑 Token 到物理 KCache Offset 的映射，Dot Product 暂时采用容易检查的实现。</p>
+<p>一个 Thread Group 处理一个 <code>(batch, query_head)</code>。每个线程负责若干 Token；Head Dim 暂时用循环完成，便于看清索引。</p>
+<pre><code class="language-hlsl">cbuffer AttentionConstants : register(b0)
+{
+    uint BatchSize;
+    uint NumQHeads;
+    uint NumKVHeads;
+    uint HeadSize;
+
+    uint BlockSize;
+    uint MaxBlocksPerSequence;
+    uint MaxContextLength;
+    float Scale;
+};
+
+StructuredBuffer&lt;float&gt; Q           : register(t0);
+StructuredBuffer&lt;float&gt; KCache      : register(t1);
+StructuredBuffer&lt;float&gt; VCache      : register(t2);
+StructuredBuffer&lt;int&gt; BlockTable    : register(t3);
+StructuredBuffer&lt;int&gt; ContextLens   : register(t4);
+
+RWStructuredBuffer&lt;float&gt; Scores        : register(u0);
+RWStructuredBuffer&lt;float&gt; Probabilities : register(u1);
+RWStructuredBuffer&lt;float&gt; Output        : register(u2);
+
+uint KVIndex(uint blockId, uint offset, uint kvHead, uint dim)
+{
+    return (((blockId * BlockSize + offset) * NumKVHeads + kvHead)
+            * HeadSize + dim);
+}
+
+[numthreads(64, 1, 1)]
+void CSMain(
+    uint3 groupId : SV_GroupID,
+    uint lane : SV_GroupThreadID)
+{
+    const uint queryHead = groupId.x;
+    const uint batch = groupId.y;
+    if (queryHead &gt;= NumQHeads || batch &gt;= BatchSize)
+        return;
+
+    const uint contextLen = ContextLens[batch];
+    const uint groupSize = NumQHeads / NumKVHeads;
+    const uint kvHead = queryHead / groupSize;
+
+    for (uint token = lane; token &lt; contextLen; token += 64) {
+        const uint logicalBlock = token / BlockSize;
+        const uint offset = token % BlockSize;
+        const int physicalBlock =
+            BlockTable[batch * MaxBlocksPerSequence + logicalBlock];
+
+        // CPU 已验证有效范围；Debug 时仍保留防御检查。
+        if (physicalBlock &lt; 0) {
+            Scores[(batch * NumQHeads + queryHead)
+                   * MaxContextLength + token] = asfloat(0x7fc00000);
+            continue;
+        }
+
+        float dot = 0.0f;
+        for (uint dim = 0; dim &lt; HeadSize; ++dim) {
+            const uint qIndex =
+                (batch * NumQHeads + queryHead) * HeadSize + dim;
+            const uint kIndex =
+                KVIndex(physicalBlock, offset, kvHead, dim);
+            dot += Q[qIndex] * KCache[kIndex];
+        }
+
+        Scores[(batch * NumQHeads + queryHead)
+               * MaxContextLength + token] = dot * Scale;
+    }
+}
+</code></pre>
+<h3 id="_3">逐层检查地址<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
+<p>对于 <code>request 0, token 5</code>：</p>
+<pre><code class="language-text">logicalBlock = 5 / 4 = 1
+offset       = 5 % 4 = 1
+physical     = blockTable[0,1] = 2
+slot         = 2 * 4 + 1 = 9
+</code></pre>
+<p>如果 CPU Reference 和 Shader 都输出相同 <code>slot=9</code>，分页层已经对齐。建议在 Debug Shader 中临时把 Physical Slot 写入一个额外 UAV，先验证地址，再验证 Dot Product。</p>
+<h3 id="dispatch">Dispatch<a class="headerlink" href="#dispatch" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">commandList-&gt;SetPipelineState(qkPso.Get());
+commandList-&gt;SetComputeRootSignature(rootSignature.Get());
+commandList-&gt;SetComputeRootConstantBufferView(0, constantsGpuAddress);
+commandList-&gt;SetComputeRootDescriptorTable(1, srvGpuStart);
+commandList-&gt;SetComputeRootDescriptorTable(2, uavGpuStart);
+commandList-&gt;Dispatch(shape.num_q_heads, shape.batch_size, 1);
+</code></pre>
+<p>先画出 Grid 语义，再核对线程数和 <code>groupId</code> 映射。<code>Dispatch(Hq, B, 1)</code> 应当对应 Shader 中的 <code>groupId.x=queryHead</code>、<code>groupId.y=batch</code>。</p>
+<hr />
+<h2 id="softmax-pv-pass">九、Softmax 与 PV：先保持三个 Pass<a class="headerlink" href="#softmax-pv-pass" title="Permanent link">&para;</a></h2>
+<h3 id="1-qk-softmax-uav-barrier">1. QK 到 Softmax 需要 UAV Barrier<a class="headerlink" href="#1-qk-softmax-uav-barrier" title="Permanent link">&para;</a></h3>
+<p>Scores 在 QK 中写入，Softmax 随后读取。两个 Dispatch 都使用 UAV 时插入：</p>
+<pre><code class="language-cpp">auto qkToSoftmax = CD3DX12_RESOURCE_BARRIER::UAV(scoresBuffer.Get());
+commandList-&gt;ResourceBarrier(1, &amp;qkToSoftmax);
+</code></pre>
+<p>UAV Barrier 要求此前 UAV 访问在后续 UAV 访问前完成并可见。Resource State Transition 负责另一层状态转换。</p>
+<h3 id="2-softmax-shader">2. Softmax Shader 的组织<a class="headerlink" href="#2-softmax-shader" title="Permanent link">&para;</a></h3>
+<p>每个 Group 处理一行 <code>[context_len]</code>：</p>
+<pre><code class="language-text">row = (batch, query_head)
+</code></pre>
+<p>实现顺序：</p>
+<ol>
+<li>每线程读取多个 Score，计算 Local Max；</li>
+<li>Group Shared + Wave Reduce 得到 Row Max；</li>
+<li>计算 <code>exp(score-rowMax)</code> 与 Local Sum；</li>
+<li>Reduce 得到 Row Sum；</li>
+<li>写入归一化 Probability。</li>
+</ol>
+<p>这里与前文 Reduce、Shared Memory 和 Warp/Wave Shuffle 完全对应。分页逻辑已经在 QK 中完成，Softmax 不需要访问 Block Table。</p>
+<p>下面给出可以直接作为 <code>softmax.hlsl</code> 的基线版本。它使用 64 个线程，每个线程处理若干 Score，再在 <code>groupshared</code> 数组中做两次树形 Reduce。代码没有追求 Wave Intrinsic 的最短路径，目的是让 Max Reduce、Sum Reduce 和同步位置都可见：</p>
+<pre><code class="language-hlsl">cbuffer AttentionConstants : register(b0)
+{
+    uint BatchSize;
+    uint NumQHeads;
+    uint NumKVHeads;
+    uint HeadSize;
+
+    uint BlockSize;
+    uint MaxBlocksPerSequence;
+    uint MaxContextLength;
+    float Scale;
+};
+
+StructuredBuffer&lt;int&gt; ContextLens       : register(t4);
+RWStructuredBuffer&lt;float&gt; Scores        : register(u0);
+RWStructuredBuffer&lt;float&gt; Probabilities : register(u1);
+
+groupshared float Scratch[64];
+
+[numthreads(64, 1, 1)]
+void CSMain(
+    uint3 groupId : SV_GroupID,
+    uint lane : SV_GroupThreadID)
+{
+    const uint queryHead = groupId.x;
+    const uint batch = groupId.y;
+    if (queryHead &gt;= NumQHeads || batch &gt;= BatchSize)
+        return;
+
+    const uint contextLen = ContextLens[batch];
+    const uint rowBase =
+        (batch * NumQHeads + queryHead) * MaxContextLength;
+
+    float localMax = -3.402823466e+38F;
+    for (uint token = lane; token &lt; contextLen; token += 64)
+        localMax = max(localMax, Scores[rowBase + token]);
+
+    Scratch[lane] = localMax;
+    GroupMemoryBarrierWithGroupSync();
+
+    for (uint stride = 32; stride &gt; 0; stride &gt;&gt;= 1) {
+        if (lane &lt; stride)
+            Scratch[lane] = max(Scratch[lane], Scratch[lane + stride]);
+        GroupMemoryBarrierWithGroupSync();
+    }
+    const float rowMax = Scratch[0];
+
+    float localSum = 0.0f;
+    for (uint token = lane; token &lt; contextLen; token += 64) {
+        const float value = exp(Scores[rowBase + token] - rowMax);
+        Probabilities[rowBase + token] = value;
+        localSum += value;
+    }
+
+    Scratch[lane] = localSum;
+    GroupMemoryBarrierWithGroupSync();
+
+    for (uint stride = 32; stride &gt; 0; stride &gt;&gt;= 1) {
+        if (lane &lt; stride)
+            Scratch[lane] += Scratch[lane + stride];
+        GroupMemoryBarrierWithGroupSync();
+    }
+    const float inverseSum = 1.0f / Scratch[0];
+
+    for (uint token = lane; token &lt; contextLen; token += 64)
+        Probabilities[rowBase + token] *= inverseSum;
+}
+</code></pre>
+<p>为了避免每个 Shader 重复声明 <code>ContextLens</code> 和常量，实际工程可把公共声明移入 <code>bindings.hlsli</code>。第一次实现时保留重复声明也可以，优先确保每个文件能够独立看懂。</p>
+<p>这段代码提供了一个很具体的性能观察点：两次 Reduce 都需要 Group Barrier。后续可以先在 Wave 内用 <code>WaveActiveMax/WaveActiveSum</code>，只把每个 Wave 的部分结果写入 Shared Memory，从而减少同步与 Shared 访问。是否有收益由实际 Wave Size、Context Length 和 PIX 指标决定。</p>
+<h3 id="3-pv-v">3. PV 再次通过同一页表读取 V<a class="headerlink" href="#3-pv-v" title="Permanent link">&para;</a></h3>
+<p><code>pv_paged.hlsl</code> 与 QK 使用同样的地址公式。Lane 沿 Head Dim 展开；每个 Lane 累加一个或多个输出维度，Context 维在寄存器中串行累加。下面的文件可以直接编译：</p>
+<pre><code class="language-hlsl">cbuffer AttentionConstants : register(b0)
+{
+    uint BatchSize;
+    uint NumQHeads;
+    uint NumKVHeads;
+    uint HeadSize;
+
+    uint BlockSize;
+    uint MaxBlocksPerSequence;
+    uint MaxContextLength;
+    float Scale;
+};
+
+StructuredBuffer&lt;float&gt; VCache          : register(t2);
+StructuredBuffer&lt;int&gt; BlockTable        : register(t3);
+StructuredBuffer&lt;int&gt; ContextLens       : register(t4);
+RWStructuredBuffer&lt;float&gt; Probabilities : register(u1);
+RWStructuredBuffer&lt;float&gt; Output        : register(u2);
+
+uint KVIndex(uint blockId, uint offset, uint kvHead, uint dim)
+{
+    return (((blockId * BlockSize + offset) * NumKVHeads + kvHead)
+            * HeadSize + dim);
+}
+
+[numthreads(64, 1, 1)]
+void CSMain(
+    uint3 groupId : SV_GroupID,
+    uint lane : SV_GroupThreadID)
+{
+    const uint queryHead = groupId.x;
+    const uint batch = groupId.y;
+    if (queryHead &gt;= NumQHeads || batch &gt;= BatchSize)
+        return;
+
+    const uint contextLen = ContextLens[batch];
+    const uint groupSize = NumQHeads / NumKVHeads;
+    const uint kvHead = queryHead / groupSize;
+    const uint rowBase =
+        (batch * NumQHeads + queryHead) * MaxContextLength;
+
+for (uint dim = lane; dim &lt; HeadSize; dim += 64) {
+    float sum = 0.0f;
+
+    for (uint token = 0; token &lt; contextLen; ++token) {
+        const uint logicalBlock = token / BlockSize;
+        const uint offset = token % BlockSize;
+        const int physicalBlock =
+            BlockTable[batch * MaxBlocksPerSequence + logicalBlock];
+
+        const float probability =
+            Probabilities[(batch * NumQHeads + queryHead)
+                          * MaxContextLength + token];
+        const uint vIndex =
+            KVIndex(physicalBlock, offset, kvHead, dim);
+        sum += probability * VCache[vIndex];
+    }
+
+    Output[(batch * NumQHeads + queryHead) * HeadSize + dim] = sum;
+}
+}
+</code></pre>
+<p>PV 前对 Probabilities 插入 UAV Barrier。完成后，测试程序把 Output Copy 到 Readback Heap，与 CPU Reference 比较。</p>
+<hr />
+<h2 id="_4">十、读回结果并建立第一条正确性闭环<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<h3 id="1-readback-resource">1. Readback Resource<a class="headerlink" href="#1-readback-resource" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">auto readback = createCommittedBuffer(
+    device,
+    outputBytes,
+    D3D12_HEAP_TYPE_READBACK,
+    D3D12_RESOURCE_FLAG_NONE,
+    D3D12_RESOURCE_STATE_COPY_DEST);
+</code></pre>
+<p>Output 从 UAV 转到 Copy Source：</p>
+<pre><code class="language-cpp">auto toCopySource = CD3DX12_RESOURCE_BARRIER::Transition(
+    outputBuffer.Get(),
+    D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+    D3D12_RESOURCE_STATE_COPY_SOURCE);
+commandList-&gt;ResourceBarrier(1, &amp;toCopySource);
+commandList-&gt;CopyBufferRegion(
+    readback.Get(), 0, outputBuffer.Get(), 0, outputBytes);
+</code></pre>
+<p>提交并等待 Fence 后 Map Readback。测试阶段同步等待是为了获得清晰的失败边界；服务运行时不能每 Token 这样读回。</p>
+<h3 id="2_1">2. 误差检查<a class="headerlink" href="#2_1" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">void compareOutputs(
+    std::span&lt;const float&gt; expected,
+    std::span&lt;const float&gt; actual)
+{
+    float maxAbs = 0.0f;
+    float maxRel = 0.0f;
+
+    for (size_t i = 0; i &lt; expected.size(); ++i) {
+        const float absError = std::abs(expected[i] - actual[i]);
+        const float relError =
+            absError / std::max(std::abs(expected[i]), 1e-6f);
+        maxAbs = std::max(maxAbs, absError);
+        maxRel = std::max(maxRel, relError);
+    }
+
+    std::cout &lt;&lt; &quot;max_abs=&quot; &lt;&lt; maxAbs
+              &lt;&lt; &quot; max_rel=&quot; &lt;&lt; maxRel &lt;&lt; '\n';
+    if (maxAbs &gt; 1e-4f &amp;&amp; maxRel &gt; 1e-4f)
+        throw std::runtime_error(&quot;DX12 output mismatch&quot;);
+}
+</code></pre>
+<h3 id="3-kv">3. 先改变页表，不改变 K/V<a class="headerlink" href="#3-kv" title="Permanent link">&para;</a></h3>
+<p>最有价值的分页测试：</p>
+<ol>
+<li>使用页表 <code>[7,2]</code> 运行；</li>
+<li>把物理 Block 7 与 2 的数据交换；</li>
+<li>页表同步改成 <code>[2,7]</code>；</li>
+<li>输出应该保持不变。</li>
+</ol>
+<p>如果输出变化，说明某处绕过页表，仍按连续 Token 地址读取。</p>
+<hr />
+<h2 id="decode-step">十一、把静态测试推进到真实 Decode Step<a class="headerlink" href="#decode-step" title="Permanent link">&para;</a></h2>
+<p>静态 K/V 只证明“能读页”。真实 Runtime 还需要把新 Token 的 K/V 写到页池。</p>
+<h3 id="1-slot-mapping">1. Slot Mapping<a class="headerlink" href="#1-slot-mapping" title="Permanent link">&para;</a></h3>
+<p>CPU 根据请求的最后一个逻辑位置计算写入 Slot：</p>
+<pre><code class="language-cpp">uint32_t slotForToken(
+    std::span&lt;const uint32_t&gt; blockTable,
+    uint32_t tokenPosition,
+    uint32_t blockSize)
+{
+    const uint32_t logicalBlock = tokenPosition / blockSize;
+    const uint32_t offset = tokenPosition % blockSize;
+    return blockTable.at(logicalBlock) * blockSize + offset;
+}
+</code></pre>
+<p>Block Table 用于 Gather 历史 K/V；Slot Mapping 用于 Scatter 新 K/V。两者来自同一个页表，但服务于不同方向。</p>
+<h3 id="2-kv-store-pass">2. KV Store Pass<a class="headerlink" href="#2-kv-store-pass" title="Permanent link">&para;</a></h3>
+<p>QKV Projection 产生本轮 <code>KNew/VNew</code> 后，KV Store Shader 根据 Slot Mapping 写入 KCache/VCache UAV：</p>
+<pre><code class="language-hlsl">uint token = dispatchThreadId.x;
+uint slot = SlotMapping[token];
+
+for (uint i = 0; i &lt; NumKVHeads * HeadSize; ++i) {
+    KCacheUAV[slot * NumKVHeads * HeadSize + i] = KNew[token * Stride + i];
+    VCacheUAV[slot * NumKVHeads * HeadSize + i] = VNew[token * Stride + i];
+}
+</code></pre>
+<p>随后插入 KCache/VCache 的 UAV Barrier，再 Dispatch PagedAttention。若都在同一 Command Queue、同一 Command List 中，顺序由命令流保证；不要为了“保险”让 CPU 等 Fence。</p>
+<h3 id="3-block">3. 请求跨 Block 边界<a class="headerlink" href="#3-block" title="Permanent link">&para;</a></h3>
+<p><code>block_size=4</code>，请求已有 4 个 Token：</p>
+<pre><code class="language-text">block_table=[7]
+</code></pre>
+<p>新 Token 位置 4 需要逻辑 Block 1。CPU 先让 BlockManager 追加物理页：</p>
+<pre><code class="language-text">block_table=[7,2]
+slot_mapping=2*4+0=8
+</code></pre>
+<p>然后上传更新后的 Block Table 和 Slot Mapping，再录制 KV Store + Attention。已有 Block 7 完全不移动。</p>
+<p>这一步跑通后，才真正实现了“请求增长时按页追加”。</p>
+<hr />
+<h2 id="_5">十二、从正确版本走向融合版本<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<p>三 Pass 基线会产生 Scores 和 Probabilities 两个中间 Buffer：</p>
+<pre><code class="language-text">QK writes Scores to HBM
+Softmax reads/writes HBM
+PV reads Probabilities from HBM
+</code></pre>
+<p>优化版按 KV Tile 流式执行 Online Softmax，并直接累加 PV：</p>
+<pre><code class="language-text">load K/V tile
+→ QK tile
+→ update running max/sum
+→ rescale old accumulator
+→ accumulate weighted V
+→ next tile
+</code></pre>
+<p>这时页表仍然存在，只是每次根据逻辑 Tile 找到对应物理 Block。若 Tile 跨 Block 边界，需要拆成两个连续物理区间，或让 Block Size 与 KV Tile 对齐。</p>
+<p>建议优化顺序：</p>
+<ol>
+<li>QK 的 Head Dim 改为 Wave 协作 Dot Product；</li>
+<li>使用 FP16 输入、FP32 累加；</li>
+<li>合并 QK 与 Row Max；</li>
+<li>引入 Online Softmax；</li>
+<li>Softmax 权重直接消费 V；</li>
+<li>对常见 <code>head_size</code>、<code>block_size</code>、Context Bucket 特化；</li>
+<li>用 PIX/Nsight 对比显存事务和 Dispatch 时间。</li>
+</ol>
+<p>不要在分页正确性尚未通过时做这些优化。融合会减少中间观察点，也会让 Debug Layer 更难指出数学错误。</p>
+<hr />
+<h2 id="pix">十三、如何用 PIX 调试这个项目<a class="headerlink" href="#pix" title="Permanent link">&para;</a></h2>
+<h3 id="1_1">1. 给资源和命令命名<a class="headerlink" href="#1_1" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">kCache-&gt;SetName(L&quot;PagedAttention.KCache&quot;);
+vCache-&gt;SetName(L&quot;PagedAttention.VCache&quot;);
+blockTableBuffer-&gt;SetName(L&quot;PagedAttention.BlockTable&quot;);
+scoresBuffer-&gt;SetName(L&quot;PagedAttention.Scores&quot;);
+outputBuffer-&gt;SetName(L&quot;PagedAttention.Output&quot;);
+</code></pre>
+<p>使用 PIX Event 标记三个 Pass：</p>
+<pre><code class="language-cpp">PIXBeginEvent(commandList, PIX_COLOR_DEFAULT, L&quot;Paged QK&quot;);
+// dispatch QK
+PIXEndEvent(commandList);
+</code></pre>
+<h3 id="2_2">2. 抓帧时按这个顺序看<a class="headerlink" href="#2_2" title="Permanent link">&para;</a></h3>
+<ol>
+<li>BlockTable Buffer 内容是否为预期物理页号；</li>
+<li>ContextLens 是否正确；</li>
+<li>QK Dispatch Grid 是否为 <code>[Hq,B,1]</code>；</li>
+<li>Scores 中无效 Token 区域是否未被消费；</li>
+<li>UAV Barrier 是否位于两个 Pass 之间；</li>
+<li>Output 与 CPU Reference 的第一处差异在哪个 Head/Dim。</li>
+</ol>
+<h3 id="3_1">3. 性能分析时再关闭验证层<a class="headerlink" href="#3_1" title="Permanent link">&para;</a></h3>
+<p>Debug Layer、GPU-based Validation、Shader Debug Info 都会改变性能。正确性通过后使用 Release Shader：</p>
+<pre><code class="language-powershell">dxc -T cs_6_6 -E CSMain shaders\qk_paged.hlsl -O3 -Fo build\shaders\qk_paged.cso
+cmake --build build --config Release
+</code></pre>
+<p>记录 GPU、驱动、Shader Model、Shape、Block Size、数据类型和测量范围。单个 Dispatch 时间不能直接解释端到端 TPOT。</p>
+<hr />
+<h2 id="tensorrt">十四、迁移到 TensorRT：保留契约，替换后端<a class="headerlink" href="#tensorrt" title="Permanent link">&para;</a></h2>
+<p>DX12 版本跑通后，下一步把同一数据契约翻译给 CUDA/TensorRT。</p>
+<h3 id="1_2">1. 哪些部分保持不变<a class="headerlink" href="#1_2" title="Permanent link">&para;</a></h3>
+<pre><code class="language-text">BlockManager
+Request.block_table
+ContextLens
+Slot Mapping
+K/V physical layout
+CPU Reference
+边界测试矩阵
+</code></pre>
+<h3 id="2_3">2. 哪些部分替换<a class="headerlink" href="#2_3" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">DX12</th>
+<th style="text-align: left;">TensorRT/CUDA</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>ID3D12Resource</code> Default Buffer</td>
+<td style="text-align: left;">CUDA Device Allocation / TensorRT Binding</td>
+</tr>
+<tr>
+<td style="text-align: left;">SRV/UAV Descriptor</td>
+<td style="text-align: left;">Plugin Input/Output Pointer</td>
+</tr>
+<tr>
+<td style="text-align: left;">Resource Barrier/UAV Barrier</td>
+<td style="text-align: left;">CUDA Stream 顺序/Event</td>
+</tr>
+<tr>
+<td style="text-align: left;">HLSL Compute Shader</td>
+<td style="text-align: left;">CUDA/Triton Kernel</td>
+</tr>
+<tr>
+<td style="text-align: left;">PSO + Dispatch</td>
+<td style="text-align: left;">Plugin <code>enqueue()</code> + Kernel Launch</td>
+</tr>
+<tr>
+<td style="text-align: left;">PIX</td>
+<td style="text-align: left;">Nsight Systems/Compute、Compute Sanitizer</td>
+</tr>
+</tbody>
+</table>
+<h3 id="3-tensorrt">3. 准备 TensorRT 环境<a class="headerlink" href="#3-tensorrt" title="Permanent link">&para;</a></h3>
+<p>TensorRT 必须与 NVIDIA Driver/CUDA 兼容。先检查：</p>
+<pre><code class="language-bash">nvidia-smi
+nvcc --version
+python3 --version
+</code></pre>
+<p>创建隔离环境并安装 Python 包，用于验证 Runtime 可用：</p>
+<pre><code class="language-bash">python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install tensorrt numpy
+python - &lt;&lt;'PY'
+import tensorrt as trt
+print(&quot;TensorRT&quot;, trt.__version__)
+PY
+</code></pre>
+<p>C++ Plugin 还需要 TensorRT SDK Header 和 Library。设置实际安装路径：</p>
+<pre><code class="language-bash">export TRT_ROOT=/opt/TensorRT
+test -f &quot;$TRT_ROOT/include/NvInfer.h&quot;
+find &quot;$TRT_ROOT&quot; -name 'libnvinfer.so*'
+</code></pre>
+<p>如果系统通过 Debian/RPM 安装 TensorRT，Header 和 Library 通常位于系统路径，可以直接使用。确认文件位置后，再把实际路径写入 CMake。</p>
+<h3 id="4-plugin-tensor">4. Plugin Tensor 契约<a class="headerlink" href="#4-plugin-tensor" title="Permanent link">&para;</a></h3>
+<pre><code class="language-text">inputs[0] Q            FP16/FP32 [B,Hq,D]
+inputs[1] KCache       FP16/FP32 [NB,BS,Hkv,D]
+inputs[2] VCache       FP16/FP32 [NB,BS,Hkv,D]
+inputs[3] BlockTable   INT32      [B,MaxBlocks]
+inputs[4] ContextLens  INT32      [B]
+output[0] O            FP16/FP32 [B,Hq,D]
+</code></pre>
+<p>这与 DX12 的 Resource 形状一一对应。两个后端共享数据契约，各自管理自己的 GPU 资源。</p>
+<h3 id="5-plugin-enqueue">5. Plugin <code>enqueue()</code><a class="headerlink" href="#5-plugin-enqueue" title="Permanent link">&para;</a></h3>
+<p>在目标 TensorRT 版本支持的 Plugin 接口中，<code>enqueue()</code> 最终都需要取得输入地址、输出地址和 CUDA Stream。核心逻辑如下：</p>
+<pre><code class="language-cpp">int enqueue(
+    const nvinfer1::PluginTensorDesc* inputDesc,
+    const nvinfer1::PluginTensorDesc* outputDesc,
+    const void* const* inputs,
+    void* const* outputs,
+    void* workspace,
+    cudaStream_t stream) noexcept override
+{
+    RuntimeParams params = parseAndValidate(inputDesc);
+
+    launchPagedAttention(
+        static_cast&lt;const half*&gt;(inputs[0]),
+        static_cast&lt;const half*&gt;(inputs[1]),
+        static_cast&lt;const half*&gt;(inputs[2]),
+        static_cast&lt;const int32_t*&gt;(inputs[3]),
+        static_cast&lt;const int32_t*&gt;(inputs[4]),
+        static_cast&lt;half*&gt;(outputs[0]),
+        params,
+        stream);
+
+    return cudaPeekAtLastError() == cudaSuccess ? 0 : 1;
+}
+</code></pre>
+<p><code>enqueue()</code> 中不要：</p>
+<ul>
+<li>调用同步 <code>cudaMemcpy</code>；</li>
+<li>使用默认 Stream 替代传入 Stream；</li>
+<li>每次 <code>cudaMalloc/cudaFree</code>；</li>
+<li>把可变请求状态藏在 Plugin 对象内部。</li>
+</ul>
+<p>K/V Cache 和 Block Table 由 Runtime Session 管理，并作为 Binding 传入，才能支持并发 Context 和清晰生命周期。</p>
+<h3 id="6">6. 用同一测试向量验收迁移<a class="headerlink" href="#6" title="Permanent link">&para;</a></h3>
+<pre><code class="language-text">CPU Paged Reference
+        ↙       ↘
+DX12 output   TensorRT Plugin output
+</code></pre>
+<p>两边使用相同：</p>
+<ul>
+<li>Q/K/V 初始化数据；</li>
+<li>非连续 Block Table；</li>
+<li>Context Length；</li>
+<li>GQA Head 配置；</li>
+<li><code>max_abs/max_rel</code> 阈值。</li>
+</ul>
+<p>如果 DX12 已通过而 TensorRT 失败，优先检查 Tensor Layout、Dtype、Plugin Shape 和 CUDA Index。</p>
+<hr />
+<h2 id="_6">十五、完整验收清单<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
+<h3 id="_7">工程能够推进<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Visual Studio、CMake、DXC 命令可执行；</li>
+<li>Debug 和 Release 都能构建；</li>
+<li>Shader 编译错误能定位到具体文件；</li>
+<li>Debug Layer 没有 Resource State/Descriptor 报错。</li>
+</ul>
+<h3 id="_8">分页逻辑正确<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h3>
+<ul>
+<li>BlockManager 分配与释放数量对称；</li>
+<li>请求跨越 Block 边界时追加新页，旧 KV 保持原位；</li>
+<li>非连续页表输出与 CPU Reference 一致；</li>
+<li>交换物理页并同步修改页表后，输出不变；</li>
+<li>Padding 页号不会被 Shader 访问；</li>
+<li>GQA 的 Query Head 到 KV Head 映射正确。</li>
+</ul>
+<h3 id="gpu">GPU 流水线正确<a class="headerlink" href="#gpu" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Upload → Default Copy 后状态转换完整；</li>
+<li>QK、Softmax、PV 之间有正确 UAV Barrier；</li>
+<li>KV Store 后 PagedAttention 读取到新 K/V；</li>
+<li>Readback 用于测试，稳态 Decode 全程保持 GPU 端执行；</li>
+<li>Upload Ring Slot 在 Fence 完成前不会被覆盖。</li>
+</ul>
+<h3 id="_9">后端迁移正确<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h3>
+<ul>
+<li>TensorRT Plugin 保持相同 Buffer Layout 和页表公式；</li>
+<li>Plugin 使用 TensorRT 传入的 CUDA Stream；</li>
+<li>DX12 与 TensorRT 均对齐同一 CPU Reference；</li>
+<li>性能报告分别记录后端、硬件、Shape、Dtype 和测量边界。</li>
+</ul>
+<hr />
+<h2 id="_10">十六、回到第一性原理<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h2>
+<p>这个项目表面上在写 Attention，真正练习的是三层资源抽象：</p>
+<pre><code class="language-text">D3D12 Resource
+    一块可被 GPU 高带宽访问的 Default Buffer
+
+Physical KV Block
+    应用在 Buffer 内定义的固定大小 Slice
+
+Logical Sequence
+    通过 Block Table 看到连续 Token 历史
+</code></pre>
+<p>Committed Resource 解决“这块 GPU 内存如何创建”；BlockManager 解决“物理 Slice 如何分配”；Block Table 解决“逻辑序列如何找到非连续 Slice”；HLSL 解决“Kernel 如何消费这份映射”。</p>
+<p>理解这四层后，迁移到 TensorRT、CUDA、Triton 或其他后端时，资源 API、同步原语和 Kernel 语言随之变化；分页契约与生命周期问题继续保留。迁移过程因此能够复用已经验证的工程理解。</p>
+<hr />
+<h2 id="_11">回看：这次移植证明了什么<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h2>
+<p>三个后端、三套资源 API、三种同步原语，跑出同一个数值结果。这说明分页 KV Cache 的设计里，真正属于「算法」的部分只有一条：</p>
+<blockquote>
+<p>逻辑 Token 序号 → 页表查一次 → 物理槽位</p>
+</blockquote>
+<p>剩下的全是各家 API 的表达方式差异。这也是为什么 vLLM 的 PagedAttention 能被 TensorRT-LLM、SGLang、llama.cpp 各自重新实现一遍——它们抄的不是代码，是这条契约。</p>
+<p>回到 <a href="../11.3-paged_attention_continuous_batching/">11.3</a> 对照着看，你会更清楚哪些是本质、哪些只是 CUDA 的方言。</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../11.5-inference_runtime_deployment/" class="btn btn-neutral float-left" title="11.5 Runtime、动态批处理与部署验证"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../A.1-career_paths_comparison/" class="btn btn-neutral float-right" title="A.1 四个核心岗位对比">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../11.5-inference_runtime_deployment/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../A.1-career_paths_comparison/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
