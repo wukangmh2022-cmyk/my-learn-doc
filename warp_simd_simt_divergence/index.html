@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="writer-html5" lang="en" >
+<html class="writer-html5" lang="zh_CN" >
 <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
@@ -48,7 +48,7 @@
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 渲染管线与硬件单元 (SM, TMU, ROP)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
                   </li>
@@ -79,11 +79,11 @@
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 为何图形做多 Pass，AI 做单 Pass Tiling</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention (类比 DX12 资源池 / 伙伴分配器)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
                   </li>
               </ul>
               <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
@@ -142,6 +142,8 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
               </ul>
               <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
               <ul>
@@ -154,33 +156,54 @@
                   <li class="toctree-l1"><a class="reference internal" href="../flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">7. 专用硬件加速单元</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">7.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                <li class="toctree-l1"><a class="reference internal" href="../llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">7.2 RT Core: BVH 遍历专用电路 (压缩解决随机访问，专用电路解决分支分歧)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">7.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">8. GPU 软件栈与驱动开发</span></p>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">8.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">8.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">8.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">8.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">9. 职业发展与工程实践</span></p>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">9.1 四个核心岗位对比: 算子开发 / 推理框架 / 编译器 / 驱动</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../nano_vllm_from_scratch/">11.1 Nano-vLLM: 框架架构、技术栈与源码实现</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">9.2 简历技能清单 (基于我们对话的认知总结)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">9.3 关键知识点自检清单 (MkDocs 版)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../paged_attention_dx12_tensorrt/">11.3 PagedAttention: DX12 与 TensorRT 双后端实践</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">A.3 关键知识点自检清单</a>
                   </li>
               </ul>
       </div>
@@ -207,19 +230,14 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
             <div class="section" itemprop="articleBody">
               
-                <hr />
-<p>title: 5.3 执行模型: Warp, SIMD, SIMT, 分支分歧
-tags: [cuda, warp, simd, simt, divergence, execution_model, wavefront]
-description: 深入 Warp 执行模型，理解 SIMD 与 SIMT 的根本区别，以及分支分歧如何影响性能——与图形 Compute Shader Wavefront 的对应关系</p>
-<hr />
-<h1 id="53-warp-simd-simt">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧</h1>
-<h2 id="_1">概述</h2>
+                <h1 id="53-warp-simd-simt">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧<a class="headerlink" href="#53-warp-simd-simt" title="Permanent link">&para;</a></h1>
+<h2 id="_1">概述<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
 <p>GPU 的核心执行模型是 <strong>SIMT (Single Instruction, Multiple Threads)</strong>：一条指令被 32 个线程（一个 Warp）同时执行，但每个线程处理自己独立的数据。这与传统的 CPU SIMD 有本质区别。理解 Warp 的执行方式，是编写高性能 CUDA Kernel 的基础。</p>
 <blockquote>
 <p><strong>核心认知</strong>：Warp 是 GPU 调度的基本单位——不是线程，不是 Block，是 32 个线程组成的 Warp。你写在代码里的线程级逻辑，硬件会按 Warp 为单位打包执行。</p>
 </blockquote>
-<h2 id="simd-vs-simt">SIMD vs SIMT</h2>
-<h3 id="_2">概念区分</h3>
+<h2 id="simd-vs-simt">SIMD vs SIMT<a class="headerlink" href="#simd-vs-simt" title="Permanent link">&para;</a></h2>
+<h3 id="_2">概念区分<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -266,7 +284,7 @@ description: 深入 Warp 执行模型，理解 SIMD 与 SIMT 的根本区别，�
 - <strong>SIMD</strong> 就像你在 Pixel Shader 里处理一个像素的 <code>float4</code> 向量——一条指令同时操作多个数据元素（RGBA）。
 - <strong>SIMT</strong> 则像你同时调度成千上万个像素线程——一条指令被 32 个线程同时执行，但每个线程处理自己独立的像素。</p>
 </blockquote>
-<h3 id="gpu">它们在 GPU 中的协作关系</h3>
+<h3 id="gpu">它们在 GPU 中的协作关系<a class="headerlink" href="#gpu" title="Permanent link">&para;</a></h3>
 <p>在同一个 GPU SM 内部：
 1. <strong>SIMT 是顶层调度模型</strong>：Warp Scheduler 以 32 线程为单位发射指令。
 2. <strong>SIMD 是底层计算模型</strong>：每个线程内部，编译器会将连续的操作向量化（如 <code>float4</code> 运算）。</p>
@@ -287,8 +305,8 @@ description: 深入 Warp 执行模型，理解 SIMD 与 SIMT 的根本区别，�
      │ (编译器的向量化)   │
      └─────────────────┘
 </code></pre>
-<h2 id="warp">Warp 执行模型</h2>
-<h3 id="lockstep">Lockstep 执行</h3>
+<h2 id="warp">Warp 执行模型<a class="headerlink" href="#warp" title="Permanent link">&para;</a></h2>
+<h3 id="lockstep">Lockstep 执行<a class="headerlink" href="#lockstep" title="Permanent link">&para;</a></h3>
 <p>Warp 内的 32 个线程以 <strong>Lockstep（锁步）</strong> 方式执行：</p>
 <ul>
 <li>所有线程共享同一个 Program Counter（程序计数器）。</li>
@@ -307,7 +325,7 @@ description: 深入 Warp 执行模型，理解 SIMD 与 SIMT 的根本区别，�
 │  同时做   同时做   同时做                  │
 └──────────────────────────────────────────┘
 </code></pre>
-<h3 id="warp-block">Warp 与 Block 的关系</h3>
+<h3 id="warp-block">Warp 与 Block 的关系<a class="headerlink" href="#warp-block" title="Permanent link">&para;</a></h3>
 <ul>
 <li>一个 Block 通常包含<strong>多个 Warp</strong>（例如 256 线程 = 8 个 Warp）。</li>
 <li><strong>Shared Memory 是整个 Block 共享的，不是每个 Warp 独享的</strong>。</li>
@@ -323,8 +341,8 @@ description: 深入 Warp 执行模型，理解 SIMD 与 SIMT 的根本区别，�
 ├── Warp 6 (线程 192-223) ──┤
 └── Warp 7 (线程 224-255) ──┘
 </code></pre>
-<h2 id="branch-divergence">分支分歧 (Branch Divergence)</h2>
-<h3 id="_3">分歧的产生</h3>
+<h2 id="branch-divergence">分支分歧 (Branch Divergence)<a class="headerlink" href="#branch-divergence" title="Permanent link">&para;</a></h2>
+<h3 id="_3">分歧的产生<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
 <p>由于 Warp 内 32 个线程共享 Program Counter，当遇到 <code>if-else</code> 分支时，如果线程走了不同路径，硬件必须<strong>串行化</strong>执行：</p>
 <pre><code class="language-cpp">__global__ void divergence_kernel(float* data, int N) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -351,7 +369,7 @@ Step 3: 汇合继续执行
 
 → 本应一次完成的工作，现在需要两次吞吐量减半！
 </code></pre>
-<h3 id="control-divergence-vs-memory-divergence">Control Divergence vs Memory Divergence</h3>
+<h3 id="control-divergence-vs-memory-divergence">Control Divergence vs Memory Divergence<a class="headerlink" href="#control-divergence-vs-memory-divergence" title="Permanent link">&para;</a></h3>
 <p>它们是一对难兄难弟，经常同时出现：</p>
 <table>
 <thead>
@@ -389,7 +407,7 @@ Step 3: 汇合继续执行
 - 分支串行化 = 做判断时“意见不合”——32 个像素中一部分需要做 A 处理，另一部分需要做 B 处理，硬件只能分两次算。
 - 随机访问 = 拿数据时“天女散花”——32 个线程各读各的地址，硬件无法合并显存请求。</p>
 </blockquote>
-<h3 id="compute-shader">与图形 Compute Shader 的对应</h3>
+<h3 id="compute-shader">与图形 Compute Shader 的对应<a class="headerlink" href="#compute-shader" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -421,8 +439,8 @@ Step 3: 汇合继续执行
 </tr>
 </tbody>
 </table>
-<h2 id="_4">如何避免/缓解分支分歧</h2>
-<h3 id="1-predication">1. 编译器自动优化：Predication</h3>
+<h2 id="_4">如何避免/缓解分支分歧<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<h3 id="1-predication">1. 编译器自动优化：Predication<a class="headerlink" href="#1-predication" title="Permanent link">&para;</a></h3>
 <p>很多看似分支的代码，编译器会将其编译成<strong>条件执行（Predication）</strong> 而非分支跳转。最经典的例子是 ReLU：</p>
 <pre><code class="language-cpp">// 你的代码：
 float relu(float x) {
@@ -438,7 +456,7 @@ float relu(float x) {
 <p>所以：
 - <strong>细粒度的 <code>if</code></strong>（如 ReLU）→ 编译器自动优化成 Predication → 无分支开销。
 - <strong>粗粒度的 <code>if</code></strong>（如不同线程处理不同任务）→ 编译器无法优化 → 产生真实的分支分歧。</p>
-<h3 id="2">2. 手动数据重排</h3>
+<h3 id="2">2. 手动数据重排<a class="headerlink" href="#2" title="Permanent link">&para;</a></h3>
 <p>让同一个 Warp 内的线程处理<strong>性质相似的数据</strong>，减少它们走不同分支的概率：</p>
 <pre><code class="language-cpp">// 不好的做法：同一 Warp 内混合处理正负数据
 // 线程 0-15 全是负数，线程 16-31 全是正数 → Warp 内分支
@@ -446,7 +464,7 @@ float relu(float x) {
 // 好的做法：数据预处理，将同类数据分组
 // 所有负数集中在一个 Block，所有正数集中在另一个 Block → 无分歧
 </code></pre>
-<h3 id="3">3. 用数学指令替代分支</h3>
+<h3 id="3">3. 用数学指令替代分支<a class="headerlink" href="#3" title="Permanent link">&para;</a></h3>
 <p>这是最常见的技巧——用连续的数学运算替代条件判断：</p>
 <pre><code class="language-cpp">// 有分支版本：
 float a = (condition) ? val1 : val2;
@@ -458,7 +476,7 @@ float a = (condition) ? val1 : val2;
 float a = condition * val1 + (1.0f - condition) * val2;
 // 但要注意：这会计算两个分支的值，仅适用于简单场景
 </code></pre>
-<h2 id="wavefrontamd-wave-warp">Wavefront（AMD）/ Wave（图形）与 Warp 的关系</h2>
+<h2 id="wavefrontamd-wave-warp">Wavefront（AMD）/ Wave（图形）与 Warp 的关系<a class="headerlink" href="#wavefrontamd-wave-warp" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -498,7 +516,7 @@ float a = condition * val1 + (1.0f - condition) * val2;
 <blockquote>
 <p><strong>关键洞察</strong>：AMD Wavefront 的 64 线程比 CUDA Warp 的 32 线程更容易产生分支分歧（64 个线程意见统一的概率更低），这是 NVIDIA 在设计上将 Warp 定为 32 线程的原因之一。</p>
 </blockquote>
-<h2 id="_5">总结</h2>
+<h2 id="_5">总结<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -525,7 +543,7 @@ float a = condition * val1 + (1.0f - condition) * val2;
 </tr>
 <tr>
 <td style="text-align: left;">图形对应</td>
-<td style="text-align: left;">Wavefront / Wave 与 CUDA Warp 是完全同构的概念，只是命名不同</td>
+<td style="text-align: left;">Wave/Wavefront 与 CUDA Warp 都是硬件执行组；宽度、指令语义和厂商调度细节不同</td>
 </tr>
 </tbody>
 </table>
@@ -571,6 +589,9 @@ float a = condition * val1 + (1.0f - condition) * val2;
     <script>var base_url = "..";</script>
     <script src="../js/theme_extra.js"></script>
     <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
       <script src="../search/main.js"></script>
     <script>
         jQuery(function () {

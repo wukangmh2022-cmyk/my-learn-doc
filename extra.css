@@ -7,3 +7,23 @@
 .wy-table-responsive table td, .wy-table-responsive table th {
     white-space: normal !important;
 }
+
+/* Keep technical diagrams readable without overflowing the article column. */
+.mermaid {
+    margin: 1.5rem 0;
+    overflow-x: auto;
+    text-align: center;
+}
+
+.mermaid svg {
+    height: auto;
+    max-width: 100%;
+}
+
+/* Long derivations should scroll locally instead of widening the mobile page. */
+mjx-container[jax="CHTML"][display="true"] {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0.25rem 0;
+}

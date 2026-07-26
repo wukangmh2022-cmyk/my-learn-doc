@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="zh_CN" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>8. vLLM 推理调优与多卡系统 - GPU 图形与 AI 推理知识手册</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "8. vLLM \u63a8\u7406\u8c03\u4f18\u4e0e\u591a\u5361\u7cfb\u7edf";
+        var mkdocs_page_input_path = "vllm_tuning_multicard.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GPU 图形与 AI 推理知识手册
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">首页</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">1. 图形渲染管线与 GPU 硬件基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_passes_and_sync/">1.4 图形管线中的 Pass 与同步 (RenderPass, Barrier)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">2. GPU 并发模型与系统思维</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../cpu_gpu_async_pipeline/">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../command_buffer_ring_buffer/">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../multithreaded_rendering_and_pools/">2.3 多线程渲染与资源池管理</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_to_ai_first_principles/">2.4 从图形管线到 AI 推理的第一性原理映射</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">3. AI 模型与算子基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../model_structures_inference_view/">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../operator_taxonomy/">3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../convolution_math_implementation/">3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">4. AI 推理优化核心策略</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../thread_block_grid_mapping/">5.1 线程模型 (Thread, Block, Grid) 与映射</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../explicit_memory_shared_vs_cache/">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../warp_simd_simt_divergence/">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../synchronization_primitives/">5.4 同步原语: __syncthreads, __syncwarp, 内存屏障</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../reduce_tree_implementation/">6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../scan_stream_compaction/">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../radix_sort_as_stream_compaction/">6.3 基数排序 (Radix Sort) = 逐位流压缩</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">8. vLLM 推理调优与多卡系统</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#_1">概述</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#81-cuda-graph">8.1 CUDA Graph</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_2">是什么</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#vllm">为什么影响 vLLM</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_3">局限</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#ai">图形 → AI 映射</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#82-occupancy">8.2 Occupancy 深度</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_4">是什么</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_5">误区</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_6">怎么看</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#ai_1">图形 → AI 映射</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#83-fp8-int8-w8a8">8.3 FP8 / INT8 / W8A8 量化推理</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_7">为什么重要</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_8">缩放因子</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#ai_2">图形 → AI 映射</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#84-nccl">8.4 NCCL 与集合通信</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#ring-allreduce">Ring AllReduce（面试常考）</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#ai_3">图形 → AI 映射</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#85">8.5 张量并行 &amp; 流水线并行</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#tensor-parallelism-tp">张量并行（Tensor Parallelism, TP）</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#pipeline-parallelism-pp">流水线并行（Pipeline Parallelism, PP）</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_9">选型</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#86-continuous-batching-spec-decoding-prefix-caching">8.6 Continuous Batching / Spec Decoding / Prefix Caching</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#continuous-batching">Continuous Batching（连续批处理）</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#speculative-decoding">Speculative Decoding（投机解码）</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#prefix-caching">Prefix Caching（前缀缓存）</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#ai_4">图形 → AI 映射</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#87-nsight">8.7 Nsight 实战：怎么读关键指标</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#88-roofline">8.8 Roofline 模型</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#ai_5">图形 → AI 映射</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_10">本章面试自检</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../nano_vllm_from_scratch/">11.1 Nano-vLLM: 框架架构、技术栈与源码实现</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../paged_attention_dx12_tensorrt/">11.3 PagedAttention: DX12 与 TensorRT 双后端实践</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">A.3 关键知识点自检清单</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GPU 图形与 AI 推理知识手册</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">8. vLLM 推理调优与多卡系统</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="8-vllm">8. vLLM 推理调优与多卡系统<a class="headerlink" href="#8-vllm" title="Permanent link">&para;</a></h1>
+<h2 id="_1">概述<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>第 6、7 章你写了算子，但<strong>算子跑在框架里</strong>才有意义。vLLM 这类推理引擎的"快"来自两层：
+- <strong>系统层</strong>：CUDA Graph 降低 launch 开销、Continuous Batching 提高有效利用率、量化减少数据流量。
+- <strong>多卡层</strong>：NCCL 集合通信把一层的大矩阵拆到多张卡（张量并行）或多层（流水线并行）。</p>
+<blockquote>
+<p>这一章偏"调优 &amp; 部署"，读者是<strong>想给 vLLM 做性能调优、或读它 <code>csrc/</code> 源码</strong>的人。每个主题都给"是什么 + 为什么影响性能 + 怎么在 vLLM 里用 + 图形映射"。</p>
+</blockquote>
+<hr />
+<h2 id="81-cuda-graph">8.1 CUDA Graph<a class="headerlink" href="#81-cuda-graph" title="Permanent link">&para;</a></h2>
+<h3 id="_2">是什么<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h3>
+<p>CPU 每次 <code>kernel&lt;&lt;&lt;&gt;&gt;&gt;()</code> 都要走驱动、建命令、提交——单次 launch 开销约几微秒。Decode 阶段成百上千个小 kernel 连续跑，CPU launch 开销会吃掉可观时间。</p>
+<p><strong>CUDA Graph</strong> 把一串 kernel launch <strong>录制</strong>成一张图，之后用一次 <code>graph.launch()</code> 重放，省掉每步的 CPU 提交开销。</p>
+<pre><code class="language-cpp">cudaGraph_t graph; cudaGraphExec_t exec;
+cudaStreamBeginCapture(stream, cudaStreamCaptureModeGlobal);
+// ... 录制一堆 kernel launch ...
+cudaStreamEndCapture(stream, &amp;graph);
+cudaGraphInstantiate(&amp;exec, graph, NULL, NULL, 0);
+// 之后每步只调一次：
+cudaGraphLaunch(exec, stream);   // 不再逐个 launch
+</code></pre>
+<h3 id="vllm">为什么影响 vLLM<a class="headerlink" href="#vllm" title="Permanent link">&para;</a></h3>
+<p>Decode 每个活跃序列通常新增一个 token，形状集合比 Prefill 更容易分桶，因此适合对常见 Batch Size 捕获多张 Graph 并重放。实际策略随 vLLM 版本和模型而变化，Prefill 或混合阶段也可能使用分段 Graph，不能概括为“永远不捕获”。</p>
+<h3 id="_3">局限<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
+<ul>
+<li>捕获后的拓扑和资源使用需要可重放；参数和部分节点属性可通过 API 更新，但动态形状通常仍需分桶、多张 Graph 或回退到 eager。</li>
+<li>调试困难（断点、Nsight 行为不同）。</li>
+</ul>
+<h3 id="ai">图形 → AI 映射<a class="headerlink" href="#ai" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">概念</th>
+<th style="text-align: left;">图形对应</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">CUDA Graph 重放</td>
+<td style="text-align: left;"><strong>RenderGraph / 录制的 Command List</strong>：把一帧的渲染指令录好，之后每帧只 replay，不重建</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="82-occupancy">8.2 Occupancy 深度<a class="headerlink" href="#82-occupancy" title="Permanent link">&para;</a></h2>
+<h3 id="_4">是什么<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
+<p><strong>Occupancy</strong> = 一个 SM 上实际驻留的 Active Warp 数 / 该架构每 SM 的最大 Active Warp 数。A100 的上限是 64 Warp/SM，但其他架构应查询设备属性。</p>
+<p>$$
+W_{block}=\left\lceil\frac{T_{block}}{32}\right\rceil
+$$</p>
+<p>$$
+B_{resident}=\min\left(
+\left\lfloor\frac{R_{SM}}{R_{block}}\right\rfloor,
+\left\lfloor\frac{S_{SM}}{S_{block}}\right\rfloor,
+\left\lfloor\frac{W_{max}}{W_{block}}\right\rfloor,
+B_{arch_max}
+\right)
+$$</p>
+<p>实际分配还会按寄存器和 Shared Memory 的硬件粒度向上取整。</p>
+<ul>
+<li><strong>寄存器</strong>：每个线程用越多寄存器，能驻留的 block 越少。</li>
+<li><strong>Shared Memory</strong>：每个 block 占用越多（见 5.2），能驻留的 block 越少。</li>
+<li><strong>block 尺寸</strong>：<code>blockDim</code> 越大，单 block warp 越多。</li>
+</ul>
+<h3 id="_5">误区<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
+<p><strong>高 Occupancy 不等于高性能</strong>。达到足以隐藏延迟的 Warp 数之后，继续追求 Occupancy 可能迫使编译器减少寄存器、造成 Spill，或缩小本来更高效的 Tile。应结合 Stall Reason、吞吐和端到端时间判断。</p>
+<h3 id="_6">怎么看<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h3>
+<p>Nsight Compute 直接给 <code>Achieved Occupancy</code>。也可用 <code>__launch_bounds__(max_threads, min_blocks)</code> 提示编译器控制寄存器。</p>
+<h3 id="ai_1">图形 → AI 映射<a class="headerlink" href="#ai_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">概念</th>
+<th style="text-align: left;">图形对应</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Occupancy 受寄存器/SMem 限制</td>
+<td style="text-align: left;"><strong>Wave/Threadgroup 占用率</strong>：一个 CU 能同时跑几个 wave，受 VGPR/SGPR 和 LDS 限制——DX12 里你也调过</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="83-fp8-int8-w8a8">8.3 FP8 / INT8 / W8A8 量化推理<a class="headerlink" href="#83-fp8-int8-w8a8" title="Permanent link">&para;</a></h2>
+<h3 id="_7">为什么重要<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h3>
+<p>LLM 推理瓶颈常是权重与 KV Cache 的 HBM 带宽，尤其在小批量 Decode。把数据从 FP16（2 字节）压到 INT8/FP8（1 字节），原始元素流量约减半；相对 FP32 才是四分之一。端到端延迟不会必然同比下降，因为还包括缩放、反量化、元数据、KV 访问和调度开销。</p>
+<ul>
+<li><strong>INT8 (W8A8)</strong>：权重+激活都 INT8，需 per-tensor / per-channel 缩放因子。</li>
+<li><strong>FP8 (E4M3 / E5M2)</strong>：H100 Tensor Core 的理论 FP8 峰值可达相应 FP16 路径的约 2 倍。实际内核和硬件支持取决于模型、vLLM 版本、量化方案与后端。</li>
+</ul>
+<h3 id="_8">缩放因子<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h3>
+<p>量化核心是为每段数据选一个 <code>scale</code> 把 FP 映射到整数格点：</p>
+<p>$$
+x_{int8} = \text{clip}\big(\text{round}(x_{fp} / s),\ -128, 127\big),\quad s = \max(|x|)/127
+$$</p>
+<p>反量化在累加后做。MoE/Attention 的敏感层常保持 FP16（混合精度）。</p>
+<h3 id="ai_2">图形 → AI 映射<a class="headerlink" href="#ai_2" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">概念</th>
+<th style="text-align: left;">图形对应</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">低精度换带宽</td>
+<td style="text-align: left;"><strong>BCn / ASTC 纹理压缩</strong>：用更少字节存纹素，换取带宽，代价是精度——和你用压缩纹理一个道理</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="84-nccl">8.4 NCCL 与集合通信<a class="headerlink" href="#84-nccl" title="Permanent link">&para;</a></h2>
+<pre><code class="language-mermaid">flowchart LR
+    M[&quot;模型与请求形状&quot;] --&gt; TP[&quot;张量并行 TP&quot;]
+    M --&gt; PP[&quot;流水线并行 PP&quot;]
+    TP --&gt; C1[&quot;层内频繁 Collective&quot;]
+    PP --&gt; C2[&quot;Stage 间激活传输&quot;]
+    C1 --&gt; P[&quot;端到端吞吐 / 延迟&quot;]
+    C2 --&gt; P
+    NET[&quot;NVLink / PCIe / 网络拓扑&quot;] --&gt; C1
+    NET --&gt; C2
+</code></pre>
+<p>多卡并行的"血液"是<strong>集合通信</strong>。NCCL（NVIDIA Collective Communications Library）在 NVLink/PCIe 上高效实现它们。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">原语</th>
+<th style="text-align: left;">作用</th>
+<th style="text-align: left;">vLLM 用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>AllReduce</strong></td>
+<td style="text-align: left;">所有卡求和后广播给所有卡</td>
+<td style="text-align: left;"><strong>张量并行</strong>（TP）：每层 matmul 后把所有卡的部分和加起来</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>AllGather</strong></td>
+<td style="text-align: left;">把各卡的分片拼成完整张量</td>
+<td style="text-align: left;">TP 中把切分的激活拼回</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>ReduceScatter</strong></td>
+<td style="text-align: left;">求和但结果分散到各卡</td>
+<td style="text-align: left;">TP 的另一半（与 AllGather 配对）</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Broadcast</strong></td>
+<td style="text-align: left;">一张卡发全员</td>
+<td style="text-align: left;">初始化权重、广播 prompt</td>
+</tr>
+</tbody>
+</table>
+<h3 id="ring-allreduce">Ring AllReduce（面试常考）<a class="headerlink" href="#ring-allreduce" title="Permanent link">&para;</a></h3>
+<p>把数据分成 $P$ 份（卡数），两阶段：
+1. <strong>Scatter-Reduce</strong>：沿环传 $P-1$ 步，每步相邻卡传一份并本地累加 → 每卡拿到一个分片的完整和。
+2. <strong>All-Gather</strong>：再沿环传 $P-1$ 步，把完整和扩散到所有卡。</p>
+<p>每个 Rank 的发送量为 $2(P-1)n/P = 2(n-n/P)$；整个系统的链路流量还要再乘参与者数量。Ring 在大消息上通常能较好利用带宽，但小消息延迟、拓扑和实现细节也会影响选型。</p>
+<h3 id="ai_3">图形 → AI 映射<a class="headerlink" href="#ai_3" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">概念</th>
+<th style="text-align: left;">图形对应</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Ring AllReduce</td>
+<td style="text-align: left;"><strong>多 GPU 间的分块拼图</strong>：像 SLI / 多卡渲染里把画面分块交给各卡算、再互相交换边界（虽不完全同构，但"分片+交换"思想一致）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="85">8.5 张量并行 &amp; 流水线并行<a class="headerlink" href="#85" title="Permanent link">&para;</a></h2>
+<h3 id="tensor-parallelism-tp">张量并行（Tensor Parallelism, TP）<a class="headerlink" href="#tensor-parallelism-tp" title="Permanent link">&para;</a></h3>
+<p>把<strong>每一层</strong>的权重矩阵按列/行切到多卡：</p>
+<ul>
+<li>对 $Y = X A$，按输出列切分 $A$ 时，各卡得到不同的 $Y_i$，后续可保持分片或做 AllGather；按归约维切分时，各卡得到部分和，才需要 AllReduce/ReduceScatter。实际 Transformer TP 会配对列并行与行并行层以减少通信。</li>
+<li>KV 头通常尽量按 Rank 切分；当 <code>num_kv_heads</code> 小于或不能整除 TP Size 时，框架也可能复制 KV 头，具体约束应以模型与版本为准。</li>
+<li>集合通信频繁出现在层内投影边界，高带宽低延迟互联通常更有利。</li>
+</ul>
+<h3 id="pipeline-parallelism-pp">流水线并行（Pipeline Parallelism, PP）<a class="headerlink" href="#pipeline-parallelism-pp" title="Permanent link">&para;</a></h3>
+<p>把<strong>不同层</strong>分给不同卡（卡 0 算前几层、卡 1 算后几层），序列像流水一样流过去。</p>
+<ul>
+<li>用 <strong>micro-batch</strong> 填 Pipeline，否则有"气泡"（bubble）空闲。</li>
+<li>通信量小（只传激活），但<strong>延迟大</strong>（要等前一级）。</li>
+</ul>
+<h3 id="_9">选型<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">并行</th>
+<th style="text-align: left;">切什么</th>
+<th style="text-align: left;">通信</th>
+<th style="text-align: left;">适用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">TP</td>
+<td style="text-align: left;">层内权重</td>
+<td style="text-align: left;">高（每层 AllReduce）</td>
+<td style="text-align: left;">单节点多卡（NVLink）</td>
+</tr>
+<tr>
+<td style="text-align: left;">PP</td>
+<td style="text-align: left;">跨层</td>
+<td style="text-align: left;">低（只传激活）</td>
+<td style="text-align: left;">跨节点、模型太大放不下单卡</td>
+</tr>
+</tbody>
+</table>
+<p>vLLM 主要用 <strong>TP</strong>（配合 NCCL），PP 在超大模型时配合。</p>
+<hr />
+<h2 id="86-continuous-batching-spec-decoding-prefix-caching">8.6 Continuous Batching / Spec Decoding / Prefix Caching<a class="headerlink" href="#86-continuous-batching-spec-decoding-prefix-caching" title="Permanent link">&para;</a></h2>
+<h3 id="continuous-batching">Continuous Batching（连续批处理）<a class="headerlink" href="#continuous-batching" title="Permanent link">&para;</a></h3>
+<p>传统静态 Batch 容易被最长序列拖住。Continuous Batching 在迭代边界移除已完成请求并接纳新请求，减少填充和空槽；GPU 利用率仍会受请求到达率、显存、形状和调度开销限制。</p>
+<h3 id="speculative-decoding">Speculative Decoding（投机解码）<a class="headerlink" href="#speculative-decoding" title="Permanent link">&para;</a></h3>
+<p>用小模型（draft）<strong>一次猜多个 token</strong>，再用大模型<strong>并行验证</strong>，全对就一次接受多个。Decode 是 memory-bound（每步只算 1 token），投机解码把它变成"一次验证 k 个"，摊薄每 token 的权重读取成本。</p>
+<h3 id="prefix-caching">Prefix Caching（前缀缓存）<a class="headerlink" href="#prefix-caching" title="Permanent link">&para;</a></h3>
+<p>多请求共享同一 system prompt / 长上下文前缀时，可以复用已计算的 KV Block，避免重复 Prefill，并通过引用共享减少重复副本。缓存本身仍占显存，还需要淘汰和引用计数策略。</p>
+<h3 id="ai_4">图形 → AI 映射<a class="headerlink" href="#ai_4" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">概念</th>
+<th style="text-align: left;">图形对应</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Continuous Batching</td>
+<td style="text-align: left;"><strong>帧并行（Frame Parallelism）/ 动态任务队列</strong>：做完一帧的线程立刻接新活，不让 GPU 空转</td>
+</tr>
+<tr>
+<td style="text-align: left;">Spec Decoding</td>
+<td style="text-align: left;"><strong>预测式着色 / 时间性重投影</strong>：先粗估（上一帧预测），再用本帧精修验证</td>
+</tr>
+<tr>
+<td style="text-align: left;">Prefix Caching</td>
+<td style="text-align: left;"><strong>着色器缓存 / 纹理缓存复用</strong>：相同输入不重算，直接命中缓存</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="87-nsight">8.7 Nsight 实战：怎么读关键指标<a class="headerlink" href="#87-nsight" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">指标</th>
+<th style="text-align: left;">含义</th>
+<th style="text-align: left;">你该看什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>sm__throughput...pct_of_peak_sustained_elapsed</code></td>
+<td style="text-align: left;">SM 吞吐相对峰值</td>
+<td style="text-align: left;">结合主要 Pipe 与 Stall 原因判断，不能当作 Occupancy</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>l1tex__data_bank_conflicts...shared...</code></td>
+<td style="text-align: left;">Shared Memory Bank Conflict</td>
+<td style="text-align: left;">指标名随架构和 Nsight Compute 版本变化；按 Source/Memory Workload 定位访问</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>dram__throughput...pct_of_peak_sustained_elapsed</code></td>
+<td style="text-align: left;">HBM 吞吐相对峰值</td>
+<td style="text-align: left;">长时间接近可持续峰值是 memory-bound 的证据之一</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>Achieved Occupancy</code></td>
+<td style="text-align: left;">实际占用率</td>
+<td style="text-align: left;">见 8.2</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>Arithmetic Intensity</code></td>
+<td style="text-align: left;">每字节的 FLOP</td>
+<td style="text-align: left;">接 8.8 Roofline 判断瓶颈</td>
+</tr>
+</tbody>
+</table>
+<p>命令行：</p>
+<pre><code class="language-bash">ncu -k attention_kernel ./my_vllm_app        # 单 kernel 深度剖析
+nsys profile --trace=cuda,nvtx ./server       # 时间线看 launch / 通信重叠
+</code></pre>
+<hr />
+<h2 id="88-roofline">8.8 Roofline 模型<a class="headerlink" href="#88-roofline" title="Permanent link">&para;</a></h2>
+<p>判断一个 kernel 是 <strong>compute-bound 还是 memory-bound</strong> 的利器。</p>
+<p>横轴 = <strong>算术强度</strong>（Arithmetic Intensity, FLOP/Byte），纵轴 = 可达性能（FLOP/s）。一条"屋顶线"由两点决定：</p>
+<ul>
+<li><strong>带宽屋顶</strong>：$\text{峰值 FLOP/s} = \text{带宽} \times \text{算术强度}$（左侧斜线）</li>
+<li><strong>算力屋顶</strong>：峰值 FLOP/s（右侧平线）</li>
+</ul>
+<p><strong>脊点（Ridge Point）</strong> = 带宽屋顶与算力屋顶交点处的算术强度。</p>
+<ul>
+<li>算术强度 &lt; 脊点 → <strong>memory-bound</strong>（优化应砍访存，如量化、Tiling 复用）</li>
+<li>算术强度 &gt; 脊点 → <strong>compute-bound</strong>（优化应砍运算，如 Tensor Core、FP8）</li>
+</ul>
+<blockquote>
+<p>Decode 的 GEMV（7.7）算术强度极低，落在带宽屋顶左侧 → memory-bound → 量化最有效；Prefill 的 GEMM 算术强度高 → 用 Tensor Core。</p>
+</blockquote>
+<h3 id="ai_5">图形 → AI 映射<a class="headerlink" href="#ai_5" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">概念</th>
+<th style="text-align: left;">图形对应</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Roofline 判断瓶颈</td>
+<td style="text-align: left;">与图形性能分析一样先区分计算、带宽和延迟限制，但 Roofline 使用明确的 FLOP/byte 与峰值上界</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="_10">本章面试自检<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h2>
+<ol>
+<li>为什么 vLLM 的 Decode 用 CUDA Graph 而 Prefill 不整张 capture？</li>
+<li>Occupancy 低一定慢吗？举一个反例。</li>
+<li>FP8 为什么能给 Decode 提速，对 Prefill 呢？</li>
+<li>画 Ring AllReduce 的两阶段，说清总通信量。</li>
+<li>TP 和 PP 各切什么、通信特征有何不同？</li>
+<li>用 Roofline 解释"为什么 Decode 量化收益大、Prefill Tensor Core 收益大"。</li>
+</ol>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../llm_core_operators/" class="btn btn-neutral float-left" title="7. LLM 核心算子：推导 + CUDA 实现"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../tensor_core_vs_cuda_core/" class="btn btn-neutral float-right" title="9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../llm_core_operators/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../tensor_core_vs_cuda_core/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

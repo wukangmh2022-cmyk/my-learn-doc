@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html class="writer-html5" lang="en" >
+<html class="writer-html5" lang="zh_CN" >
 <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <link rel="shortcut icon" href="../img/favicon.ico" />
-    <title>1.2 渲染管线与硬件单元 (SM, TMU, ROP) - GPU 图形与 AI 推理知识手册</title>
+    <title>1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元 - GPU 图形与 AI 推理知识手册</title>
     <link rel="stylesheet" href="../css/theme.css" />
     <link rel="stylesheet" href="../css/theme_extra.css" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
@@ -13,7 +13,7 @@
     
       <script>
         // Current page data
-        var mkdocs_page_name = "1.2 \u6e32\u67d3\u7ba1\u7ebf\u4e0e\u786c\u4ef6\u5355\u5143 (SM, TMU, ROP)";
+        var mkdocs_page_name = "1.2 GPU \u786c\u4ef6\u5c42\u7ea7: SM\u3001\u6267\u884c\u7ba1\u7ebf\u4e0e\u56fe\u5f62\u56fa\u5b9a\u529f\u80fd\u5355\u5143";
         var mkdocs_page_input_path = "render_pipeline_hardware.md";
         var mkdocs_page_url = null;
       </script>
@@ -48,45 +48,33 @@
               <ul class="current">
                   <li class="toctree-l1"><a class="reference internal" href="../graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
                   </li>
-                  <li class="toctree-l1 current"><a class="reference internal current" href="#">1.2 渲染管线与硬件单元 (SM, TMU, ROP)</a>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
     <ul class="current">
-    <li class="toctree-l2"><a class="reference internal" href="#_1">概述</a>
+    <li class="toctree-l2"><a class="reference internal" href="#gpu">GPU 的顶层组成</a>
     </li>
-    <li class="toctree-l2"><a class="reference internal" href="#_2">核心硬件单元概览</a>
+    <li class="toctree-l2"><a class="reference internal" href="#_1">硬件层级图</a>
     </li>
-    <li class="toctree-l2"><a class="reference internal" href="#sm-gpu">SM（流式多处理器）—— GPU 的计算核心</a>
+    <li class="toctree-l2"><a class="reference internal" href="#sm">可编程执行：SM 与线程执行</a>
         <ul>
-    <li class="toctree-l3"><a class="reference internal" href="#sm">图形中的 SM</a>
+    <li class="toctree-l3"><a class="reference internal" href="#sm_1">SM 负责什么</a>
     </li>
-    <li class="toctree-l3"><a class="reference internal" href="#ai-sm">AI 中的 SM</a>
-    </li>
-    <li class="toctree-l3"><a class="reference internal" href="#sm-a100">SM 内部架构（以 A100 为例）</a>
+    <li class="toctree-l3"><a class="reference internal" href="#sm_2">SM 的主要资源</a>
     </li>
         </ul>
     </li>
-    <li class="toctree-l2"><a class="reference internal" href="#tmu">TMU（纹理映射单元）—— 图形特有的硬件</a>
-        <ul>
-    <li class="toctree-l3"><a class="reference internal" href="#tmu_1">图形中的 TMU</a>
+    <li class="toctree-l2"><a class="reference internal" href="#_2">存储系统</a>
     </li>
-    <li class="toctree-l3"><a class="reference internal" href="#ai-tmu">AI 中没有 TMU</a>
+    <li class="toctree-l2"><a class="reference internal" href="#_3">图形固定功能路径</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#texture-unit-tmu">Texture Unit / TMU</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#rop">ROP</a>
     </li>
         </ul>
     </li>
-    <li class="toctree-l2"><a class="reference internal" href="#rop">ROP（光栅化输出单元）—— 像素的终点</a>
-        <ul>
-    <li class="toctree-l3"><a class="reference internal" href="#rop_1">图形中的 ROP</a>
+    <li class="toctree-l2"><a class="reference internal" href="#ai">图形与 AI 工作负载的硬件关系</a>
     </li>
-    <li class="toctree-l3"><a class="reference internal" href="#ai-rop">AI 中的 ROP 对应</a>
-    </li>
-        </ul>
-    </li>
-    <li class="toctree-l2"><a class="reference internal" href="#ai-gpu">硬件的统一：图形与 AI 在同一个 GPU 上</a>
-        <ul>
-    <li class="toctree-l3"><a class="reference internal" href="#_3">关键洞察（你的核心武器）</a>
-    </li>
-        </ul>
-    </li>
-    <li class="toctree-l2"><a class="reference internal" href="#_4">映射速查表</a>
+    <li class="toctree-l2"><a class="reference internal" href="#_4">建议学习顺序</a>
     </li>
     </ul>
                   </li>
@@ -119,11 +107,11 @@
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 为何图形做多 Pass，AI 做单 Pass Tiling</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention (类比 DX12 资源池 / 伙伴分配器)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
                   </li>
               </ul>
               <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
@@ -138,6 +126,8 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
               </ul>
               <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
               <ul>
@@ -150,33 +140,54 @@
                   <li class="toctree-l1"><a class="reference internal" href="../flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">7. 专用硬件加速单元</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">7.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                <li class="toctree-l1"><a class="reference internal" href="../llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">7.2 RT Core: BVH 遍历专用电路 (压缩解决随机访问，专用电路解决分支分歧)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">7.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">8. GPU 软件栈与驱动开发</span></p>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">8.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">8.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">8.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">8.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">9. 职业发展与工程实践</span></p>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">9.1 四个核心岗位对比: 算子开发 / 推理框架 / 编译器 / 驱动</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../nano_vllm_from_scratch/">11.1 Nano-vLLM: 框架架构、技术栈与源码实现</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">9.2 简历技能清单 (基于我们对话的认知总结)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">9.3 关键知识点自检清单 (MkDocs 版)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../paged_attention_dx12_tensorrt/">11.3 PagedAttention: DX12 与 TensorRT 双后端实践</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">A.3 关键知识点自检清单</a>
                   </li>
               </ul>
       </div>
@@ -194,7 +205,7 @@
   <ul class="wy-breadcrumbs">
     <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
           <li class="breadcrumb-item">1. 图形渲染管线与 GPU 硬件基础</li>
-      <li class="breadcrumb-item active">1.2 渲染管线与硬件单元 (SM, TMU, ROP)</li>
+      <li class="breadcrumb-item active">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</li>
     <li class="wy-breadcrumbs-aside">
     </li>
   </ul>
@@ -203,264 +214,218 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
             <div class="section" itemprop="articleBody">
               
-                <h1 id="12-sm-tmu-rop">1.2 渲染管线与硬件单元 (SM, TMU, ROP)</h1>
-<h2 id="_1">概述</h2>
-<p>GPU 的渲染管线由多个专用硬件单元组成，每个单元负责管线中的一个特定阶段。理解这些硬件单元，是打通图形渲染与 AI 计算底层认知的关键一步。</p>
-<p>本质上，<strong>AI 推理和图形渲染跑在完全相同的硬件上</strong>——只是不同的硬件单元被不同的 workload 所利用。</p>
-<hr />
-<h2 id="_2">核心硬件单元概览</h2>
-<table>
-<thead>
-<tr>
-<th style="text-align: left;">硬件单元</th>
-<th style="text-align: left;">全称</th>
-<th style="text-align: left;">负责阶段</th>
-<th style="text-align: left;">图形中的角色</th>
-<th style="text-align: left;">AI 计算中的角色</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;"><strong>SM</strong></td>
-<td style="text-align: left;">Streaming Multiprocessor</td>
-<td style="text-align: left;">着色器执行</td>
-<td style="text-align: left;">运行 Pixel/Vertex/Compute Shader</td>
-<td style="text-align: left;">运行 CUDA Kernel（所有通用计算）</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>TMU</strong></td>
-<td style="text-align: left;">Texture Mapping Unit</td>
-<td style="text-align: left;">纹理采样</td>
-<td style="text-align: left;">执行 <code>tex2D</code> 采样，硬件插值滤波</td>
-<td style="text-align: left;"><strong>没有直接对应</strong>（AI 手动用 Shared Memory 加载替代）</td>
-</tr>
-<tr>
-<td style="text-align: left;"><strong>ROP</strong></td>
-<td style="text-align: left;">Render Output Unit</td>
-<td style="text-align: left;">像素输出</td>
-<td style="text-align: left;">颜色混合、深度测试、MSAA 解析</td>
-<td style="text-align: left;">可类比原子操作单元（<code>atomicAdd</code>）</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="sm-gpu">SM（流式多处理器）—— GPU 的计算核心</h2>
-<h3 id="sm">图形中的 SM</h3>
-<p>SM 是 GPU 上执行 Shader 指令的硬件单元。一个 GPU 包含几十到上百个 SM（如 A100 有 108 个 SM）。</p>
-<p>每个 SM 内部包含：
-- <strong>CUDA Core</strong>：标量 ALU，执行浮点/整数运算
-- <strong>Tensor Core</strong>：专用矩阵乘加单元（从 Volta 架构开始引入）
-- <strong>Shared Memory</strong>：片上 SRAM，软件显式管理
-- <strong>L1 Cache</strong>：片上 SRAM，硬件自动管理
-- <strong>Register File</strong>：最大带宽的存储，线程私有
-- <strong>Warp Scheduler</strong>：每个 SM 有 4 个 Warp Scheduler，每个负责 2 个 Warp</p>
-<blockquote>
-<p><strong>你的渲染视角</strong>：SM 就是 GPU 上的"计算农场"。你写的每一个 <code>[numthreads(8,8,1)]</code> 的 Compute Shader，最终都是被分发到这些 SM 上执行。SM 的数量 × 每个 SM 的 CUDA Core 数量 × 频率，决定了 GPU 的理论算力。</p>
-</blockquote>
-<h3 id="ai-sm">AI 中的 SM</h3>
-<p>AI 推理时，SM 执行的是 CUDA Kernel：
-- <strong>Elementwise 操作</strong>（如 ReLU、SiLU）→ CUDA Core 执行
-- <strong>矩阵乘操作</strong>（如 GEMM）→ Tensor Core 执行
-- <strong>Shared Memory 操作</strong>（Tiling 加载）→ 软件显式管理</p>
-<p><strong>关键洞察</strong>：图形渲染中，SM 主要运行 Pixel Shader（大量独立像素计算）；AI 推理中，SM 主要运行 CUDA Kernel（大量矩阵乘 + 元素级计算）。<strong>硬件是同一套，但计算模式不同。</strong></p>
-<h3 id="sm-a100">SM 内部架构（以 A100 为例）</h3>
-<pre><code>┌──────────────────────────────────────────────────────────┐
-│                      SM (x108 on A100)                    │
-│                                                          │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐ │
-│  │Warp Sched│  │Warp Sched│  │Warp Sched│  │Warp Sched│ │
-│  │ + Dispatch│  │ + Dispatch│  │ + Dispatch│  │ + Dispatch│ │
-│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘ │
-│       │              │              │              │       │
-│  ┌────▼─────┐  ┌────▼─────┐  ┌────▼─────┐  ┌────▼─────┐ │
-│  │16 CUDA   │  │16 CUDA   │  │16 CUDA   │  │16 CUDA   │ │
-│  │Cores     │  │Cores     │  │Cores     │  │Cores     │ │
-│  │          │  │          │  │          │  │          │ │
-│  │256KB Reg │  │256KB Reg │  │256KB Reg │  │256KB Reg │ │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘ │
-│                                                          │
-│  ┌──────────────────────────────────────────────────┐    │
-│  │             L1 / Shared Memory (192KB)           │    │
-│  │    可配置：164KB Shared + 28KB L1 或反之          │    │
-│  └──────────────────────────────────────────────────┘    │
-│                                                          │
-│  ┌──────────────────────────────────────────────────┐    │
-│  │           Tensor Core (4× 第四代)                  │    │
-│  │     每个 Tensor Core 每周期执行 256 次 FMA         │    │
-│  └──────────────────────────────────────────────────┘    │
-└──────────────────────────────────────────────────────────┘
-</code></pre>
-<hr />
-<h2 id="tmu">TMU（纹理映射单元）—— 图形特有的硬件</h2>
-<h3 id="tmu_1">图形中的 TMU</h3>
-<p>TMU 是图形渲染<strong>特化</strong>的硬件单元，负责：
-- <strong>纹理采样</strong>（<code>tex2D</code>、<code>Sample</code>）
-- <strong>硬件插值</strong>（双线性/三线性/各向异性滤波）
-- <strong>Mipmap 自动选择</strong>（LOD 计算）
-- <strong>纹理压缩解压</strong>（BCn 格式）</p>
-<p>TMU 的核心优势：<strong>硬件自动管理纹理 Cache</strong>。你写 <code>tex2D</code> 时，TMU 会自动把纹理数据从 Global Memory 加载到 L1/L2 Cache，你不需要操心。</p>
-<h3 id="ai-tmu">AI 中没有 TMU</h3>
-<p>AI 计算<strong>没有</strong> TMU 的直接对应物。原因在于 AI 的数据访问模式与纹理采样完全不同：</p>
-<table>
-<thead>
-<tr>
-<th style="text-align: left;">维度</th>
-<th style="text-align: left;">图形纹理采样（TMU）</th>
-<th style="text-align: left;">AI 数据加载</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;">访问模式</td>
-<td style="text-align: left;"><strong>空间局部性</strong>强：相邻像素采相邻纹素</td>
-<td style="text-align: left;"><strong>随机/跨步访问</strong>：Attention 的 Q × K^T 是跳跃式访问</td>
-</tr>
-<tr>
-<td style="text-align: left;">硬件加速</td>
-<td style="text-align: left;">TMU + 纹理 Cache 自动搞定</td>
-<td style="text-align: left;">没有专用硬件，需手动用 Shared Memory</td>
-</tr>
-<tr>
-<td style="text-align: left;">数据格式</td>
-<td style="text-align: left;">压缩纹理（BCn），硬件解压</td>
-<td style="text-align: left;">裸张量（FP16/INT8），手动加载</td>
-</tr>
-<tr>
-<td style="text-align: left;">可预测性</td>
-<td style="text-align: left;"><strong>可预测</strong>：硬件能预取相邻数据</td>
-<td style="text-align: left;"><strong>不可预测</strong>：硬件 Cache 无法预取跨步数据</td>
-</tr>
-</tbody>
-</table>
-<blockquote>
-<p><strong>你的渲染视角</strong>：AI 中你手动写 <code>__shared__</code> + 指针偏移来加载数据，相当于你<strong>用软件自己写了一个 TMU</strong>。你不是在"采样纹理"，而是在"手动管理数据搬运"。</p>
-</blockquote>
-<hr />
-<h2 id="rop">ROP（光栅化输出单元）—— 像素的终点</h2>
-<h3 id="rop_1">图形中的 ROP</h3>
-<p>ROP 负责：
-- <strong>颜色混合</strong>（Blending）：<code>BlendState</code> 中的 Alpha 混合
-- <strong>深度测试</strong>（Depth Test）：Z-buffer 比较
-- <strong>模板测试</strong>（Stencil Test）：Stencil Buffer 操作
-- <strong>MSAA 解析</strong>（Multisample Resolve）</p>
-<p>ROP 是<strong>固定功能硬件</strong>，不可编程。它的工作是将 Pixel Shader 的输出结果写入 Frame Buffer。</p>
-<h3 id="ai-rop">AI 中的 ROP 对应</h3>
-<p>AI 中没有直接的 ROP 对应物，但在某些场景中可以类比：</p>
-<table>
-<thead>
-<tr>
-<th style="text-align: left;">ROP 功能</th>
-<th style="text-align: left;">AI 中的对应</th>
-<th style="text-align: left;">说明</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;">Alpha 混合 (Blend)</td>
-<td style="text-align: left;"><strong>原子加</strong> (<code>atomicAdd</code>)</td>
-<td style="text-align: left;">多个线程同时写入同一位置时的累加操作</td>
-</tr>
-<tr>
-<td style="text-align: left;">深度测试 (Depth Test)</td>
-<td style="text-align: left;"><strong>动态 Padding / Masking</strong></td>
-<td style="text-align: left;">变长序列中屏蔽无效 Token 的计算</td>
-</tr>
-<tr>
-<td style="text-align: left;">写入 Frame Buffer</td>
-<td style="text-align: left;"><strong>写回 Global Memory</strong></td>
-<td style="text-align: left;">Kernel 计算完成后将结果从寄存器/Shared Memory 写回显存</td>
-</tr>
-</tbody>
-</table>
-<hr />
-<h2 id="ai-gpu">硬件的统一：图形与 AI 在同一个 GPU 上</h2>
-<p>现代 GPU（如 NVIDIA A100/H100、AMD MI 系列）是<strong>统一架构</strong>——同一个 SM 既可以跑 Pixel Shader，也可以跑 CUDA Kernel。</p>
-<table>
-<thead>
-<tr>
-<th style="text-align: left;">方面</th>
-<th style="text-align: left;">图形渲染模式</th>
-<th style="text-align: left;">AI 计算模式</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align: left;">主要硬件单元</td>
-<td style="text-align: left;">SM + TMU + ROP</td>
-<td style="text-align: left;">SM（CUDA Core + Tensor Core）</td>
-</tr>
-<tr>
-<td style="text-align: left;">计算密集单元</td>
-<td style="text-align: left;">SM 的 CUDA Core</td>
-<td style="text-align: left;">Tensor Core</td>
-</tr>
-<tr>
-<td style="text-align: left;">访存密集单元</td>
-<td style="text-align: left;">TMU（纹理采样）</td>
-<td style="text-align: left;">SM 的 Load/Store 单元</td>
-</tr>
-<tr>
-<td style="text-align: left;">瓶颈通常在哪</td>
-<td style="text-align: left;">TMU（纹理带宽） / ROP（像素填充率）</td>
-<td style="text-align: left;"><strong>HBM 带宽</strong>（数据搬运跟不上计算）</td>
-</tr>
-<tr>
-<td style="text-align: left;">利用率指标</td>
-<td style="text-align: left;">填满率 (Fill Rate)、Draw Call 数</td>
-<td style="text-align: left;"><strong>SM Occupancy</strong>、<strong>算力利用率</strong></td>
-</tr>
-</tbody>
-</table>
-<h3 id="_3">关键洞察（你的核心武器）</h3>
-<p>搞渲染的你，早已理解"哪个硬件单元最慢，就优化哪个"的原则：</p>
+                <h1 id="12-gpu-sm">1.2 GPU 硬件层级：SM、执行管线与图形固定功能单元<a class="headerlink" href="#12-gpu-sm" title="Permanent link">&para;</a></h1>
+<h2 id="gpu">GPU 的顶层组成<a class="headerlink" href="#gpu" title="Permanent link">&para;</a></h2>
+<p>从功能上看，现代 GPU 可以分为四组主要子系统：</p>
 <ul>
-<li><strong>图形</strong>：TMU 采样慢 → 合并 Pass 减少采样次数，或者用 Mipmap 降低分辨率</li>
-<li><strong>AI</strong>：HBM 带宽不够 → 算子融合减少中间结果读写，或者用 INT8 量化减半数据量</li>
+<li><strong>任务前端与分发系统</strong>：接收命令并把图形或计算任务分派到后续单元。</li>
+<li><strong>可编程处理器阵列</strong>：由多个 SM（其他厂商可能称 Compute Unit 等）组成，执行 Shader 或计算 Kernel。</li>
+<li><strong>存储系统</strong>：包括片上缓存、L2、内存控制器以及 HBM/GDDR。</li>
+<li><strong>固定功能单元</strong>：实现光栅化、纹理采样、颜色混合等特定图形操作；不同产品可能裁剪其中一部分。</li>
 </ul>
-<p><strong>优化思路完全一样，只是被优化的硬件单元不同。</strong></p>
-<hr />
-<h2 id="_4">映射速查表</h2>
+<p>这些子系统处于不同的组织层级。SM 是可编程处理器集群；Texture Unit 是供 Shader 使用的专用采样路径；ROP 则属于图形输出后端。</p>
+<h2 id="_1">硬件层级图<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<pre><code class="language-mermaid">flowchart TB
+    GPU[&quot;GPU Device&quot;] --&gt; FE[&quot;Front End / Work Distributor&quot;]
+    GPU --&gt; ARRAY[&quot;可编程处理器阵列&quot;]
+    GPU --&gt; FIXED[&quot;图形固定功能管线（具体型号可省略部分单元）&quot;]
+    GPU --&gt; MEM[&quot;Memory System&quot;]
+
+    ARRAY --&gt; SM[&quot;SM / Compute Unit&quot;]
+    SM --&gt; SCHED[&quot;Warp/Wave Scheduler + Dispatch&quot;]
+    SM --&gt; RF[&quot;Register File&quot;]
+    SM --&gt; EXEC[&quot;FP/INT/SFU/Load-Store 执行管线&quot;]
+    SM --&gt; TC[&quot;Tensor/MMA 执行管线（支持时）&quot;]
+    SM --&gt; SRAM[&quot;Shared Memory / L1&quot;]
+
+    FIXED --&gt; RASTER[&quot;Geometry / Rasterizer&quot;]
+    FIXED --&gt; TEX[&quot;Texture Addressing &amp; Filtering&quot;]
+    FIXED --&gt; ROP[&quot;ROP: Blend / Depth / Stencil / RT Write&quot;]
+
+    MEM --&gt; L2[&quot;L2 Cache&quot;]
+    MEM --&gt; VRAM[&quot;HBM / GDDR&quot;]
+    MEM --&gt; MMU[&quot;MMU / Memory Controllers&quot;]
+</code></pre>
+<p>这是一张概念图，不代表所有模块都有一条独占物理连线。不同厂商、代际和 SKU 会重新组织或省略单元。例如数据中心计算 GPU 可能保留 SM/Tensor Core 和内存系统，但不提供完整的光栅化、ROP 或显示管线。</p>
+<h2 id="sm">可编程执行：SM 与线程执行<a class="headerlink" href="#sm" title="Permanent link">&para;</a></h2>
+<p>SM 是理解 GPU 可编程执行模型的中心：它决定 Kernel 的线程块如何驻留、Warp 如何调度以及指令如何使用执行资源。</p>
+<h3 id="sm_1">SM 负责什么<a class="headerlink" href="#sm_1" title="Permanent link">&para;</a></h3>
+<ol>
+<li>接收一个或多个 Thread Block / Workgroup。</li>
+<li>把线程组织为 Warp（NVIDIA 通常为 32 线程）并选择可运行 Warp。</li>
+<li>向不同执行管线发射指令。</li>
+<li>为驻留线程分配寄存器和 Shared Memory。</li>
+<li>用其他 Warp 的工作隐藏指令或访存延迟。</li>
+</ol>
+<h3 id="sm_2">SM 的主要资源<a class="headerlink" href="#sm_2" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
-<th style="text-align: left;">图形硬件单元</th>
-<th style="text-align: left;">AI 计算对应</th>
-<th style="text-align: left;">本质</th>
+<th style="text-align: left;">层级</th>
+<th style="text-align: left;">作用</th>
+<th style="text-align: left;">直接影响的问题</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td style="text-align: left;">SM / CUDA Core</td>
-<td style="text-align: left;">CUDA Core（标量 ALU）</td>
-<td style="text-align: left;">通用计算单元，执行 Elementwise、Reduce 等</td>
+<td style="text-align: left;">Warp Scheduler / Dispatch</td>
+<td style="text-align: left;">选择 Warp 并发射指令</td>
+<td style="text-align: left;">延迟隐藏、分支分歧、指令吞吐</td>
 </tr>
 <tr>
-<td style="text-align: left;">SM / Tensor Core</td>
-<td style="text-align: left;">Tensor Core</td>
-<td style="text-align: left;">专用矩阵乘加单元（WMMA API）</td>
+<td style="text-align: left;">Register File</td>
+<td style="text-align: left;">保存线程私有状态</td>
+<td style="text-align: left;">寄存器压力、Spill、Occupancy</td>
 </tr>
 <tr>
-<td style="text-align: left;">TMU（纹理采样）</td>
-<td style="text-align: left;"><strong>无直接对应</strong>，用 <code>__shared__</code> + 指针加载替代</td>
-<td style="text-align: left;">图形靠硬件自动 Cache，AI 靠软件显式管理</td>
+<td style="text-align: left;">FP/INT/SFU 管线</td>
+<td style="text-align: left;">执行通用算术和特殊函数</td>
+<td style="text-align: left;">指令吞吐、依赖链、ILP</td>
 </tr>
 <tr>
-<td style="text-align: left;">ROP（Blend）</td>
-<td style="text-align: left;"><code>atomicAdd</code> 原子操作</td>
-<td style="text-align: left;">多线程写入同一地址的合并操作</td>
+<td style="text-align: left;">Load/Store 管线</td>
+<td style="text-align: left;">生成和执行内存访问</td>
+<td style="text-align: left;">合并访问、延迟、带宽</td>
 </tr>
 <tr>
-<td style="text-align: left;">Cache（L1/L2）</td>
-<td style="text-align: left;">Cache（L1/L2）</td>
-<td style="text-align: left;">硬件自动管理，图形中命中率高，AI 中命中率低</td>
+<td style="text-align: left;">Shared Memory / L1</td>
+<td style="text-align: left;">Block 内显式复用与自动缓存</td>
+<td style="text-align: left;">Tiling、Bank Conflict、容量</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>Shared Memory</strong></td>
-<td style="text-align: left;"><strong>Shared Memory</strong> (<code>__shared__</code>)</td>
-<td style="text-align: left;">软件显式管理，图形不常用（性价比低），AI 必须用（带宽瓶颈）</td>
+<td style="text-align: left;">Tensor/MMA 管线</td>
+<td style="text-align: left;">执行特定形状的矩阵乘加</td>
+<td style="text-align: left;">数据类型、布局、Tile 与吞吐</td>
 </tr>
 </tbody>
 </table>
+<p>“CUDA Core”通常指某类标量算术执行通道，而不是能独立调度线程的“小 CPU”。Kernel 由 Warp 调度器发射到合适的执行管线；不能只用“CUDA Core 数量 × 频率”准确预测实际性能。</p>
+<h2 id="_2">存储系统<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<p>Register、Shared Memory/L1、L2 与 HBM/GDDR 共同构成由近到远的存储层次。分析 CUDA Kernel 时，需要确定：</p>
+<ul>
+<li>数据从哪一层读取？</li>
+<li>同一数据会在哪个范围内复用：Thread、Warp、Block 还是多个 SM？</li>
+<li>访问能否合并，是否发生 Bank Conflict？</li>
+<li>寄存器与 Shared Memory 用量会让多少 Block 同时驻留？</li>
+</ul>
+<p>详细内容见第 1.3 和第 5.2 节。</p>
+<h2 id="_3">图形固定功能路径<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<p>图形渲染除了使用 SM 执行 Vertex、Pixel 和 Compute Shader，还会经过几何处理、光栅化、纹理采样以及输出合并等专用路径。Texture Unit 和 ROP 应在这条流水线中理解。</p>
+<h3 id="texture-unit-tmu">Texture Unit / TMU<a class="headerlink" href="#texture-unit-tmu" title="Permanent link">&para;</a></h3>
+<p>Texture Unit 是 Shader 使用的专用采样路径，常见职责包括：</p>
+<ul>
+<li>地址模式与 LOD 处理；</li>
+<li>双线性、三线性和各向异性过滤；</li>
+<li>部分纹理格式的解码与采样；</li>
+<li>配合 Texture Cache 改善二维空间访问。</li>
+</ul>
+<p>CUDA 可以通过 Texture Object 使用纹理采样与缓存语义。GEMM 和 Attention 等计算通常使用普通 Global Load、Cache、Shared Memory 和寄存器，因为它们主要需要矩阵 Tile 复用，而不是纹理过滤。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">问题</th>
+<th style="text-align: left;">Texture Path</th>
+<th style="text-align: left;">Shared Memory</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">管理方式</td>
+<td style="text-align: left;">硬件缓存与采样语义</td>
+<td style="text-align: left;">程序显式读写的 Block Scratchpad</td>
+</tr>
+<tr>
+<td style="text-align: left;">擅长任务</td>
+<td style="text-align: left;">空间采样、过滤、地址模式、特定格式</td>
+<td style="text-align: left;">已知的 Block 内复用、转置、Swizzle、归约</td>
+</tr>
+<tr>
+<td style="text-align: left;">是否互斥</td>
+<td style="text-align: left;">否</td>
+<td style="text-align: left;">否；同一程序可同时使用</td>
+</tr>
+</tbody>
+</table>
+<h3 id="rop">ROP<a class="headerlink" href="#rop" title="Permanent link">&para;</a></h3>
+<p>ROP 位于图形输出合并阶段，典型工作包括：</p>
+<ul>
+<li>深度与模板测试的相关后端操作；</li>
+<li>颜色混合和写掩码；</li>
+<li>多重采样相关的存储/解析路径；</li>
+<li>向 Render Target 写回结果。</li>
+</ul>
+<p>ROP 执行图形 API 定义的固定 Blend、Depth 和 Stencil 语义。它与可编程内存模型中的原子读改写指令属于不同机制，也不参与一般的矩阵乘或 Elementwise Kernel。ROP 的吞吐主要影响填充率、颜色混合和 MSAA 等图形工作负载。</p>
+<h2 id="ai">图形与 AI 工作负载的硬件关系<a class="headerlink" href="#ai" title="Permanent link">&para;</a></h2>
+<p>图形 Shader 和 CUDA Kernel 都依赖可编程执行资源与存储层次，但具体 GPU SKU 未必同时拥有完整图形和计算能力。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">层面</th>
+<th style="text-align: left;">图形工作负载</th>
+<th style="text-align: left;">AI/CUDA 工作负载</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">可编程执行</td>
+<td style="text-align: left;">Vertex/Pixel/Compute Shader 使用执行管线</td>
+<td style="text-align: left;">CUDA Kernel 使用 FP/INT/Load-Store/Tensor 管线</td>
+</tr>
+<tr>
+<td style="text-align: left;">片上存储</td>
+<td style="text-align: left;">Register、Cache、<code>groupshared</code></td>
+<td style="text-align: left;">Register、Cache、<code>__shared__</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">专用单元</td>
+<td style="text-align: left;">Rasterizer、Texture Unit、ROP、可选 RT Core</td>
+<td style="text-align: left;">Tensor/MMA 管线，以及型号支持的异步拷贝等路径</td>
+</tr>
+<tr>
+<td style="text-align: left;">常见瓶颈</td>
+<td style="text-align: left;">几何、Shader、采样、填充率或带宽</td>
+<td style="text-align: left;">计算、HBM、延迟、通信或 Launch 开销</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_4">建议学习顺序<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: center;">优先级</th>
+<th style="text-align: left;">应掌握内容</th>
+<th style="text-align: left;">原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: center;">1</td>
+<td style="text-align: left;">Thread / Block / Warp / SM</td>
+<td style="text-align: left;">决定工作如何映射和调度</td>
+</tr>
+<tr>
+<td style="text-align: center;">2</td>
+<td style="text-align: left;">Register / Shared / L1 / L2 / HBM</td>
+<td style="text-align: left;">决定数据移动和复用成本</td>
+</tr>
+<tr>
+<td style="text-align: center;">3</td>
+<td style="text-align: left;">CUDA Core、Tensor Core、Load/Store 管线</td>
+<td style="text-align: left;">决定不同指令走哪类执行资源</td>
+</tr>
+<tr>
+<td style="text-align: center;">4</td>
+<td style="text-align: left;">Occupancy、分歧、合并访问、Bank Conflict</td>
+<td style="text-align: left;">连接代码与性能</td>
+</tr>
+<tr>
+<td style="text-align: center;">5</td>
+<td style="text-align: left;">Rasterizer、TMU、ROP</td>
+<td style="text-align: left;">图形方向必学；纯 CUDA/AI 只需建立边界</td>
+</tr>
+</tbody>
+</table>
+<p>这一路径先建立任务映射、可编程执行和数据移动的主干，再按学习方向补充图形固定功能单元，能够避免混淆设备、处理器集群、执行管线和流水线阶段。</p>
               
             </div>
           </div><footer>
@@ -500,6 +465,9 @@
     <script>var base_url = "..";</script>
     <script src="../js/theme_extra.js"></script>
     <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
       <script src="../search/main.js"></script>
     <script>
         jQuery(function () {

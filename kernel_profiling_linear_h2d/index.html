@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="zh_CN" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>11.4 性能分析: Nsight、Decode Linear 与 H2D - GPU 图形与 AI 推理知识手册</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "11.4 \u6027\u80fd\u5206\u6790: Nsight\u3001Decode Linear \u4e0e H2D";
+        var mkdocs_page_input_path = "kernel_profiling_linear_h2d.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GPU 图形与 AI 推理知识手册
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">首页</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">1. 图形渲染管线与 GPU 硬件基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_passes_and_sync/">1.4 图形管线中的 Pass 与同步 (RenderPass, Barrier)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">2. GPU 并发模型与系统思维</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../cpu_gpu_async_pipeline/">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../command_buffer_ring_buffer/">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../multithreaded_rendering_and_pools/">2.3 多线程渲染与资源池管理</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_to_ai_first_principles/">2.4 从图形管线到 AI 推理的第一性原理映射</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">3. AI 模型与算子基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../model_structures_inference_view/">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../operator_taxonomy/">3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../convolution_math_implementation/">3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">4. AI 推理优化核心策略</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../thread_block_grid_mapping/">5.1 线程模型 (Thread, Block, Grid) 与映射</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../explicit_memory_shared_vs_cache/">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../warp_simd_simt_divergence/">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../synchronization_primitives/">5.4 同步原语: __syncthreads, __syncwarp, 内存屏障</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../reduce_tree_implementation/">6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../scan_stream_compaction/">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../radix_sort_as_stream_compaction/">6.3 基数排序 (Radix Sort) = 逐位流压缩</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../nano_vllm_from_scratch/">11.1 Nano-vLLM: 框架架构、技术栈与源码实现</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../paged_attention_dx12_tensorrt/">11.3 PagedAttention: DX12 与 TensorRT 双后端实践</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#_1">实战目标</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_2">一、先定义测量边界</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#benchmark">二、构造可复现 Benchmark</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#nsight-systems">三、Nsight Systems：先看全局时间线</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1">1. 采集</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2">2. 首轮只回答五个问题</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3">3. 命令行统计</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#nsight-compute-kernel">四、Nsight Compute：下钻单 Kernel</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1_1">1. 受控采集</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2_1">2. 读指标的顺序</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#decode-linear-gemv">五、Decode Linear 为什么是 GEMV 风格</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-cpu-reference">1. CPU Reference</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-gpu">2. GPU 映射基线</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-tiling-shape">3. Tiling 参数不能脱离 Shape</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4">4. 优化顺序</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#h2d">六、H2D 优化：先消除分配，再谈重叠</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_3">是否值得拷贝？</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#nvprof">七、旧环境中的 nvprof</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_4">八、性能实验记录模板</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_5">九、完成标准</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">A.3 关键知识点自检清单</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GPU 图形与 AI 推理知识手册</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">11. 推理引擎与算子实战</li>
+      <li class="breadcrumb-item active">11.4 性能分析: Nsight、Decode Linear 与 H2D</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="114-nsightdecode-linear-h2d">11.4 性能分析实战：Nsight、Decode Linear 与 H2D<a class="headerlink" href="#114-nsightdecode-linear-h2d" title="Permanent link">&para;</a></h1>
+<h2 id="_1">实战目标<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>本篇完成三个闭环：</p>
+<ol>
+<li>用 Nsight Systems 从端到端时间线定位瓶颈；</li>
+<li>用 Nsight Compute 下钻单个 Kernel 的计算、访存和占用率；</li>
+<li>针对 Decode <code>M=1</code> Linear 和逐步 H2D 元数据更新实施优化。</li>
+</ol>
+<p><code>nvprof</code> 是旧 CUDA 工具链中的命令行 Profiler，已被 Nsight Systems/Compute 取代，并且不支持许多新架构与新 CUDA 版本。只有维护旧环境时才使用 nvprof；新项目以 Nsight 为主。</p>
+<h2 id="_2">一、先定义测量边界<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<p>不要把以下时间混为一个数字：</p>
+<pre><code class="language-text">端到端请求时间
+├── Tokenize
+├── Queueing
+├── Scheduler / Metadata
+├── H2D
+├── GPU Decode Step
+│   ├── Kernel launch gaps
+│   ├── Attention
+│   ├── Linear / GEMV
+│   └── Sampling
+└── Decode / Detokenize
+</code></pre>
+<p>优化 Kernel 前先确认它在端到端时间中占比足够高。Amdahl 定律：若某 Kernel 只占总时间 10%，即使无限加速，端到端收益上限也只有约 11%。</p>
+<h2 id="benchmark">二、构造可复现 Benchmark<a class="headerlink" href="#benchmark" title="Permanent link">&para;</a></h2>
+<p>固定以下信息：</p>
+<pre><code class="language-text">GPU 型号与功耗模式
+Driver / CUDA / TensorRT / PyTorch 版本
+模型与精度
+Batch Size、K、N、Context Length
+Warmup 次数
+测量次数和统计量（Median/P90）
+是否启用 CUDA Graph、TP、量化
+</code></pre>
+<p>CUDA Event 测量 GPU 区间：</p>
+<pre><code class="language-cpp">cudaEventRecord(start, stream);
+for (int i = 0; i &lt; iterations; ++i)
+    launchKernel(..., stream);
+cudaEventRecord(stop, stream);
+cudaEventSynchronize(stop);
+cudaEventElapsedTime(&amp;milliseconds, start, stop);
+</code></pre>
+<p>Event 适合测 GPU Stream 上的时间，不包含 Queueing 之前的 CPU 工作。端到端延迟使用稳定时钟，并在需要时显式同步完成边界。</p>
+<h2 id="nsight-systems">三、Nsight Systems：先看全局时间线<a class="headerlink" href="#nsight-systems" title="Permanent link">&para;</a></h2>
+<h3 id="1">1. 采集<a class="headerlink" href="#1" title="Permanent link">&para;</a></h3>
+<pre><code class="language-bash">nsys profile \
+  --trace=cuda,nvtx,osrt,cudnn,cublas \
+  --sample=none \
+  --capture-range=cudaProfilerApi \
+  --capture-range-end=stop \
+  -o reports/decode \
+  ./decode_bench
+</code></pre>
+<p>程序中只包围稳态区间：</p>
+<pre><code class="language-cpp">cudaProfilerStart();
+run_decode_iterations();
+cudaProfilerStop();
+</code></pre>
+<p>PyTorch 可使用 NVTX 标记：</p>
+<pre><code class="language-python">with torch.cuda.nvtx.range(&quot;scheduler&quot;):
+    batch = scheduler.schedule()
+with torch.cuda.nvtx.range(&quot;decode_step&quot;):
+    output = runner.run(batch)
+</code></pre>
+<h3 id="2">2. 首轮只回答五个问题<a class="headerlink" href="#2" title="Permanent link">&para;</a></h3>
+<ol>
+<li>GPU 是否存在大段空闲？</li>
+<li>CPU 是否逐个 Launch 导致 Kernel 间有明显缝隙？</li>
+<li>H2D 是否位于关键路径并与计算串行？</li>
+<li>NCCL 是否阻塞计算 Stream？</li>
+<li>哪类 Kernel 占据最多 GPU 时间？</li>
+</ol>
+<p>不要在 Systems 中猜测 Bank Conflict 或寄存器压力，那是 Nsight Compute 的层级。</p>
+<h3 id="3">3. 命令行统计<a class="headerlink" href="#3" title="Permanent link">&para;</a></h3>
+<pre><code class="language-bash">nsys stats --report cuda_gpu_kern_sum reports/decode.nsys-rep
+nsys stats --report cuda_api_sum reports/decode.nsys-rep
+nsys stats --report cuda_gpu_mem_time_sum reports/decode.nsys-rep
+</code></pre>
+<p>关注总时间、调用次数、平均与中位时间。一个 3 微秒 Kernel 调用一万次，可能比一个 2 毫秒 Kernel 调十次更值得做 Graph/Fusion。</p>
+<h2 id="nsight-compute-kernel">四、Nsight Compute：下钻单 Kernel<a class="headerlink" href="#nsight-compute-kernel" title="Permanent link">&para;</a></h2>
+<h3 id="1_1">1. 受控采集<a class="headerlink" href="#1_1" title="Permanent link">&para;</a></h3>
+<pre><code class="language-bash">ncu \
+  --kernel-name regex:decode_linear \
+  --launch-skip 20 \
+  --launch-count 10 \
+  --set full \
+  -o reports/decode_linear \
+  ./decode_bench
+</code></pre>
+<p><code>--set full</code> 开销较高，先用 <code>--set basic</code> 或指定 Section；不要对完整长时间服务直接全量采集。</p>
+<h3 id="2_1">2. 读指标的顺序<a class="headerlink" href="#2_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">层级</th>
+<th style="text-align: left;">观察项</th>
+<th style="text-align: left;">要回答的问题</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Duration</td>
+<td style="text-align: left;">Kernel Time</td>
+<td style="text-align: left;">它是否真的重要？</td>
+</tr>
+<tr>
+<td style="text-align: left;">Throughput</td>
+<td style="text-align: left;">DRAM/L2/SM</td>
+<td style="text-align: left;">更接近带宽上限还是计算上限？</td>
+</tr>
+<tr>
+<td style="text-align: left;">Memory Workload</td>
+<td style="text-align: left;">Sector、Transaction、Hit Rate</td>
+<td style="text-align: left;">访问是否合并、Cache 是否有效？</td>
+</tr>
+<tr>
+<td style="text-align: left;">Scheduler</td>
+<td style="text-align: left;">Eligible/Active Warp、Stall</td>
+<td style="text-align: left;">延迟为何没有隐藏？</td>
+</tr>
+<tr>
+<td style="text-align: left;">Launch Stats</td>
+<td style="text-align: left;">Block、Register、SMem、Occupancy</td>
+<td style="text-align: left;">资源是否限制驻留？</td>
+</tr>
+<tr>
+<td style="text-align: left;">Source/SASS</td>
+<td style="text-align: left;">指令与访问位置</td>
+<td style="text-align: left;">哪段代码产生问题？</td>
+</tr>
+</tbody>
+</table>
+<p>高 Occupancy 不是目标。若 Kernel 已达到带宽上限，进一步提高 Occupancy 可能没有收益；若为了 Occupancy 降低寄存器导致 Spill，性能反而下降。</p>
+<h2 id="decode-linear-gemv">五、Decode Linear 为什么是 GEMV 风格<a class="headerlink" href="#decode-linear-gemv" title="Permanent link">&para;</a></h2>
+<p>Decode 的单请求单 Token Linear 常见形状：</p>
+<p>$$
+[M,K] \times [K,N], \quad M=1
+$$</p>
+<p>每个权重元素通常只使用一次，算术强度较低。输入向量 LHS 只有 <code>K</code> 个元素，可以被 L1/Shared Memory 反复使用；权重 RHS 为 <code>K×N</code>，需要按输出 N Tile 流式读取。</p>
+<pre><code class="language-mermaid">flowchart LR
+    X[&quot;LHS x: K\n常驻 Cache/Shared&quot;] --&gt; DOT[&quot;N 个 Dot Products&quot;]
+    W[&quot;RHS W: K x N\n按 N Tile 流式加载&quot;] --&gt; DOT
+    DOT --&gt; Y[&quot;Output y: N&quot;]
+</code></pre>
+<h3 id="1-cpu-reference">1. CPU Reference<a class="headerlink" href="#1-cpu-reference" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">for (int n = 0; n &lt; N; ++n) {
+    float sum = bias ? bias[n] : 0.0f;
+    for (int k = 0; k &lt; K; ++k)
+        sum += x[k] * weight[n * K + k];
+    y[n] = sum;
+}
+</code></pre>
+<p>首先确认权重是 Row-major <code>[N,K]</code> 还是 <code>[K,N]</code>。布局错误可能仍生成连续访问，却计算了转置结果。</p>
+<h3 id="2-gpu">2. GPU 映射基线<a class="headerlink" href="#2-gpu" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Grid 的 X 维覆盖 N Tile；</li>
+<li>一个 CTA 计算多个输出 N；</li>
+<li>Warp Lane 沿 K 维读取并做 Dot；</li>
+<li>Q/LHS 可加载到 Shared Memory，或依赖只读/L1 Cache；</li>
+<li>权重按向量宽度对齐读取；</li>
+<li>Warp Shuffle 完成 K 维归约。</li>
+</ul>
+<pre><code class="language-cpp">template&lt;int N_TILE, int K_TILE&gt;
+__global__ void decode_linear(
+    const half* x, const half* weight, half* y, int K, int N)
+{
+    int n0 = blockIdx.x * N_TILE;
+    // cooperative load x tile; each warp computes one or more n outputs
+}
+</code></pre>
+<h3 id="3-tiling-shape">3. Tiling 参数不能脱离 Shape<a class="headerlink" href="#3-tiling-shape" title="Permanent link">&para;</a></h3>
+<p>对于 <code>K=1280, N=8192</code>，N 足够大，可以提供大量 CTA；对于类似 <code>N=128815</code> 的非常规 Shape，尾部 Tile、向量对齐和 Grid 分布会不同。需要扫描：</p>
+<pre><code class="language-text">N_TILE: 32, 64, 128
+K_TILE: 32, 64, 128, 256
+WARPS: 4, 8
+vector width: 8B, 16B
+</code></pre>
+<p>每组参数记录 Kernel Time、DRAM Throughput、L2 Hit、Register、Occupancy 和数值误差。所谓“适配 Cache 层级”必须由工作集大小与 Profiler 指标支持，不能只凭 Tile 名称判断。</p>
+<h3 id="4">4. 优化顺序<a class="headerlink" href="#4" title="Permanent link">&para;</a></h3>
+<ol>
+<li>修正连续和对齐访问；</li>
+<li>消除重复读取 LHS；</li>
+<li>用 Half2/向量 Load 提升事务利用率；</li>
+<li>调整 N/K Tile 和 Warp 数；</li>
+<li>融合 Bias、Activation 或量化反缩放；</li>
+<li>对热点固定 Shape 特化；</li>
+<li>与 cuBLAS/cuBLASLt 或 TensorRT Tactic 对比。</li>
+</ol>
+<p><code>10.6%</code> 或 <code>8.2%</code> 的提升应相对于明确基线报告。若基线是成熟库，个位数到十几个百分点可能很有价值；若基线是未合并访问的朴素 Kernel，则这个数字不能证明已接近最优。</p>
+<h2 id="h2d">六、H2D 优化：先消除分配，再谈重叠<a class="headerlink" href="#h2d" title="Permanent link">&para;</a></h2>
+<p>常见错误路径：</p>
+<pre><code class="language-text">每个 Decode Step：
+malloc host metadata
+cudaMalloc device metadata
+fill
+cudaMemcpy
+launch
+cudaFree
+free host
+</code></pre>
+<p>正确方向：</p>
+<ol>
+<li>初始化时预分配 Device Buffer；</li>
+<li>使用 Pinned Host Ring Buffer；</li>
+<li>每步只写当前 Slice；</li>
+<li><code>cudaMemcpyAsync</code> 到专用或执行 Stream；</li>
+<li>用 Event/Fence 保护 Ring Slice；</li>
+<li>Shape 稳定时配合 CUDA Graph 固定地址。</li>
+</ol>
+<pre><code class="language-cpp">struct MetadataSlot {
+    void* pinned_host;
+    void* device;
+    cudaEvent_t reusable;
+};
+</code></pre>
+<h3 id="_3">是否值得拷贝？<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
+<p>Block Table 可能只有几 KB。此时问题常不是 PCIe 带宽，而是 API 调用、分配和同步开销。Nsight Systems 中应观察：</p>
+<ul>
+<li><code>cudaMalloc/cudaFree</code> 是否出现在稳态路径；</li>
+<li>H2D 前是否存在隐式同步；</li>
+<li>Copy 是否真正与前一个 Step 的 GPU 工作重叠；</li>
+<li>大量小 Copy 是否可以打包；</li>
+<li>Unified/Zero-copy 是否反而导致 GPU 细粒度远程访问。</li>
+</ul>
+<h2 id="nvprof">七、旧环境中的 nvprof<a class="headerlink" href="#nvprof" title="Permanent link">&para;</a></h2>
+<p>仅在老 CUDA/老 GPU 环境维护时使用：</p>
+<pre><code class="language-bash">nvprof --print-gpu-trace ./decode_bench
+nvprof --kernels decode_linear --metrics achieved_occupancy,dram_read_throughput ./decode_bench
+</code></pre>
+<p>不要把旧指标名机械映射到新架构。Ampere、Hopper 及之后的硬件应使用 Nsight 工具提供的架构相关指标和 Section。</p>
+<h2 id="_4">八、性能实验记录模板<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<pre><code class="language-markdown">### Experiment: decode-linear-k1280-n8192
+- Commit:
+- GPU / Driver / CUDA:
+- dtype / layout:
+- batch, M, K, N:
+- warmup / iterations:
+- baseline:
+- candidate:
+- correctness: max_abs, max_rel
+- median kernel time:
+- P90 kernel time:
+- DRAM throughput:
+- L2 hit rate:
+- registers / occupancy:
+- end-to-end TPOT:
+- conclusion:
+</code></pre>
+<h2 id="_5">九、完成标准<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Systems 时间线能区分 CPU Gap、H2D、Kernel 和 NCCL；</li>
+<li>Compute 报告能用带宽、指令、Stall 和资源解释瓶颈；</li>
+<li>Decode Linear 与 CPU/cuBLAS Reference 数值对齐；</li>
+<li>Tiling 结论绑定具体 Shape；</li>
+<li>稳态路径不存在重复 Host/Device 分配；</li>
+<li>优化同时报告单 Kernel 和端到端影响；</li>
+<li>nvprof 只作为旧环境附录，不作为新项目主工具。</li>
+</ul>
+<p>这篇实战把第 4.2 节 Tiling、第 5.2 节存储层次、第 5.3 节 Warp 执行、第 8 章 Roofline 与真实工具链连接起来。Profiler 的价值不是给出更多数字，而是把“慢”分解为可证伪的工程假设。</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../paged_attention_dx12_tensorrt/" class="btn btn-neutral float-left" title="11.3 PagedAttention: DX12 与 TensorRT 双后端实践"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../inference_runtime_deployment/" class="btn btn-neutral float-right" title="11.5 Runtime、动态批处理与部署验证">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../paged_attention_dx12_tensorrt/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../inference_runtime_deployment/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

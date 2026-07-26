@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="zh_CN" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>11.2 Attention Kernel: QK、Softmax、PV 与 GQA - GPU 图形与 AI 推理知识手册</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "11.2 Attention Kernel: QK\u3001Softmax\u3001PV \u4e0e GQA";
+        var mkdocs_page_input_path = "attention_kernel_gqa_practice.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GPU 图形与 AI 推理知识手册
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">首页</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">1. 图形渲染管线与 GPU 硬件基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_passes_and_sync/">1.4 图形管线中的 Pass 与同步 (RenderPass, Barrier)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">2. GPU 并发模型与系统思维</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../cpu_gpu_async_pipeline/">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../command_buffer_ring_buffer/">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../multithreaded_rendering_and_pools/">2.3 多线程渲染与资源池管理</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_to_ai_first_principles/">2.4 从图形管线到 AI 推理的第一性原理映射</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">3. AI 模型与算子基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../model_structures_inference_view/">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../operator_taxonomy/">3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../convolution_math_implementation/">3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">4. AI 推理优化核心策略</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../thread_block_grid_mapping/">5.1 线程模型 (Thread, Block, Grid) 与映射</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../explicit_memory_shared_vs_cache/">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../warp_simd_simt_divergence/">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../synchronization_primitives/">5.4 同步原语: __syncthreads, __syncwarp, 内存屏障</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../reduce_tree_implementation/">6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../scan_stream_compaction/">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../radix_sort_as_stream_compaction/">6.3 基数排序 (Radix Sort) = 逐位流压缩</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../nano_vllm_from_scratch/">11.1 Nano-vLLM: 框架架构、技术栈与源码实现</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#_1">实战目标</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_2">一、先把计算流手推清楚</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#cpu-reference">二、建立 CPU Reference</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#gqa-head">三、GQA 的 Head 映射</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#gqa-kernel">GQA 带来的 Kernel 机会</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#kernel-gpu">四、先实现三 Kernel GPU 基线</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#kernel-aqk">Kernel A：QK</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#kernel-brow-wise-softmax">Kernel B：Row-wise Softmax</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#kernel-cpv">Kernel C：PV</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#row-max-qk">五、融合策略一：把 Row Max 融入 QK</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#online-softmax-pv">六、融合策略二：Online Softmax 直接累加 PV</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_3">七、计算与访存重叠</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#shape">八、Shape 特化</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_4">九、性能验收</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_5">十、完成标准</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../paged_attention_dx12_tensorrt/">11.3 PagedAttention: DX12 与 TensorRT 双后端实践</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">A.3 关键知识点自检清单</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GPU 图形与 AI 推理知识手册</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">11. 推理引擎与算子实战</li>
+      <li class="breadcrumb-item active">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="112-attention-kernel-qksoftmaxpv-gqa">11.2 Attention Kernel 实战：QK、Softmax、PV 与 GQA<a class="headerlink" href="#112-attention-kernel-qksoftmaxpv-gqa" title="Permanent link">&para;</a></h1>
+<h2 id="_1">实战目标<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>本篇从一个 Attention Head 的标量公式开始，依次完成：</p>
+<ol>
+<li>可验证的 CPU Reference；</li>
+<li>MHA 与 GQA 的 Head 映射；</li>
+<li>三阶段 GPU 基线：QK、Softmax、PV；</li>
+<li>Online Softmax 与 QK/Softmax/PV 融合；</li>
+<li>KV 分块、异步搬运和 Shape 特化；</li>
+<li>正确性、性能和边界条件验收。</li>
+</ol>
+<p>最终实现聚焦 Decode：每条序列只有一个 Query Token，历史 K/V 来自 KV Cache。Prefill 应优先使用成熟的 FlashAttention 后端，不应把 Decode 特化 Kernel 直接套到大 Query Length 上。</p>
+<h2 id="_2">一、先把计算流手推清楚<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<p>对一个 Query Head，设：</p>
+<ul>
+<li>$q \in \mathbb{R}^{D}$；</li>
+<li>$K,V \in \mathbb{R}^{T \times D}$；</li>
+<li>$D$ 为 Head Size；</li>
+<li>$T$ 为 Context Length。</li>
+</ul>
+<p>第一步计算 Score：</p>
+<p>$$
+s_t = \frac{q \cdot k_t}{\sqrt{D}}
+$$</p>
+<p>第二步执行稳定 Softmax：</p>
+<p>$$
+m = \max_t s_t
+$$</p>
+<p>$$
+p_t = \frac{e^{s_t-m}}{\sum_j e^{s_j-m}}
+$$</p>
+<p>第三步加权求和：</p>
+<p>$$
+o_d = \sum_{t=0}^{T-1} p_t v_{t,d}
+$$</p>
+<p>数据流为：</p>
+<pre><code class="language-mermaid">flowchart LR
+    Q[&quot;Q: D&quot;] --&gt; DOT[&quot;QK Dot&quot;]
+    K[&quot;K: T x D&quot;] --&gt; DOT
+    DOT --&gt; SCORE[&quot;Scores: T&quot;]
+    SCORE --&gt; MAX[&quot;Row Max&quot;]
+    MAX --&gt; EXP[&quot;Exp + Row Sum&quot;]
+    EXP --&gt; PROB[&quot;Probabilities: T&quot;]
+    PROB --&gt; PV[&quot;PV Reduction&quot;]
+    V[&quot;V: T x D&quot;] --&gt; PV
+    PV --&gt; O[&quot;Output: D&quot;]
+</code></pre>
+<p>朴素三 Kernel 实现会把 <code>Scores[T]</code> 和 <code>Probabilities[T]</code> 写回显存并再次读取。融合的核心目标是让这些中间状态停留在寄存器或片上存储中。</p>
+<h2 id="cpu-reference">二、建立 CPU Reference<a class="headerlink" href="#cpu-reference" title="Permanent link">&para;</a></h2>
+<p>CPU Reference 必须表达数学语义，而不是复刻 GPU 的优化结构：</p>
+<pre><code class="language-cpp">void attention_ref(
+    const float* q,
+    const float* k,
+    const float* v,
+    float* out,
+    int context_len,
+    int head_size)
+{
+    std::vector&lt;float&gt; scores(context_len);
+    const float scale = 1.0f / std::sqrt(static_cast&lt;float&gt;(head_size));
+
+    float row_max = -std::numeric_limits&lt;float&gt;::infinity();
+    for (int t = 0; t &lt; context_len; ++t) {
+        float dot = 0.0f;
+        for (int d = 0; d &lt; head_size; ++d)
+            dot += q[d] * k[t * head_size + d];
+        scores[t] = dot * scale;
+        row_max = std::max(row_max, scores[t]);
+    }
+
+    float denominator = 0.0f;
+    for (float&amp; score : scores) {
+        score = std::exp(score - row_max);
+        denominator += score;
+    }
+
+    std::fill(out, out + head_size, 0.0f);
+    for (int t = 0; t &lt; context_len; ++t) {
+        const float probability = scores[t] / denominator;
+        for (int d = 0; d &lt; head_size; ++d)
+            out[d] += probability * v[t * head_size + d];
+    }
+}
+</code></pre>
+<p>验收至少覆盖 FP32 Reference、FP16/BF16 GPU 输入、非 2 的幂 Context Length、<code>T=1</code>、最大 Context Length和随机极大 Logit。</p>
+<h2 id="gqa-head">三、GQA 的 Head 映射<a class="headerlink" href="#gqa-head" title="Permanent link">&para;</a></h2>
+<p>MHA 中 Q、K、V Head 数相同。GQA 让多组 Query Head 共享一个 KV Head：</p>
+<p>$$
+group_size = \frac{H_q}{H_{kv}}
+$$</p>
+<p>$$
+kv_head(q_head) = \left\lfloor \frac{q_head}{group_size} \right\rfloor
+$$</p>
+<p>例如 <code>Hq=16, Hkv=2</code>，每 8 个 Query Head 共享一个 KV Head：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Query Head</th>
+<th style="text-align: left;">KV Head</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">0 至 7</td>
+<td style="text-align: left;">0</td>
+</tr>
+<tr>
+<td style="text-align: left;">8 至 15</td>
+<td style="text-align: left;">1</td>
+</tr>
+</tbody>
+</table>
+<p>KV Cache 元素数量相对同 Head 数的 MHA 为：</p>
+<p>$$
+\frac{H_{kv}}{H_q}=\frac{2}{16}=\frac{1}{8}
+$$</p>
+<p>这是 KV Head 维度上的理论缩减。实际总显存还包含 Block Padding、Allocator 元数据、对齐和其他模型状态，不能把整个推理显存概括为缩小到八分之一。</p>
+<h3 id="gqa-kernel">GQA 带来的 Kernel 机会<a class="headerlink" href="#gqa-kernel" title="Permanent link">&para;</a></h3>
+<p>同组 Query Head 会读取同一个 K/V Head。若一个 Thread Block 同时处理多个同组 Query Head，可以复用已加载的 K/V Tile；若每个 Query Head 使用独立 Block，则共享只发生在 L2/L1 Cache 层，显式复用机会会丢失。</p>
+<p>设计选择：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">映射</th>
+<th style="text-align: left;">优点</th>
+<th style="text-align: left;">风险</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">一个 CTA 处理一个 Q Head</td>
+<td style="text-align: left;">简单、并行 CTA 多</td>
+<td style="text-align: left;">同组 KV 重复读取</td>
+</tr>
+<tr>
+<td style="text-align: left;">一个 CTA 处理一组 Q Head</td>
+<td style="text-align: left;">可显式复用 KV Tile</td>
+<td style="text-align: left;">寄存器和 Shared Memory 压力上升</td>
+</tr>
+<tr>
+<td style="text-align: left;">一个 CTA 处理部分 Q Head</td>
+<td style="text-align: left;">在复用与 Occupancy 间折中</td>
+<td style="text-align: left;">需要 Shape 特化</td>
+</tr>
+</tbody>
+</table>
+<h2 id="kernel-gpu">四、先实现三 Kernel GPU 基线<a class="headerlink" href="#kernel-gpu" title="Permanent link">&para;</a></h2>
+<h3 id="kernel-aqk">Kernel A：QK<a class="headerlink" href="#kernel-aqk" title="Permanent link">&para;</a></h3>
+<p>Grid 可按 <code>[batch, q_head, context_tile]</code> 组织。每个 CTA 读取一个 Q Head，并流式处理若干 K Token：</p>
+<pre><code class="language-cpp">// 伪 CUDA，仅表达映射。
+__global__ void qk_kernel(
+    const half* q, const half* k, float* scores,
+    int context_len, int head_size)
+{
+    int token = blockIdx.x;
+    int q_head = blockIdx.y;
+    float partial = 0.0f;
+    for (int d = threadIdx.x; d &lt; head_size; d += blockDim.x)
+        partial += __half2float(q[q_head * head_size + d])
+                 * __half2float(k[(token * num_kv_heads + kv_head(q_head)) * head_size + d]);
+    float dot = block_reduce_sum(partial);
+    if (threadIdx.x == 0)
+        scores[q_head * context_len + token] = dot * rsqrtf(float(head_size));
+}
+</code></pre>
+<h3 id="kernel-brow-wise-softmax">Kernel B：Row-wise Softmax<a class="headerlink" href="#kernel-brow-wise-softmax" title="Permanent link">&para;</a></h3>
+<p>每个 CTA 处理一行 Score，先 Reduce Max，再 Reduce Sum。必须先减 Max，不能直接计算 <code>exp(score)</code>。</p>
+<h3 id="kernel-cpv">Kernel C：PV<a class="headerlink" href="#kernel-cpv" title="Permanent link">&para;</a></h3>
+<p>每个 CTA 处理一个输出 Head，沿 Context 维归约 <code>probability * V</code>。输出维度 <code>D</code> 可映射到 Warp Lane 或多个 Warp。</p>
+<p>三 Kernel 版本的意义是建立可测基线，并确认每个中间结果与 CPU Reference 对齐。不要跳过基线直接融合，否则错误无法定位到具体阶段。</p>
+<h2 id="row-max-qk">五、融合策略一：把 Row Max 融入 QK<a class="headerlink" href="#row-max-qk" title="Permanent link">&para;</a></h2>
+<p>QK 计算每个 Score 时同步维护当前 Tile 的最大值，不再单独遍历 Score Buffer：</p>
+<pre><code class="language-text">for each KV tile:
+    scores_tile = Q dot K_tile
+    tile_max = max(scores_tile)
+    running_max = max(running_max, tile_max)
+</code></pre>
+<p>若仍将完整 Score 写回显存，这只消除一次 Max 遍历；若继续使用 Online Softmax，则 Score 甚至不必形成全局 Buffer。</p>
+<h2 id="online-softmax-pv">六、融合策略二：Online Softmax 直接累加 PV<a class="headerlink" href="#online-softmax-pv" title="Permanent link">&para;</a></h2>
+<p>对每个 KV Tile 维护三个状态：运行最大值 $m$、归一化分母 $l$、未归一化输出 $o$。</p>
+<p>新 Tile 到达时：</p>
+<p>$$
+m' = \max(m, \max(s_{tile}))
+$$</p>
+<p>$$
+\alpha = e^{m-m'}
+$$</p>
+<p>$$
+l' = \alpha l + \sum_i e^{s_i-m'}
+$$</p>
+<p>$$
+o' = \alpha o + \sum_i e^{s_i-m'}v_i
+$$</p>
+<p>处理完全部 Tile 后：</p>
+<p>$$
+output = \frac{o}{l}
+$$</p>
+<p>这样 Softmax 权重产生后立即消费 V，不写回 Probability Buffer。需要注意：当运行最大值更新时，旧分母与旧输出都必须乘同一个校正因子 $\alpha$。</p>
+<pre><code class="language-cpp">for (int tile = 0; tile &lt; num_tiles; ++tile) {
+    load_kv_tile_async(tile);
+    wait_for_kv_tile();
+
+    compute_scores(q_fragment, k_tile, score_fragment);
+    float new_max = max(running_max, reduce_max(score_fragment));
+    float correction = expf(running_max - new_max);
+
+    denominator *= correction;
+    output_fragment *= correction;
+    for (int i = 0; i &lt; valid_tokens_in_tile; ++i) {
+        float weight = expf(score_fragment[i] - new_max);
+        denominator += weight;
+        output_fragment += weight * v_tile[i];
+    }
+    running_max = new_max;
+}
+output_fragment /= denominator;
+</code></pre>
+<p>这里的 <code>output_fragment</code> 可能大到无法完全放在寄存器中。Head Size、同 CTA 处理的 Q Head 数和 Warp 数共同决定寄存器压力，因此融合不是越彻底越好。</p>
+<h2 id="_3">七、计算与访存重叠<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<p>双缓冲把 KV Tile 的加载与前一个 Tile 的计算重叠：</p>
+<pre><code class="language-text">stage 0: load tile 0
+stage 1: compute tile 0 | load tile 1
+stage 2: compute tile 1 | load tile 2
+...
+</code></pre>
+<p>在 CUDA 上可使用 <code>cp.async</code>、TMA 或框架封装的异步 Copy；在其他加速器上可能对应 DMA/专用数据搬运指令。异步 API 只建立可能性，必须确认：</p>
+<ul>
+<li>Copy 和 Compute 使用不同硬件路径；</li>
+<li>Buffer 双份且没有覆盖仍在使用的数据；</li>
+<li>Barrier/Commit/Wait 位置正确；</li>
+<li>Tile 计算量足以覆盖加载延迟；</li>
+<li>Nsight 时间线中确实出现重叠。</li>
+</ul>
+<p>用户提供的“VSice”不是通用 CUDA 术语。若它是特定芯片或内部 SDK 的搬运单元，应在文档中补充硬件与 API 来源；通用表述使用异步 Copy/DMA。</p>
+<h2 id="shape">八、Shape 特化<a class="headerlink" href="#shape" title="Permanent link">&para;</a></h2>
+<p>通用 Kernel 必须处理任意 <code>head_size</code>、Context Length、数据类型和对齐；特化 Kernel 可以把这些条件变成编译期常量：</p>
+<pre><code class="language-cpp">template&lt;int HEAD_SIZE, int KV_TILE, int WARPS&gt;
+__global__ void decode_attention_specialized(...);
+</code></pre>
+<p>可特化维度：</p>
+<ul>
+<li><code>HEAD_SIZE = 64/80/96/128/256</code>；</li>
+<li>Context Length 上限或 Bucket；</li>
+<li><code>Hq/Hkv</code> Group Size；</li>
+<li>FP16、BF16 或 FP8 KV Cache；</li>
+<li>Block Size 与内存对齐；</li>
+<li>是否存在 Attention Mask、Sliding Window 或 ALiBi。</li>
+</ul>
+<p>Dispatch 层负责选择最小覆盖 Shape 的 Kernel，未命中时回退通用实现。特化数量过多会增加编译时间、二进制大小和测试矩阵，应由真实流量中的 Shape 分布驱动。</p>
+<h2 id="_4">九、性能验收<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<p>性能报告必须记录：</p>
+<pre><code class="language-text">GPU / 驱动 / CUDA 或后端版本
+dtype
+batch size
+Hq / Hkv / head_size
+context length 分布
+warmup 次数与测量次数
+测量范围：单 Kernel、单 Decode Step 或端到端
+时钟单位与获取方式
+正确性误差阈值
+</code></pre>
+<p><code>32.2k → 13.6k cycles（约 2.3x）</code> 可以作为某个固定环境中的案例结果，但不能脱离 Shape 和硬件写成普遍收益。建议使用如下表格：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">版本</th>
+<th style="text-align: center;">中间 Buffer</th>
+<th style="text-align: center;">KV 重读</th>
+<th style="text-align: right;">Cycles</th>
+<th style="text-align: right;">Speedup</th>
+<th style="text-align: right;">误差</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">三 Kernel 基线</td>
+<td style="text-align: center;">Score + Prob</td>
+<td style="text-align: center;">是</td>
+<td style="text-align: right;">32.2k（案例）</td>
+<td style="text-align: right;">1.00x</td>
+<td style="text-align: right;">待记录</td>
+</tr>
+<tr>
+<td style="text-align: left;">QK + Max</td>
+<td style="text-align: center;">Prob</td>
+<td style="text-align: center;">是</td>
+<td style="text-align: right;">待测</td>
+<td style="text-align: right;">待测</td>
+<td style="text-align: right;">待记录</td>
+</tr>
+<tr>
+<td style="text-align: left;">Online Softmax + PV</td>
+<td style="text-align: center;">无</td>
+<td style="text-align: center;">按 Tile</td>
+<td style="text-align: right;">13.6k（案例）</td>
+<td style="text-align: right;">2.37x</td>
+<td style="text-align: right;">待记录</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_5">十、完成标准<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<ul>
+<li>CPU Reference 与三 Kernel 基线逐阶段对齐；</li>
+<li>MHA、MQA、GQA 的 Head 映射均有测试；</li>
+<li>Online Softmax 在极大/极小 Logit 下数值稳定；</li>
+<li>非整 Tile 的 Context Length 不越界；</li>
+<li>融合版不产生 Score/Probability 全局 Buffer；</li>
+<li>Nsight 证明优化减少了显存事务或 Kernel 间隙；</li>
+<li>每个性能数字都绑定硬件、Shape、版本和测量范围。</li>
+</ul>
+<p>这篇实战连接第 6.4 节 FlashAttention、第 7 章 Attention 推导、第 4.2 节 Tiling 和第 4.3 节异步流水线。核心并不是记住一个融合模板，而是从中间结果的生命周期推导：能在片上立即消费的数据，就不应先写回 HBM 再读取。</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../nano_vllm_from_scratch/" class="btn btn-neutral float-left" title="11.1 Nano-vLLM: 框架架构、技术栈与源码实现"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../paged_attention_dx12_tensorrt/" class="btn btn-neutral float-right" title="11.3 PagedAttention: DX12 与 TensorRT 双后端实践">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../nano_vllm_from_scratch/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../paged_attention_dx12_tensorrt/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

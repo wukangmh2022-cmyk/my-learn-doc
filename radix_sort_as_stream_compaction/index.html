@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="writer-html5" lang="en" >
+<html class="writer-html5" lang="zh_CN" >
 <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
@@ -48,7 +48,7 @@
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 渲染管线与硬件单元 (SM, TMU, ROP)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
                   </li>
@@ -79,11 +79,11 @@
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 为何图形做多 Pass，AI 做单 Pass Tiling</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention (类比 DX12 资源池 / 伙伴分配器)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
                   </li>
               </ul>
               <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
@@ -97,6 +97,8 @@
                   <li class="toctree-l1"><a class="reference internal" href="../synchronization_primitives/">5.4 同步原语: __syncthreads, __syncwarp, 内存屏障</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../atomic_operations/">5.6 原子操作与竞争控制</a>
                   </li>
               </ul>
               <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
@@ -144,33 +146,54 @@
                   <li class="toctree-l1"><a class="reference internal" href="../flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">7. 专用硬件加速单元</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">7.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                <li class="toctree-l1"><a class="reference internal" href="../llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">7.2 RT Core: BVH 遍历专用电路 (压缩解决随机访问，专用电路解决分支分歧)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">7.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">8. GPU 软件栈与驱动开发</span></p>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">8.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">8.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">8.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">8.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">9. 职业发展与工程实践</span></p>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">9.1 四个核心岗位对比: 算子开发 / 推理框架 / 编译器 / 驱动</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../nano_vllm_from_scratch/">11.1 Nano-vLLM: 框架架构、技术栈与源码实现</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">9.2 简历技能清单 (基于我们对话的认知总结)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">9.3 关键知识点自检清单 (MkDocs 版)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../paged_attention_dx12_tensorrt/">11.3 PagedAttention: DX12 与 TensorRT 双后端实践</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">A.3 关键知识点自检清单</a>
                   </li>
               </ul>
       </div>
@@ -197,18 +220,18 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
             <div class="section" itemprop="articleBody">
               
-                <h1 id="63-radix-sort">6.3 基数排序 (Radix Sort) = 逐位流压缩</h1>
-<h2 id="_1">概述</h2>
+                <h1 id="63-radix-sort">6.3 基数排序 (Radix Sort) = 逐位流压缩<a class="headerlink" href="#63-radix-sort" title="Permanent link">&para;</a></h1>
+<h2 id="_1">概述<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
 <p>基数排序（Radix Sort）是 GPU 上最快的排序算法之一。但它的本质不是一个\"排序算法\"——它是 <strong>Stream Compaction 在每一个二进制位上的逐位应用</strong>。</p>
 <p>这个视角一旦建立，你就能立刻理解为什么 GPU 上排序这么快，以及它为什么在 MoE 路由、Top-K 选择、GPU BVH 构建等场景中扮演核心角色。</p>
-<h2 id="_2">一句话总结</h2>
+<h2 id="_2">一句话总结<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
 <blockquote>
 <p><strong>基数排序 = 对每个二进制位，做一次并行流压缩（Stream Compaction）。</strong></p>
 </blockquote>
 <p>因为每次流压缩都是 O(n) 的工作量（并行延迟 O(log n)），对 32 位整数做基数排序就是做 32 次流压缩，总复杂度 O(32 × n) = <strong>O(n)</strong>——比任何基于比较的排序（O(n log n)）都快。</p>
-<h2 id="_3">算法可视化：按位分类</h2>
+<h2 id="_3">算法可视化：按位分类<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
 <p>假设我们要对数组 <code>[3, 1, 4, 1, 5, 9, 2, 6]</code> 从小到大排序（从最低位 LSB 开始）：</p>
-<h3 id="1-bit-0">第 1 轮：按最低位 (bit 0) 分类</h3>
+<h3 id="1-bit-0">第 1 轮：按最低位 (bit 0) 分类<a class="headerlink" href="#1-bit-0" title="Permanent link">&para;</a></h3>
 <pre><code>元素:   3(011)  1(001)  4(100)  1(001)  5(101)  9(1001)  2(010)  6(110)
 bit 0:   1       1       0       1       1       1        0       0
 </code></pre>
@@ -220,15 +243,15 @@ bit 0:   1       1       0       1       1       1        0       0
 </ol>
 <pre><code>结果: [4, 2, 6, 3, 1, 1, 5, 9]  (所有偶数在前，奇数在后)
 </code></pre>
-<h3 id="2-bit-1">第 2 轮：按次低位 (bit 1) 分类</h3>
+<h3 id="2-bit-1">第 2 轮：按次低位 (bit 1) 分类<a class="headerlink" href="#2-bit-1" title="Permanent link">&para;</a></h3>
 <p>在上一轮结果上重复同样的操作：</p>
 <pre><code>bit 1:  0   1   1   1   0   0   0   0
 </code></pre>
 <pre><code>结果继续向有序收敛...
 </code></pre>
-<h3 id="32-64">重复直到 32 位（或 64 位）</h3>
+<h3 id="32-64">重复直到 32 位（或 64 位）<a class="headerlink" href="#32-64" title="Permanent link">&para;</a></h3>
 <p>处理完所有二进制位后，数组完全有序。因为每一轮都维持了上一轮的相对顺序（稳定性），整个排序是稳定的。</p>
-<h2 id="gpu">为什么它在 GPU 上大放异彩</h2>
+<h2 id="gpu">为什么它在 GPU 上大放异彩<a class="headerlink" href="#gpu" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -261,7 +284,7 @@ bit 0:   1       1       0       1       1       1        0       0
 </tbody>
 </table>
 <p><strong>GPU 上基数排序快过 CPU 归并排序的核心原因</strong>：CPU 前缀和是 O(n) 的串行循环（n 越大等越久），而 GPU 的前缀和虽然总工作量也是 O(n)，但并行延迟只有 O(log n)，所以实际执行时间是 <strong>O(b × log n)</strong> 的并行深度。</p>
-<h2 id="cuda">CUDA 实现：逐位流压缩</h2>
+<h2 id="cuda">CUDA 实现：逐位流压缩<a class="headerlink" href="#cuda" title="Permanent link">&para;</a></h2>
 <pre><code class="language-cpp">// 排除式前缀和 (Blelloch 算法，在 Shared Memory 内)
 __device__ void exclusive_scan(float* shared, int tid, int n) {
     // Up-sweep
@@ -343,8 +366,8 @@ void radix_sort(unsigned int* d_keys, int n) {
 <blockquote>
 <p>生产环境请使用 CUB 库的 <code>cub::DeviceRadixSort::SortKeys</code>，它包含了所有优化（Warp Shuffle、循环展开、负载均衡）。上面的代码只用于展示\"基数排序 = 逐位流压缩\"这个本质。</p>
 </blockquote>
-<h2 id="ai-moe-top-k">AI 中的应用：MoE 路由和 Top-K 选择</h2>
-<h3 id="moe">MoE (混合专家模型) 路由</h3>
+<h2 id="ai-moe-top-k">AI 中的应用：MoE 路由和 Top-K 选择<a class="headerlink" href="#ai-moe-top-k" title="Permanent link">&para;</a></h2>
+<h3 id="moe">MoE (混合专家模型) 路由<a class="headerlink" href="#moe" title="Permanent link">&para;</a></h3>
 <p>MoE 层中，每个 Token 被路由到 Top-K 个专家。不同专家接收的 Token 数量不同，需要用<strong>基数排序</strong>来做动态负载均衡：</p>
 <pre><code>1. 每个 Token 计算它与每个专家的路由分数
 2. 选取 Top-K 个专家 (需要 Top-K 选择，基于排序)
@@ -353,21 +376,21 @@ void radix_sort(unsigned int* d_keys, int n) {
 5. Scatter: 将 Token 数据批量发送到各专家的计算单元
 </code></pre>
 <p>基数排序在这里的角色：<strong>把稀疏、不规则的路由结果，转换成连续的、适合 GPU 批量处理的数据布局</strong>。</p>
-<h3 id="top-k">Top-K 选择</h3>
+<h3 id="top-k">Top-K 选择<a class="headerlink" href="#top-k" title="Permanent link">&para;</a></h3>
 <p>在推理场景中，Top-K 选择（如 Beam Search、Token 采样）经常用基数排序的变体来实现：</p>
 <ul>
 <li>对候选 Token 的 logits 做基数排序（按概率从大到小）。  </li>
 <li>只取前 K 个结果。  </li>
 <li>因为基数排序是 O(n) 的，对数十万的词表大小来说比 O(n log n) 的快排快得多。</li>
 </ul>
-<h2 id="_4">图形中的对应：透明对象排序</h2>
+<h2 id="_4">图形中的对应：透明对象排序<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
 <p>在图形渲染中，基数排序的经典应用场景是<strong>透明对象排序</strong>：</p>
 <pre><code>1. 每个物体的深度（Z 值）作为排序 Key
 2. 对 Key 做基数排序（32 位 float 的位模式也可以排序）
 3. 排序后的物体列表用于 Alpha Blending（从后往前渲染）
 </code></pre>
-<p>这个模式跟 AI 中的 Token-Expert 路由完全同构：<strong>都是先计算一个 Key，再对 Key 做基数排序，最后根据排序结果重新组织数据</strong>。</p>
-<h2 id="_5">完整推理链</h2>
+<p>这个模式与部分 MoE Token-Expert 路由实现共享“计算 Key，再按 Key 重排数据”的结构；具体实现也可能使用直方图、Prefix Sum 或专用 Dispatch Kernel，不一定执行完整基数排序。</p>
+<h2 id="_5">完整推理链<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
 <pre><code>Scan (前缀和) → 核心基础设施
     ↓
 Stream Compaction (流压缩) → 基于 Scan 的上层算法
@@ -379,7 +402,7 @@ MoE Routing / Top-K / BVH Sort → 基数排序在 AI 和图形中的应用
 <blockquote>
 <p><strong>\"GPU 上做基数排序，就是在固定的 32 或 64 轮里，每轮跑一次流压缩。因为每轮流压缩都是 O(n) 的，所以基数排序总复杂度也是 O(n)。\"</strong></p>
 </blockquote>
-<h2 id="_6">附录：复杂度澄清</h2>
+<h2 id="_6">附录：复杂度澄清<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -446,6 +469,9 @@ MoE Routing / Top-K / BVH Sort → 基数排序在 AI 和图形中的应用
     <script>var base_url = "..";</script>
     <script src="../js/theme_extra.js"></script>
     <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
       <script src="../search/main.js"></script>
     <script>
         jQuery(function () {

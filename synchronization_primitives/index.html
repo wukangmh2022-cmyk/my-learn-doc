@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="writer-html5" lang="en" >
+<html class="writer-html5" lang="zh_CN" >
 <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
@@ -48,7 +48,7 @@
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 渲染管线与硬件单元 (SM, TMU, ROP)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
                   </li>
@@ -79,11 +79,11 @@
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 为何图形做多 Pass，AI 做单 Pass Tiling</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention (类比 DX12 资源池 / 伙伴分配器)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
                   </li>
               </ul>
               <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
@@ -138,7 +138,7 @@
     </li>
     <li class="toctree-l3"><a class="reference internal" href="#cudaevent">cudaEvent 的三种用法</a>
     </li>
-    <li class="toctree-l3"><a class="reference internal" href="#cudaevent-batching">cudaEvent 的典型应用：动态 Batching</a>
+    <li class="toctree-l3"><a class="reference internal" href="#cudaevent_1">cudaEvent 的应用：跟踪批次完成</a>
     </li>
         </ul>
     </li>
@@ -149,6 +149,8 @@
     </ul>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../atomic_operations/">5.6 原子操作与竞争控制</a>
                   </li>
               </ul>
               <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
@@ -162,33 +164,54 @@
                   <li class="toctree-l1"><a class="reference internal" href="../flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">7. 专用硬件加速单元</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">7.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                <li class="toctree-l1"><a class="reference internal" href="../llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">7.2 RT Core: BVH 遍历专用电路 (压缩解决随机访问，专用电路解决分支分歧)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">7.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">8. GPU 软件栈与驱动开发</span></p>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">8.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">8.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">8.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">8.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">9. 职业发展与工程实践</span></p>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">9.1 四个核心岗位对比: 算子开发 / 推理框架 / 编译器 / 驱动</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../nano_vllm_from_scratch/">11.1 Nano-vLLM: 框架架构、技术栈与源码实现</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">9.2 简历技能清单 (基于我们对话的认知总结)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">9.3 关键知识点自检清单 (MkDocs 版)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../paged_attention_dx12_tensorrt/">11.3 PagedAttention: DX12 与 TensorRT 双后端实践</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">A.3 关键知识点自检清单</a>
                   </li>
               </ul>
       </div>
@@ -215,18 +238,13 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
             <div class="section" itemprop="articleBody">
               
-                <hr />
-<p>title: 5.4 同步原语: <code>__syncthreads</code>, <code>__syncwarp</code>, 内存屏障
-tags: [cuda, synchronization, barrier, syncthreads, syncwarp, threadfence, stream, event]
-description: CUDA 同步原语的全景——从 Block 内到全局内存，从单 Stream 到跨 Stream 同步，以及它们与图形 Resource Barrier 的精确对应</p>
-<hr />
-<h1 id="54-__syncthreads-__syncwarp">5.4 同步原语: <code>__syncthreads</code>, <code>__syncwarp</code>, 内存屏障</h1>
-<h2 id="_1">概述</h2>
+                <h1 id="54-__syncthreads-__syncwarp">5.4 同步原语: <code>__syncthreads</code>, <code>__syncwarp</code>, 内存屏障<a class="headerlink" href="#54-__syncthreads-__syncwarp" title="Permanent link">&para;</a></h1>
+<h2 id="_1">概述<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
 <p>GPU 是一个深度流水线的并行机器。没有同步，数据依赖就会出错。CUDA 提供了多层次的同步原语，从 Block 内的线程 Barrier，到 Device 级别的全局屏障，再到跨 Stream 的 Event 同步。理解每一层的正确使用场景，是写出<strong>正确且高效</strong>的 CUDA Kernel 的关键。</p>
 <blockquote>
-<p><strong>核心认知</strong>：CUDA 的 Stream，就是一个能自动维护依赖的、无止境的 Command List。你只需要按顺序 <code>cudaLaunchKernel</code>，驱动就会自己像渲染管线一样往前走。只有当你需要跨 Stream 操作时，才需要像在 DX12 里插 Barrier 一样去插 <code>cudaEvent</code>。</p>
+<p><strong>核心认知</strong>：同一 CUDA Stream 中提交的工作具有定义良好的顺序，跨 Stream 依赖通常用 Event 建立。这类似队列时间线，但 CUDA 运行时管理的内存依赖与 DX12/Vulkan 的资源状态转换不是同一个抽象。</p>
 </blockquote>
-<h2 id="_2">同步层级总览</h2>
+<h2 id="_2">同步层级总览<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -271,7 +289,7 @@ description: CUDA 同步原语的全景——从 Block 内到全局内存，从�
 <td style="text-align: left;">跨 Stream 同步</td>
 <td style="text-align: left;"><code>cudaEvent</code> + <code>cudaStreamWaitEvent</code></td>
 <td style="text-align: left;">GPU Stream 间依赖</td>
-<td style="text-align: left;">Fence + <code>WaitForSingleObject</code></td>
+<td style="text-align: left;">Queue Signal/Wait 或 Semaphore；不涉及 CPU Wait</td>
 </tr>
 <tr>
 <td style="text-align: left;">CPU-GPU 同步</td>
@@ -281,14 +299,14 @@ description: CUDA 同步原语的全景——从 Block 内到全局内存，从�
 </tr>
 </tbody>
 </table>
-<h2 id="block-__syncthreads">Block 内同步: <code>__syncthreads()</code></h2>
-<h3 id="_3">用途</h3>
+<h2 id="block-__syncthreads">Block 内同步: <code>__syncthreads()</code><a class="headerlink" href="#block-__syncthreads" title="Permanent link">&para;</a></h2>
+<h3 id="_3">用途<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
 <p><code>__syncthreads()</code> 是 CUDA 编程中使用最频繁的同步原语。它的作用是：</p>
 <ol>
 <li><strong>等待所有线程到达同步点</strong>。</li>
 <li><strong>确保之前的所有 Shared Memory 和 Global Memory 写操作对本 Block 内所有其他线程可见</strong>。</li>
 </ol>
-<h3 id="_4">为什么必须用？</h3>
+<h3 id="_4">为什么必须用？<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
 <pre><code class="language-cpp">__shared__ float tile[TILE_SIZE][TILE_SIZE];
 
 // 每个线程加载一个元素
@@ -304,9 +322,9 @@ float val = tile[ty][k];
 </code></pre>
 <blockquote>
 <p><strong>用你的渲染思维理解</strong>：<code>__syncthreads()</code> 就是领班站在仓库里喊——"所有人停下手里的活！确认一下你们手推车里的物料都齐了吗？如果齐了，就给我个信号，我们再开始下一道工序。"</p>
-<p>这和你写 Compute Shader 时用的 <code>GroupMemoryBarrierWithGroupSync()</code> 是完全一样的。</p>
+<p><code>GroupMemoryBarrierWithGroupSync()</code> 是最接近的 HLSL 对应物；具体内存作用域与 API/Shader Model 语义仍应查各自规范。</p>
 </blockquote>
-<h3 id="_5">使用陷阱</h3>
+<h3 id="_5">使用陷阱<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
 <pre><code class="language-cpp">// ❌ 错误：在条件分支中，可能有些线程不执行 __syncthreads()
 if (threadIdx.x &lt; 16) {
     __syncthreads();  // 只有线程 0-15 执行！可能死锁
@@ -318,19 +336,19 @@ __syncthreads();  // 放在 if 外面
 compute_for_second_half();
 </code></pre>
 <p><strong>规则</strong>：<code>__syncthreads()</code> 必须被 Block 中<strong>所有线程</strong>执行到，否则未定义行为。</p>
-<h2 id="warp-__syncwarp">Warp 内同步: <code>__syncwarp()</code></h2>
-<h3 id="_6">用途</h3>
+<h2 id="warp-__syncwarp">Warp 内同步: <code>__syncwarp()</code><a class="headerlink" href="#warp-__syncwarp" title="Permanent link">&para;</a></h2>
+<h3 id="_6">用途<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h3>
 <p><code>__syncwarp()</code> 是比 <code>__syncthreads()</code> 更轻量的同步——它只同步同一个 Warp 内的 32 个线程。</p>
-<h3 id="_7">为什么需要它？</h3>
+<h3 id="_7">为什么需要它？<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h3>
 <p>即使线程在同一个 Warp 内，编译器可能会对指令进行重排，导致某些线程的访存操作被延迟。此外，在 Volta 架构之后，Warp 不再严格 Lockstep 执行，Warp 内的线程可能处于不同的指令进度。</p>
 <pre><code class="language-cpp">// 在 Warp 级归约中，需要确保所有线程的写入对其他线程可见
 __syncwarp();  // 比 __syncthreads() 更轻量，只同步当前 Warp
 
-// 然后做 __shfl 操作
+// 若后续通过 Shared Memory 交换数据，再读取时需要匹配的同步。
 float sum = __shfl_down_sync(0xFFFFFFFF, val, 16);
 </code></pre>
-<h2 id="__threadfence">内存屏障: <code>__threadfence()</code></h2>
-<h3 id="__threadfence_block"><code>__threadfence_block()</code></h3>
+<h2 id="__threadfence">内存屏障: <code>__threadfence()</code><a class="headerlink" href="#__threadfence" title="Permanent link">&para;</a></h2>
+<h3 id="__threadfence_block"><code>__threadfence_block()</code><a class="headerlink" href="#__threadfence_block" title="Permanent link">&para;</a></h3>
 <p>确保在 Fence 之前的 Shared Memory / Global Memory 写入，对 Block 内的其他线程可见。与 <code>__syncthreads()</code> 的区别在于它<strong>不等待线程</strong>，只保证内存顺序。</p>
 <pre><code class="language-cpp">__shared__ int flag;
 
@@ -340,21 +358,21 @@ if (threadIdx.x == 0) {
     __threadfence_block();  // 确保 data[0] 写入对其他线程可见
     flag = 1;               // flag 写入也会在 data[0] 之后可见
 }
-// 其他线程可以通过 flag 看到 data[0] 的值
+// 其他线程还需要用正确的原子/同步协议读取 flag；Fence 本身不让它们等待。
 </code></pre>
-<h3 id="__threadfence_1"><code>__threadfence()</code></h3>
+<h3 id="__threadfence_1"><code>__threadfence()</code><a class="headerlink" href="#__threadfence_1" title="Permanent link">&para;</a></h3>
 <p>将 Fence 的可见性扩展到整个 Device（所有 SM），用于跨 Block 通信的场景。比 <code>__threadfence_block()</code> 开销更大。</p>
 <pre><code class="language-cpp">__global__ void device_fence_kernel(int* global_flag, float* data) {
     if (threadIdx.x == 0 &amp;&amp; blockIdx.x == 0) {
         data[0] = 42.0f;
         __threadfence();     // 确保写对整个 Device 可见
-        *global_flag = 1;    // 其他 Block 可以读到安全的数据
+        atomicExch(global_flag, 1); // 消费者仍需原子读取与协议设计
     }
 }
 </code></pre>
-<h3 id="__threadfence_system"><code>__threadfence_system()</code></h3>
-<p>将 Fence 的可见性扩展到 CPU + GPU 全系统（需要支持 Unified Memory）。</p>
-<h3 id="_8">对比表</h3>
+<h3 id="__threadfence_system"><code>__threadfence_system()</code><a class="headerlink" href="#__threadfence_system" title="Permanent link">&para;</a></h3>
+<p>将调用线程在 Fence 前的写入按系统作用域排序，适用于主机内存、Peer Device 等系统可见位置。它不是 CPU/GPU Barrier，具体可见性还取决于内存类型和平台能力。</p>
+<h3 id="_8">对比表<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -403,8 +421,8 @@ if (threadIdx.x == 0) {
 </tr>
 </tbody>
 </table>
-<h2 id="stream">Stream 作为隐式同步边界</h2>
-<h3 id="stream-command-list">单 Stream = 自动维护依赖的 Command List</h3>
+<h2 id="stream">Stream 作为隐式同步边界<a class="headerlink" href="#stream" title="Permanent link">&para;</a></h2>
+<h3 id="stream-command-list">单 Stream = 自动维护依赖的 Command List<a class="headerlink" href="#stream-command-list" title="Permanent link">&para;</a></h3>
 <p>CUDA Stream 是 GPU 上的一个命令队列，<code>cudaLaunchKernel</code> 和 <code>cudaMemcpyAsync</code> 等操作被放入队列，按 FIFO 顺序执行。</p>
 <pre><code class="language-cpp">cudaStream_t stream;
 cudaStreamCreate(&amp;stream);
@@ -415,9 +433,9 @@ kernel_B&lt;&lt;&lt;grid, block, 0, stream&gt;&gt;&gt;(temp, output);
 // ✅ CUDA 隐式保证 kernel_B 等 kernel_A 写完
 </code></pre>
 <blockquote>
-<p><strong>用你的渲染思维理解</strong>：CUDA 的 Stream 就是 DX12 的 Command Queue。你把工作按顺序塞进去，硬件自然按序执行。<strong>不需要你手动插 Barrier</strong>。</p>
+<p><strong>类比边界</strong>：Stream 与 Command Queue 都表达提交顺序，但图形 API 还要求应用声明资源状态、访问范围和布局转换；CUDA 同一 Stream 的 Kernel 依赖通常由运行时内存模型覆盖。</p>
 </blockquote>
-<h3 id="stream-cudaevent-barrier">多 Stream + cudaEvent = 手动插 Barrier</h3>
+<h3 id="stream-cudaevent-barrier">多 Stream + cudaEvent = 手动插 Barrier<a class="headerlink" href="#stream-cudaevent-barrier" title="Permanent link">&para;</a></h3>
 <p>当你需要跨 Stream 建立依赖关系时，<code>cudaEvent</code> 就是你的<strong>手动 Barrier</strong>：</p>
 <pre><code class="language-cpp">cudaStream_t streamCompute, streamComm;
 cudaStreamCreate(&amp;streamCompute);
@@ -442,7 +460,7 @@ Stream Compute:                  ├─ cudaStreamWaitEvent → compute_kernel
                                  │
                   (Barrier: 通信流完成后，计算流才能开始)
 </code></pre>
-<h3 id="cudaevent">cudaEvent 的三种用法</h3>
+<h3 id="cudaevent">cudaEvent 的三种用法<a class="headerlink" href="#cudaevent" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -456,14 +474,20 @@ Stream Compute:                  ├─ cudaStreamWaitEvent → compute_kernel
 <tr>
 <td style="text-align: left;">GPU-GPU 同步</td>
 <td style="text-align: left;"><code>cudaEventRecord</code> + <code>cudaStreamWaitEvent</code></td>
-<td style="text-align: left;">插 Barrier</td>
-<td style="text-align: left;">GPU 不阻塞 CPU</td>
+<td style="text-align: left;">Queue 间 Signal/Wait</td>
+<td style="text-align: left;">GPU 等待，不阻塞 CPU</td>
 </tr>
 <tr>
 <td style="text-align: left;">CPU 轮询</td>
 <td style="text-align: left;"><code>cudaEventQuery(event)</code></td>
 <td style="text-align: left;">Fence 轮询 (<code>GetCompletedValue</code>)</td>
-<td style="text-align: left;">非阻塞，查一下进度</td>
+<td style="text-align: left;">非阻塞，查询进度</td>
+</tr>
+<tr>
+<td style="text-align: left;">CPU 阻塞等待</td>
+<td style="text-align: left;"><code>cudaEventSynchronize(event)</code></td>
+<td style="text-align: left;">Fence Event + <code>WaitForSingleObject</code></td>
+<td style="text-align: left;">阻塞调用线程直到 GPU 完成</td>
 </tr>
 </tbody>
 </table>
@@ -474,7 +498,7 @@ while (cudaEventQuery(event) == cudaErrorNotReady) {
 }
 // GPU 完成，继续
 </code></pre>
-<h3 id="cudaevent-batching">cudaEvent 的典型应用：动态 Batching</h3>
+<h3 id="cudaevent_1">cudaEvent 的应用：跟踪批次完成<a class="headerlink" href="#cudaevent_1" title="Permanent link">&para;</a></h3>
 <pre><code class="language-cpp">// 推理引擎的 Continuous Batching 场景
 cudaEvent_t events[MAX_REQUESTS];
 
@@ -487,13 +511,13 @@ for (int i = 0; i &lt; num_batches; i++) {
 while (true) {
     for (int i = 0; i &lt; num_batches; i++) {
         if (cudaEventQuery(events[i]) == cudaSuccess) {
-            // 这个 Batch 完成了，可以插入新请求
+            // 这个 Batch 完成了；上层调度器可回收资源并重新组批
             schedule_new_batch(i);
         }
     }
 }
 </code></pre>
-<h2 id="resource-barrier">与图形 Resource Barrier 的完整映射</h2>
+<h2 id="resource-barrier">与图形 Resource Barrier 的完整映射<a class="headerlink" href="#resource-barrier" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -504,9 +528,9 @@ while (true) {
 </thead>
 <tbody>
 <tr>
-<td style="text-align: left;">跨 Pass 同步</td>
-<td style="text-align: left;"><code>ResourceBarrier(RT→SRV)</code></td>
-<td style="text-align: left;">同一 Stream 内自动维护</td>
+<td style="text-align: left;">同一队列的数据依赖</td>
+<td style="text-align: left;">Resource Barrier + 队列顺序</td>
+<td style="text-align: left;">同一 Stream 的提交顺序</td>
 </tr>
 <tr>
 <td style="text-align: left;">显式依赖</td>
@@ -529,9 +553,9 @@ while (true) {
 <td style="text-align: left;"><code>__syncthreads()</code></td>
 </tr>
 <tr>
-<td style="text-align: left;">设备级 Barrier</td>
-<td style="text-align: left;"><code>DeviceMemoryBarrier()</code></td>
-<td style="text-align: left;"><code>__threadfence()</code></td>
+<td style="text-align: left;">设备作用域内存排序</td>
+<td style="text-align: left;">Shader memory barrier（语义随 API/Shader Model）</td>
+<td style="text-align: left;"><code>__threadfence()</code>；两者都不是全设备执行 Barrier</td>
 </tr>
 <tr>
 <td style="text-align: left;">全局等待</td>
@@ -541,9 +565,9 @@ while (true) {
 </tbody>
 </table>
 <blockquote>
-<p><strong>最终定论</strong>：你写的图形 API Barrier 经验——知道什么时候该插，什么时候不需要插，以及如何用轮询代替阻塞——<strong>完全可以直接迁移到 CUDA 同步模型</strong>。CUDA 的 Event 和 Stream，本质上就是图形 API 的 Fence、Semaphore 和 Command Queue，只是命名不同。</p>
+<p>图形 API 经验能帮助区分执行顺序、内存可见性和 CPU 等待，但映射不是逐项等价。写协议时应分别回答：谁等待谁、哪些写入必须可见、作用域是什么、资源何时可复用。</p>
 </blockquote>
-<h2 id="_9">最佳实践总结</h2>
+<h2 id="_9">最佳实践总结<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h2>
 <ol>
 <li><strong>优先用 Stream 隐式同步</strong>：在单 Stream 内按序排列 Kernel，不需要显式 Barrier。</li>
 <li><strong>只在跨 Stream 时用 Event</strong>：<code>cudaEventRecord</code> + <code>cudaStreamWaitEvent</code> 是 CUDA 版本的 Barrier。</li>
@@ -591,6 +615,9 @@ while (true) {
     <script>var base_url = "..";</script>
     <script src="../js/theme_extra.js"></script>
     <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
       <script src="../search/main.js"></script>
     <script>
         jQuery(function () {

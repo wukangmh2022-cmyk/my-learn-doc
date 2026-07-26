@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="writer-html5" lang="en" >
+<html class="writer-html5" lang="zh_CN" >
 <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
@@ -48,7 +48,7 @@
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 渲染管线与硬件单元 (SM, TMU, ROP)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
                   </li>
@@ -111,11 +111,11 @@
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 为何图形做多 Pass，AI 做单 Pass Tiling</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention (类比 DX12 资源池 / 伙伴分配器)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
                   </li>
               </ul>
               <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
@@ -130,6 +130,8 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
               </ul>
               <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
               <ul>
@@ -142,33 +144,54 @@
                   <li class="toctree-l1"><a class="reference internal" href="../flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">7. 专用硬件加速单元</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">7.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                <li class="toctree-l1"><a class="reference internal" href="../llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">7.2 RT Core: BVH 遍历专用电路 (压缩解决随机访问，专用电路解决分支分歧)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">7.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">8. GPU 软件栈与驱动开发</span></p>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">8.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">8.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">8.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">8.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">9. 职业发展与工程实践</span></p>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">9.1 四个核心岗位对比: 算子开发 / 推理框架 / 编译器 / 驱动</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../nano_vllm_from_scratch/">11.1 Nano-vLLM: 框架架构、技术栈与源码实现</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">9.2 简历技能清单 (基于我们对话的认知总结)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">9.3 关键知识点自检清单 (MkDocs 版)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../paged_attention_dx12_tensorrt/">11.3 PagedAttention: DX12 与 TensorRT 双后端实践</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">A.3 关键知识点自检清单</a>
                   </li>
               </ul>
       </div>
@@ -195,12 +218,12 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
             <div class="section" itemprop="articleBody">
               
-                <h1 id="32-elementwise-reduce-scan-gatherscatter-stencil-matmul-conv-custom-fusion">3.2 算子分类法 — Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul, Conv, Custom Fusion</h1>
-<h2 id="_1">概述</h2>
+                <h1 id="32-elementwise-reduce-scan-gatherscatter-stencil-matmul-conv-custom-fusion">3.2 算子分类法 — Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul, Conv, Custom Fusion<a class="headerlink" href="#32-elementwise-reduce-scan-gatherscatter-stencil-matmul-conv-custom-fusion" title="Permanent link">&para;</a></h1>
+<h2 id="_1">概述<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
 <p>CUDA 算子虽然千变万化，但核心模式只有不到十种。这和图形渲染管线中的着色器阶段、Pass 类型是完全一一对应的。</p>
 <p><strong>核心洞察：</strong> "别管你是啥算法，在 GPU 眼里，只有三种访存模式——Map（逐元素）、Reduce（归约）、Stencil（模板）。" 所有算子本质上都是围绕这三种模式，对"如何把数据搬到 Shared Memory 里"做的不同包装。</p>
 <hr />
-<h2 id="_2">算子分类总表</h2>
+<h2 id="_2">算子分类总表<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -262,8 +285,8 @@
 </tbody>
 </table>
 <hr />
-<h2 id="_3">逐类详解</h2>
-<h3 id="1-elementwise">1. Elementwise（逐元素）</h3>
+<h2 id="_3">逐类详解<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<h3 id="1-elementwise">1. Elementwise（逐元素）<a class="headerlink" href="#1-elementwise" title="Permanent link">&para;</a></h3>
 <p><strong>定义：</strong> 对张量中的每个元素应用相同的操作，元素之间完全独立。</p>
 <pre><code class="language-python"># 伪代码：Elementwise 的本质
 output[i] = f(input[i])   # 或二元：output[i] = f(a[i], b[i])
@@ -302,7 +325,7 @@ output[i] = f(input[i])   # 或二元：output[i] = f(a[i], b[i])
 </tr>
 </tbody>
 </table>
-<h3 id="2-reduce">2. Reduce（归约）</h3>
+<h3 id="2-reduce">2. Reduce（归约）<a class="headerlink" href="#2-reduce" title="Permanent link">&para;</a></h3>
 <p><strong>定义：</strong> 将多个输入元素合并成一个（或少量）输出。</p>
 <pre><code class="language-python"># 伪代码：Reduce 的本质
 output = sum(input[0], input[1], ..., input[N-1])
@@ -351,14 +374,14 @@ output = sum(input[0], input[1], ..., input[N-1])
 </tr>
 <tr>
 <td style="text-align: left;">图形类比</td>
-<td style="text-align: left;"><strong>Hi-Z 生成 / Mipmap</strong>——每次下采样将 4 个像素平均成一个，完全同构！</td>
+<td style="text-align: left;"><strong>Hi-Z 生成 / Mipmap</strong>也包含局部归约，但过滤规则、树的分组和输出语义不同</td>
 </tr>
 </tbody>
 </table>
 <blockquote>
 <p><strong>树形归约 = 倒立的树</strong>：叶子是 N 个输入，每层合并一半，最终到根节点只剩 1 个输出。和你写 Hi-Z（层次 Z）时的多 Pass 下采样一模一样。</p>
 </blockquote>
-<h3 id="3-scan-prefix-sum">3. Scan / Prefix Sum（扫描 / 前缀和）</h3>
+<h3 id="3-scan-prefix-sum">3. Scan / Prefix Sum（扫描 / 前缀和）<a class="headerlink" href="#3-scan-prefix-sum" title="Permanent link">&para;</a></h3>
 <p><strong>定义：</strong> 每个输出元素依赖所有之前（或之前一部分）的输入元素。</p>
 <pre><code class="language-python"># 伪代码：Exclusive Scan
 output[i] = sum(input[0], input[1], ..., input[i-1])
@@ -390,7 +413,7 @@ output[i] = sum(input[0], input[1], ..., input[i-1])
 </tbody>
 </table>
 <p><strong>复杂度原因：</strong> 既有跨线程通信（类似 Reduce），又有数据依赖链（下一个元素必须等前一个算完）。</p>
-<h3 id="4-gather-scatter">4. Gather / Scatter（聚集 / 散射）</h3>
+<h3 id="4-gather-scatter">4. Gather / Scatter（聚集 / 散射）<a class="headerlink" href="#4-gather-scatter" title="Permanent link">&para;</a></h3>
 <p><strong>定义：</strong> 根据索引列表读（Gather）或写（Scatter）数据。</p>
 <pre><code>Gather:   output[i] = input[index[i]]     // 读索引位置
 Scatter:  output[index[i]] = input[i]     // 写索引位置
@@ -433,7 +456,7 @@ Scatter:  output[index[i]] = input[i]     // 写索引位置
 </tbody>
 </table>
 <p><strong>GPU 视角：</strong> Gather 是 GPU 上最难优化的操作之一。纹理采样能利用硬件 TMU 和纹理 Cache，但 Tensor 的 Gather 只能靠程序员手动管理缓存。</p>
-<h3 id="5-stencil-conv">5. Stencil / Conv（模板 / 卷积）</h3>
+<h3 id="5-stencil-conv">5. Stencil / Conv（模板 / 卷积）<a class="headerlink" href="#5-stencil-conv" title="Permanent link">&para;</a></h3>
 <p><strong>定义：</strong> 每个输出依赖于输入的一个固定局部邻域。</p>
 <pre><code class="language-python"># 伪代码：3x3 卷积
 output[y][x] = sum_{i=-1}^{1} sum_{j=-1}^{1} input[y+i][x+j] * kernel[i][j]
@@ -465,7 +488,7 @@ output[y][x] = sum_{i=-1}^{1} sum_{j=-1}^{1} input[y+i][x+j] * kernel[i][j]
 </tbody>
 </table>
 <p><strong>分块加载的要点：</strong> 加载 Tile 时必须多加载一圈 <strong>Halo 边界</strong>数据（比如 3x3 卷积的 Tile 需要额外加 1 圈 padding），这对 Shared Memory 的容量和加载策略提出了要求。</p>
-<h3 id="6-matmul-gemm">6. MatMul / GEMM（矩阵乘）</h3>
+<h3 id="6-matmul-gemm">6. MatMul / GEMM（矩阵乘）<a class="headerlink" href="#6-matmul-gemm" title="Permanent link">&para;</a></h3>
 <p><strong>定义：</strong> <code>C = A × B</code>，两个二维矩阵相乘。这是 AI 推理中计算量最大、权重密度最高的操作。</p>
 <pre><code class="language-cuda">// 伪代码：Tiled MatMul 的分块加载模式
 __shared__ float tile_A[TILE_SIZE][TILE_SIZE];
@@ -506,7 +529,7 @@ for (int k = 0; k &lt; TILE_SIZE; k++) {
 </tbody>
 </table>
 <p><strong>GPU 视角：</strong> GEMM 是所有算子中最复杂的（六星难度），但它也是你最值得攻克的制高点——因为你已有的<strong>分块（Tiling）、双缓冲、Shared Memory</strong> 经验可以直接复用，只是多了 Tensor Core 的指令调用。</p>
-<h3 id="7-control-flow">7. 控制流（Control Flow）</h3>
+<h3 id="7-control-flow">7. 控制流（Control Flow）<a class="headerlink" href="#7-control-flow" title="Permanent link">&para;</a></h3>
 <p><strong>定义：</strong> Kernel 内部的分支逻辑。</p>
 <pre><code class="language-cuda">if (condition) {
     // 某些线程执行这个分支
@@ -515,7 +538,7 @@ for (int k = 0; k &lt; TILE_SIZE; k++) {
 }
 </code></pre>
 <p><strong>GPU 视角：</strong> 在 SIMT（单指令多线程）架构下，分支是性能杀手。Warp 内的线程如果有分歧，硬件会串行化执行所有分支路径，然后屏蔽掉不满足条件的线程。这和你在 Shader 里尽量避免 <code>if</code> 是一个道理。</p>
-<h3 id="8-custom-fusion">8. Custom Fusion（自定义融合）</h3>
+<h3 id="8-custom-fusion">8. Custom Fusion（自定义融合）<a class="headerlink" href="#8-custom-fusion" title="Permanent link">&para;</a></h3>
 <p><strong>定义：</strong> 将多个算子合并到一个 Kernel 中执行，消除中间内存读写。</p>
 <pre><code>// 不融合：3 次 Global Memory 读写
 Elementwise(input) → Global Memory → Reduce(...) → Global Memory → Elementwise(...)
@@ -546,10 +569,10 @@ FusedKernel(input) → 全部在 Shared Memory 内完成 → Global Memory
 </tbody>
 </table>
 <blockquote>
-<p><strong>你的图形经验直接可平移：</strong> 你过去把多 Pass 合并成一个 Pass 来减少纹理采样和 RT 切换；现在你做算子融合 = 把多个 Kernel 合并成一个，减少显存读写。完全同构。</p>
+<p><strong>可迁移的原则</strong>：减少中间结果和提交边界通常有利；但算子融合还要评估寄存器压力、Shared Memory、重计算与可调度性。</p>
 </blockquote>
 <hr />
-<h2 id="cuda">CUDA 核心设计哲学：三种访存模式</h2>
+<h2 id="cuda">CUDA 核心设计哲学：三种访存模式<a class="headerlink" href="#cuda" title="Permanent link">&para;</a></h2>
 <p>CUDA 的设计哲学可以用一句话概括：</p>
 <blockquote>
 <p><strong>"在 GPU 眼里，只有三种访存模式"</strong></p>
@@ -582,7 +605,7 @@ FusedKernel(input) → 全部在 Shared Memory 内完成 → Global Memory
 </table>
 <p>表格里的 MatMul、Conv、Gather 本质上都是在<strong>"如何把数据搬到 Shared Memory 里"</strong>的不同包装。当你掌握了这三种模式，你就掌握了 GPU 编程的底层思维。</p>
 <hr />
-<h2 id="shader-cuda">从 Shader 思维到 CUDA 思维</h2>
+<h2 id="shader-cuda">从 Shader 思维到 CUDA 思维<a class="headerlink" href="#shader-cuda" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -614,7 +637,7 @@ FusedKernel(input) → 全部在 Shared Memory 内完成 → Global Memory
 </tbody>
 </table>
 <hr />
-<h2 id="shader">算子难度阶梯（从 Shader 背景过渡）</h2>
+<h2 id="shader">算子难度阶梯（从 Shader 背景过渡）<a class="headerlink" href="#shader" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -709,6 +732,9 @@ FusedKernel(input) → 全部在 Shared Memory 内完成 → Global Memory
     <script>var base_url = "..";</script>
     <script src="../js/theme_extra.js"></script>
     <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
       <script src="../search/main.js"></script>
     <script>
         jQuery(function () {

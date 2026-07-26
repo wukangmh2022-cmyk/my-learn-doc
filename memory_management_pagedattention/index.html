@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html class="writer-html5" lang="en" >
+<html class="writer-html5" lang="zh_CN" >
 <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <link rel="shortcut icon" href="../img/favicon.ico" />
-    <title>4.4 显存管理: PagedAttention (类比 DX12 资源池 / 伙伴分配器) - GPU 图形与 AI 推理知识手册</title>
+    <title>4.4 显存管理: PagedAttention 与 KV Cache 分块 - GPU 图形与 AI 推理知识手册</title>
     <link rel="stylesheet" href="../css/theme.css" />
     <link rel="stylesheet" href="../css/theme_extra.css" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
@@ -13,7 +13,7 @@
     
       <script>
         // Current page data
-        var mkdocs_page_name = "4.4 \u663e\u5b58\u7ba1\u7406: PagedAttention (\u7c7b\u6bd4 DX12 \u8d44\u6e90\u6c60 / \u4f19\u4f34\u5206\u914d\u5668)";
+        var mkdocs_page_name = "4.4 \u663e\u5b58\u7ba1\u7406: PagedAttention \u4e0e KV Cache \u5206\u5757";
         var mkdocs_page_input_path = "memory_management_pagedattention.md";
         var mkdocs_page_url = null;
       </script>
@@ -48,7 +48,7 @@
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 渲染管线与硬件单元 (SM, TMU, ROP)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
                   </li>
@@ -79,11 +79,11 @@
               <ul class="current">
                   <li class="toctree-l1"><a class="reference internal" href="../operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 为何图形做多 Pass，AI 做单 Pass Tiling</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
                   </li>
-                  <li class="toctree-l1 current"><a class="reference internal current" href="#">4.4 显存管理: PagedAttention (类比 DX12 资源池 / 伙伴分配器)</a>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
     <ul class="current">
     <li class="toctree-l2"><a class="reference internal" href="#_1">概述</a>
     </li>
@@ -95,7 +95,7 @@
     </li>
         </ul>
     </li>
-    <li class="toctree-l2"><a class="reference internal" href="#dx12">与 DX12 资源池的完美映射</a>
+    <li class="toctree-l2"><a class="reference internal" href="#dx12">与 DX12 资源池的有限映射</a>
         <ul>
     <li class="toctree-l3"><a class="reference internal" href="#_4">你在图形中已经做过的事</a>
     </li>
@@ -126,6 +126,8 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
               </ul>
               <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
               <ul>
@@ -138,33 +140,54 @@
                   <li class="toctree-l1"><a class="reference internal" href="../flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">7. 专用硬件加速单元</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">7.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                <li class="toctree-l1"><a class="reference internal" href="../llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">7.2 RT Core: BVH 遍历专用电路 (压缩解决随机访问，专用电路解决分支分歧)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">7.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">8. GPU 软件栈与驱动开发</span></p>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">8.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">8.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">8.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">8.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">9. 职业发展与工程实践</span></p>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">9.1 四个核心岗位对比: 算子开发 / 推理框架 / 编译器 / 驱动</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../nano_vllm_from_scratch/">11.1 Nano-vLLM: 框架架构、技术栈与源码实现</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">9.2 简历技能清单 (基于我们对话的认知总结)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">9.3 关键知识点自检清单 (MkDocs 版)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../paged_attention_dx12_tensorrt/">11.3 PagedAttention: DX12 与 TensorRT 双后端实践</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">A.3 关键知识点自检清单</a>
                   </li>
               </ul>
       </div>
@@ -182,7 +205,7 @@
   <ul class="wy-breadcrumbs">
     <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
           <li class="breadcrumb-item">4. AI 推理优化核心策略</li>
-      <li class="breadcrumb-item active">4.4 显存管理: PagedAttention (类比 DX12 资源池 / 伙伴分配器)</li>
+      <li class="breadcrumb-item active">4.4 显存管理: PagedAttention 与 KV Cache 分块</li>
     <li class="wy-breadcrumbs-aside">
     </li>
   </ul>
@@ -191,27 +214,22 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
             <div class="section" itemprop="articleBody">
               
-                <hr />
-<p>title: 显存管理: PagedAttention (类比 DX12 资源池 / 伙伴分配器)
-tags: [显存管理, pagedattention, vllm, 资源池, 伙伴分配器, kv cache, memory pool]
-description: 深入 PagedAttention 的核心思想——通过分页管理显存池实现高吞吐推理，并类比 DX12 资源池管理</p>
-<hr />
-<h1 id="44-pagedattention-dx12">4.4 显存管理: PagedAttention (类比 DX12 资源池 / 伙伴分配器)</h1>
-<h2 id="_1">概述</h2>
-<p><strong>PagedAttention</strong> 是 vLLM 的核心技术，它通过<strong>分页管理 KV Cache 显存</strong>，把显存利用率从 40% 提升到 90% 以上。</p>
+                <h1 id="44-pagedattention-kv-cache">4.4 显存管理：PagedAttention 与 KV Cache 分块<a class="headerlink" href="#44-pagedattention-kv-cache" title="Permanent link">&para;</a></h1>
+<h2 id="_1">概述<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p><strong>PagedAttention</strong> 把每个序列的 KV Cache 切成固定大小的逻辑 Block，并通过 Block Table 映射到不连续的物理 Block。它减少预留浪费与外部碎片，并支持共享前缀和更灵活的调度。具体利用率取决于工作负载、Block 大小和实现，不能把论文实验数字当作固定保证。</p>
 <blockquote>
-<p><strong>你的直觉完全精准</strong>：PagedAttention 就是 DX12 的 <code>Committed Resource</code> + 自定义分配器（线性分配器 / 伙伴分配器）的 AI 版。</p>
+<p>更准确的类比是“固定大小页 + 页表”。DX12 中更接近的是大 Heap 上的 Placed Resource 或 Tiled Resource；<code>Committed Resource</code> 由运行时同时创建资源与隐式 Heap，并不是“先分一大片再切片”。</p>
 </blockquote>
 <hr />
-<h2 id="pagedattention">PagedAttention 的核心思想</h2>
-<h3 id="_2">问题：显存碎片化</h3>
+<h2 id="pagedattention">PagedAttention 的核心思想<a class="headerlink" href="#pagedattention" title="Permanent link">&para;</a></h2>
+<h3 id="_2">问题：显存碎片化<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h3>
 <p>在大模型推理中，每个请求都要分配 KV Cache 来存储中间计算结果。不同请求的序列长度不同，导致：</p>
 <ol>
 <li><strong>内部碎片</strong>：预分配固定大小的 KV Cache，短序列浪费空间</li>
 <li><strong>外部碎片</strong>：频繁分配释放，显存碎片化</li>
-<li><strong>利用率低</strong>：传统方法显存利用率仅 40% 左右</li>
+<li><strong>调度受限</strong>：连续或过量预留会降低同一时刻可服务的请求数</li>
 </ol>
-<h3 id="_3">解决方案：分页管理</h3>
+<h3 id="_3">解决方案：分页管理<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
 <p>PagedAttention 借鉴操作系统的<strong>虚拟内存分页</strong>思想：</p>
 <pre><code>物理显存（一整块）：
 ┌──────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┐
@@ -238,11 +256,11 @@ description: 深入 PagedAttention 的核心思想——通过分页管理显存
 <p><strong>核心优势</strong>：
 - 逻辑上 KV Cache 是连续的（对 Attention Kernel 透明）
 - 物理上可以离散分布（消除外部碎片）
-- 按需分配（消除内部碎片）
-- 显存利用率从 40% → 90%</p>
+- 按需增长（把内部浪费限制到最后一个未填满 Block 等开销）
+- 更高的有效利用率，但仍有尾块、元数据和对齐开销</p>
 <hr />
-<h2 id="dx12">与 DX12 资源池的完美映射</h2>
-<h3 id="_4">你在图形中已经做过的事</h3>
+<h2 id="dx12">与 DX12 资源池的有限映射<a class="headerlink" href="#dx12" title="Permanent link">&para;</a></h2>
+<h3 id="_4">你在图形中已经做过的事<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -258,9 +276,9 @@ description: 深入 PagedAttention 的核心思想——通过分页管理显存
 <td style="text-align: left;">提前分配好显存池</td>
 </tr>
 <tr>
-<td style="text-align: left;">自己写分配器管理偏移（Linear/Buddy）</td>
-<td style="text-align: left;">Block Table 管理 Block 分配</td>
-<td style="text-align: left;">自定义显存管理策略</td>
+<td style="text-align: left;">固定大小 Block/Slab 分配器</td>
+<td style="text-align: left;">物理 KV Block Pool</td>
+<td style="text-align: left;">固定粒度分配；并非伙伴分配器</td>
 </tr>
 <tr>
 <td style="text-align: left;"><code>CreatePlacedResource</code> 绑定到 Heap 偏移</td>
@@ -279,7 +297,7 @@ description: 深入 PagedAttention 的核心思想——通过分页管理显存
 </tr>
 </tbody>
 </table>
-<h3 id="_5">你的代码平移</h3>
+<h3 id="_5">你的代码平移<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
 <p>这是你在云渲染中写的多 RT 管理代码：</p>
 <pre><code class="language-cpp">// 云渲染 - 多 RT 管理（你的代码）
 const int NUM_RT = 3;
@@ -311,10 +329,10 @@ int AllocateBlock() {
 }
 </code></pre>
 <blockquote>
-<p><strong>你过去写的代码，现在换了个行业继续写。</strong> 除了 API 名字不同，逻辑完全一样。</p>
+<p>两者都需要空闲表、生命周期和复用策略，但 Fence 表示执行完成时间线，引用计数表示所有权数量，不能互换。</p>
 </blockquote>
 <hr />
-<h2 id="pagedattention-vs-flashattention">PagedAttention vs FlashAttention：分工完全不同</h2>
+<h2 id="pagedattention-vs-flashattention">PagedAttention vs FlashAttention：分工完全不同<a class="headerlink" href="#pagedattention-vs-flashattention" title="Permanent link">&para;</a></h2>
 <p>你之前将两者混为一谈，但它们解决的是完全不同层次的问题：</p>
 <table>
 <thead>
@@ -341,9 +359,9 @@ int AllocateBlock() {
 <td style="text-align: left;">Compute Shader 的 Shared Memory Tiling</td>
 </tr>
 <tr>
-<td style="text-align: left;"><strong>类比 TBDR</strong></td>
-<td style="text-align: left;">PagedAttention ≈ TBDR 的硬件显存池（驱动层自动管理）</td>
-<td style="text-align: left;">FlashAttention ≈ TDS（你在 Shader 里写的分块逻辑）</td>
+<td style="text-align: left;"><strong>实现位置</strong></td>
+<td style="text-align: left;">运行时的 KV Block 管理 + 支持分块地址的 Attention Kernel</td>
+<td style="text-align: left;">Attention Kernel 的 IO-aware 分块算法</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>优化目标</strong></td>
@@ -352,16 +370,16 @@ int AllocateBlock() {
 </tr>
 <tr>
 <td style="text-align: left;"><strong>收益</strong></td>
-<td style="text-align: left;">显存利用率 40% → 90%</td>
-<td style="text-align: left;">Attention 速度提升 2~4 倍</td>
+<td style="text-align: left;">随请求分布和 Block 大小变化</td>
+<td style="text-align: left;">随形状、硬件、精度和实现变化</td>
 </tr>
 </tbody>
 </table>
 <blockquote>
-<p><strong>两者叠加</strong>：vLLM 用 PagedAttention 管理显存池，再在 Kernel 里用 FlashAttention 加速计算——这是目前大模型推理的黄金组合。</p>
+<p>两者可以组合，但现代推理后端的具体 Kernel 选择与 KV Cache 布局随版本、硬件和模型变化。</p>
 </blockquote>
 <hr />
-<h2 id="_6">完整映射表</h2>
+<h2 id="_6">完整映射表<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -399,7 +417,7 @@ int AllocateBlock() {
 </tbody>
 </table>
 <hr />
-<h2 id="pagedattention_1">从云渲染到 PagedAttention</h2>
+<h2 id="pagedattention_1">从云渲染到 PagedAttention<a class="headerlink" href="#pagedattention_1" title="Permanent link">&para;</a></h2>
 <p>你做过云渲染的多 Render Target（MRT）来防撕裂，这个经验直接对应：</p>
 <table>
 <thead>
@@ -432,7 +450,7 @@ int AllocateBlock() {
 </tbody>
 </table>
 <hr />
-<h2 id="_7">你的认知固化</h2>
+<h2 id="_7">你的认知固化<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h2>
 <blockquote>
 <p><strong>PagedAttention = 宏观显存管理（解决显存碎片化，提高 GPU 整卡吞吐）</strong>
 <strong>FlashAttention = 微观计算局部性（解决数据搬运太慢，让 SM 算得快）</strong></p>
@@ -508,6 +526,9 @@ int AllocateBlock() {
     <script>var base_url = "..";</script>
     <script src="../js/theme_extra.js"></script>
     <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
       <script src="../search/main.js"></script>
     <script>
         jQuery(function () {

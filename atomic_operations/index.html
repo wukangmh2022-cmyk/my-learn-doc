@@ -5,7 +5,7 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <link rel="shortcut icon" href="../img/favicon.ico" />
-    <title>1.1 现代图形API (Vulkan/DX12) 执行模型 - GPU 图形与 AI 推理知识手册</title>
+    <title>5.6 原子操作与竞争控制 - GPU 图形与 AI 推理知识手册</title>
     <link rel="stylesheet" href="../css/theme.css" />
     <link rel="stylesheet" href="../css/theme_extra.css" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
@@ -13,8 +13,8 @@
     
       <script>
         // Current page data
-        var mkdocs_page_name = "1.1 \u73b0\u4ee3\u56fe\u5f62API (Vulkan/DX12) \u6267\u884c\u6a21\u578b";
-        var mkdocs_page_input_path = "graphics_api_execution_model.md";
+        var mkdocs_page_name = "5.6 \u539f\u5b50\u64cd\u4f5c\u4e0e\u7ade\u4e89\u63a7\u5236";
+        var mkdocs_page_input_path = "atomic_operations.md";
         var mkdocs_page_url = null;
       </script>
     
@@ -45,32 +45,8 @@
                 </li>
               </ul>
               <p class="caption"><span class="caption-text">1. 图形渲染管线与 GPU 硬件基础</span></p>
-              <ul class="current">
-                  <li class="toctree-l1 current"><a class="reference internal current" href="#">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
-    <ul class="current">
-    <li class="toctree-l2"><a class="reference internal" href="#_1">概述</a>
-    </li>
-    <li class="toctree-l2"><a class="reference internal" href="#_2">核心设计哲学</a>
-        <ul>
-    <li class="toctree-l3"><a class="reference internal" href="#1">1. 显式内存管理</a>
-    </li>
-    <li class="toctree-l3"><a class="reference internal" href="#2">2. 显式命令缓冲录制</a>
-    </li>
-        </ul>
-    </li>
-    <li class="toctree-l2"><a class="reference internal" href="#_3">执行模型的核心概念</a>
-        <ul>
-    <li class="toctree-l3"><a class="reference internal" href="#1-queue-command-queue">1. Queue / Command Queue</a>
-    </li>
-    <li class="toctree-l3"><a class="reference internal" href="#2-fence-semaphore">2. Fence / Semaphore</a>
-    </li>
-        </ul>
-    </li>
-    <li class="toctree-l2"><a class="reference internal" href="#_4">关键洞察（来自你的原话）</a>
-    </li>
-    <li class="toctree-l2"><a class="reference internal" href="#api-ai">图形 API → AI 推理完整映射表</a>
-    </li>
-    </ul>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
                   </li>
@@ -111,7 +87,7 @@
                   </li>
               </ul>
               <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
-              <ul>
+              <ul class="current">
                   <li class="toctree-l1"><a class="reference internal" href="../thread_block_grid_mapping/">5.1 线程模型 (Thread, Block, Grid) 与映射</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../explicit_memory_shared_vs_cache/">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</a>
@@ -122,7 +98,19 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../atomic_operations/">5.6 原子操作与竞争控制</a>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">5.6 原子操作与竞争控制</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#_1">原子操作解决什么问题</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_2">正确性与性能是两件事</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_3">常见的降冲突方法</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#api">图形 API 对照</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_4">自检</a>
+    </li>
+    </ul>
                   </li>
               </ul>
               <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
@@ -200,8 +188,8 @@
         <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
   <ul class="wy-breadcrumbs">
     <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
-          <li class="breadcrumb-item">1. 图形渲染管线与 GPU 硬件基础</li>
-      <li class="breadcrumb-item active">1.1 现代图形API (Vulkan/DX12) 执行模型</li>
+          <li class="breadcrumb-item">5. CUDA 编程与硬件执行模型</li>
+      <li class="breadcrumb-item active">5.6 原子操作与竞争控制</li>
     <li class="wy-breadcrumbs-aside">
     </li>
   </ul>
@@ -210,107 +198,72 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
             <div class="section" itemprop="articleBody">
               
-                <h1 id="11-api-vulkandx12">1.1 现代图形 API (Vulkan/DX12) 执行模型<a class="headerlink" href="#11-api-vulkandx12" title="Permanent link">&para;</a></h1>
-<h2 id="_1">概述<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
-<p>Vulkan 和 DirectX 12 代表了现代图形 API 的设计范式转变：<strong>把更多的控制权从驱动层转移到应用层</strong>。你不再依赖驱动来做内存管理和命令缓冲构建，而是自己动手。</p>
-<p>这种显式控制经验有助于学习 AI 推理运行时，但 UMD 仍负责命令翻译、Shader 编译、资源驻留协作和硬件抽象；职责不是简单地从驱动“搬空”到应用。</p>
-<h2 id="_2">核心设计哲学<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
-<h3 id="1">1. 显式内存管理<a class="headerlink" href="#1" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>OpenGL/DX11 时代</strong>：应用创建 Buffer/Texture，驱动负责大部分底层放置与驻留决策；这些 API 中没有 <code>VkDeviceMemory</code>。</li>
-<li><strong>Vulkan/DX12 时代</strong>：你自行分配 <code>VkDeviceMemory</code>，然后绑定到对应的资源（Image/Buffer）。你需要自己设计分配器（如线性分配器、伙伴分配器）。</li>
-</ul>
-<blockquote>
-<p><strong>对应到 CUDA</strong>：<code>cudaMalloc</code> 就是分配显存，<code>VkDeviceMemory</code> 也是。但 Vulkan 给了你更细粒度的控制——你可以从一个大 Heap 里切出子块，自己管理偏移量。</p>
-</blockquote>
-<p><strong>你在聊天中曾用这个类比来描述 PagedAttention：</strong></p>
-<blockquote>
-<p>“Flash attention 我只记得 page，Attention 加上 continuous batch，有点类似于图形 API 里面的 Committed resource，自己先分一大片出来，然后管理切片句柄，类似于微软 dx12 资源仓库，里面写了一些线性分配器或伙伴分配器。”</p>
-</blockquote>
-<p>这句话完美地证明了你已经理解了现代图形 API 的内存模型——它和 vLLM 的显存池管理是同构的。</p>
-<h3 id="2">2. 显式命令缓冲录制<a class="headerlink" href="#2" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>OpenGL/DX11 时代</strong>：驱动在背后帮你构建命令流。</li>
-<li><strong>Vulkan/DX12 时代</strong>：你自行创建 <code>CommandBuffer</code>/<code>CommandList</code>，记录所有渲染/计算命令，最后提交执行。</li>
-</ul>
-<blockquote>
-<p><strong>对应到 CUDA</strong>：CUDA 的 Stream 就是一个隐式的命令序列，你按顺序 <code>cudaLaunchKernel</code>，驱动帮你排队。而 Vulkan/DX12 的命令缓冲，相当于你<strong>手动构建</strong>这个序列，粒度更细。</p>
-</blockquote>
-<h2 id="_3">执行模型的核心概念<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
-<h3 id="1-queue-command-queue">1. Queue / Command Queue<a class="headerlink" href="#1-queue-command-queue" title="Permanent link">&para;</a></h3>
-<ul>
-<li>GPU 上有一个或多个命令队列（Queue），你提交的命令缓冲被放入队列，GPU 按顺序消费。</li>
-<li>不同的 Queue 类型（Graphics、Compute、Transfer）可以并行执行，实现<strong>异步计算</strong>。</li>
-</ul>
-<blockquote>
-<p><strong>对应到 CUDA</strong>：Stream 与 Queue 都表达有序工作，但抽象层级不同。不同 Stream 的工作具备并发机会，是否重叠取决于依赖、硬件资源和运行时行为。</p>
-</blockquote>
-<h3 id="2-fence-semaphore">2. Fence / Semaphore<a class="headerlink" href="#2-fence-semaphore" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>Fence</strong>：CPU 与 GPU 之间的同步原语。你在 CPU 端等待 Fence 信号，知道 GPU 完成到哪一步了。</li>
-<li><strong>Semaphore</strong>：GPU 与 GPU 之间的同步原语。用于跨 Queue 的依赖关系（比如 Compute Queue 写完数据，Graphics Queue 才能读）。</li>
-</ul>
-<blockquote>
-<p><strong>对应到 CUDA</strong>：<code>cudaEventRecord</code> + <code>cudaStreamWaitEvent</code> 类似 GPU 队列间的 Signal/Wait；<code>cudaEventSynchronize</code> 类似 CPU 等待某个 Fence 点。<code>cudaDeviceSynchronize</code> 是更粗粒度的整设备主机等待。</p>
-</blockquote>
-<p><strong>在聊天中，你曾深入讨论过轮询 Fence 的价值：</strong></p>
-<blockquote>
-<p>“反正就是 CPU 就在一直轮巡这个 fence 的值，这个比 wait for single object，更好的点，是不是渲染那边可以做三重帧缓冲 ring buffer...”</p>
-</blockquote>
-<p>你的理解完全正确。轮询（Query）是非阻塞的，它让你能够在 CPU 端实现“帧并行（Frame Parallelism）”，这个思想直接对应到 AI 推理中的 CUDA Stream 和 Event 查询机制。</p>
-<h2 id="_4">关键洞察（来自你的原话）<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
-<blockquote>
-<p><strong>“现代图形 API 把驱动原来做的脏活累活搬到了应用层——而你已经会了。”</strong></p>
-</blockquote>
-<p>你写 Vulkan/DX12 时积累的"显式管理一切"的习惯，<strong>正是写高性能 AI Kernel 和推理引擎所需要的思维方式</strong>。</p>
-<h2 id="api-ai">图形 API → AI 推理完整映射表<a class="headerlink" href="#api-ai" title="Permanent link">&para;</a></h2>
+                <h1 id="56">5.6 原子操作与竞争控制<a class="headerlink" href="#56" title="Permanent link">&para;</a></h1>
+<h2 id="_1">原子操作解决什么问题<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>当多个线程可能同时修改同一地址时，普通的“读-改-写”会发生数据竞争。<code>atomicAdd</code>、<code>atomicMax</code> 等操作保证单个更新不可分割：</p>
+<pre><code class="language-cpp">atomicAdd(&amp;counter, 1);       // 全局计数
+atomicAdd(&amp;histogram[bin], 1); // 直方图
+</code></pre>
+<p>原子性只保证该次更新不会丢失，并不等于线程之间已经完成同步，也不自动建立任意数据的可见性关系。需要发布/消费语义时，应结合 CUDA 内存序、fence 或 Cooperative Groups 设计协议。</p>
+<h2 id="_2">正确性与性能是两件事<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th style="text-align: left;">图形 API 概念</th>
-<th style="text-align: left;">CUDA / AI 推理对应</th>
-<th style="text-align: left;">本质</th>
+<th style="text-align: left;">问题</th>
+<th style="text-align: center;">原子操作能否解决</th>
+<th style="text-align: left;">说明</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td style="text-align: left;"><code>VkDeviceMemory</code></td>
-<td style="text-align: left;"><code>cudaMalloc</code> 的显存池</td>
-<td style="text-align: left;">显存分配</td>
+<td style="text-align: left;">多线程递增同一计数器</td>
+<td style="text-align: center;">能</td>
+<td style="text-align: left;">每次读-改-写不可分割</td>
 </tr>
 <tr>
-<td style="text-align: left;"><code>CommandBuffer</code> 录制</td>
-<td style="text-align: left;">Kernel Launch 序列</td>
-<td style="text-align: left;">构建 GPU 任务流</td>
+<td style="text-align: left;">等待其他线程完成</td>
+<td style="text-align: center;">不能</td>
+<td style="text-align: left;">原子操作不是 barrier</td>
 </tr>
 <tr>
-<td style="text-align: left;"><code>vkQueueSubmit</code></td>
-<td style="text-align: left;">Kernel Launch / <code>cudaGraphLaunch</code></td>
-<td style="text-align: left;">提交任务到 GPU</td>
+<td style="text-align: left;">让其他线程看到一组普通写入</td>
+<td style="text-align: center;">不一定</td>
+<td style="text-align: left;">需要匹配的内存序或 fence</td>
 </tr>
 <tr>
-<td style="text-align: left;">Fence / Semaphore</td>
-<td style="text-align: left;"><code>cudaEvent</code> / <code>cudaStreamWaitEvent</code></td>
-<td style="text-align: left;">同步原语</td>
-</tr>
-<tr>
-<td style="text-align: left;">RenderPass / Subpass</td>
-<td style="text-align: left;">算子融合（Conv+BN+ReLU）</td>
-<td style="text-align: left;">减少中间显存读写</td>
-</tr>
-<tr>
-<td style="text-align: left;">三重缓冲 + 轮询 Fence</td>
-<td style="text-align: left;"><code>cudaEventQuery</code> + <code>cudaStream</code></td>
-<td style="text-align: left;">非阻塞流水线</td>
+<td style="text-align: left;">保证更新顺序可预测</td>
+<td style="text-align: center;">不能</td>
+<td style="text-align: left;">不同线程的到达顺序通常不确定</td>
 </tr>
 </tbody>
 </table>
+<p>热点地址会让更新排队，但实际代价取决于作用域、数据类型、架构和地址分布，不能简单等同于 Shared Memory Bank Conflict。</p>
+<h2 id="_3">常见的降冲突方法<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<pre><code class="language-mermaid">flowchart LR
+    A[&quot;所有线程直接更新全局地址&quot;] --&gt; B[&quot;Warp 内先归约&quot;]
+    B --&gt; C[&quot;Block 内分片累积&quot;]
+    C --&gt; D[&quot;每个 Block 少量全局原子更新&quot;]
+</code></pre>
+<ol>
+<li>先在寄存器或 Warp 内用 shuffle 归约，再由 lane 0 更新。</li>
+<li>在 Shared Memory 中建立每个 Block 的局部直方图，最后合并到全局。</li>
+<li>对热点计数器做分片，结束后再归约。</li>
+<li>只在确实存在并发写入时使用原子操作；一写者场景不需要原子。</li>
+</ol>
+<h2 id="api">图形 API 对照<a class="headerlink" href="#api" title="Permanent link">&para;</a></h2>
+<p>CUDA 的 <code>atomicAdd</code> 对应 HLSL 的 <code>InterlockedAdd</code> 或 GLSL 的 <code>atomicAdd</code>。它们适合计数、直方图、任务队列和不规则 Scatter，但都要评估热点竞争和结果顺序的不确定性。</p>
+<h2 id="_4">自检<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<ul>
+<li>原子操作、内存屏障和线程同步分别保证什么？</li>
+<li>为什么“每线程一次全局原子更新”通常应改成“每 Block 一次”？</li>
+<li>哪些浮点归约会因为更新顺序不同而产生末位差异？</li>
+</ul>
               
             </div>
           </div><footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
-        <a href=".." class="btn btn-neutral float-left" title="首页"><span class="icon icon-circle-arrow-left"></span> Previous</a>
-        <a href="../render_pipeline_hardware/" class="btn btn-neutral float-right" title="1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元">Next <span class="icon icon-circle-arrow-right"></span></a>
+        <a href="../warp_shuffle/" class="btn btn-neutral float-left" title="5.5 通信加速: Warp Shuffle (寄存器级数据交换)"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../reduce_tree_implementation/" class="btn btn-neutral float-right" title="6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)">Next <span class="icon icon-circle-arrow-right"></span></a>
     </div>
 
   <hr/>
@@ -333,10 +286,10 @@
   <span class="rst-current-version" data-toggle="rst-current-version">
     
     
-      <span><a href=".." style="color: #fcfcfc">&laquo; Previous</a></span>
+      <span><a href="../warp_shuffle/" style="color: #fcfcfc">&laquo; Previous</a></span>
     
     
-      <span><a href="../render_pipeline_hardware/" style="color: #fcfcfc">Next &raquo;</a></span>
+      <span><a href="../reduce_tree_implementation/" style="color: #fcfcfc">Next &raquo;</a></span>
     
   </span>
 </div>

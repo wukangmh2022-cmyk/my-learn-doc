@@ -1,0 +1,2178 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="zh_CN" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>11.1 Nano-vLLM: 框架架构、技术栈与源码实现 - GPU 图形与 AI 推理知识手册</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "11.1 Nano-vLLM: \u6846\u67b6\u67b6\u6784\u3001\u6280\u672f\u6808\u4e0e\u6e90\u7801\u5b9e\u73b0";
+        var mkdocs_page_input_path = "nano_vllm_from_scratch.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GPU 图形与 AI 推理知识手册
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">首页</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">1. 图形渲染管线与 GPU 硬件基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_passes_and_sync/">1.4 图形管线中的 Pass 与同步 (RenderPass, Barrier)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">2. GPU 并发模型与系统思维</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../cpu_gpu_async_pipeline/">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../command_buffer_ring_buffer/">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../multithreaded_rendering_and_pools/">2.3 多线程渲染与资源池管理</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_to_ai_first_principles/">2.4 从图形管线到 AI 推理的第一性原理映射</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">3. AI 模型与算子基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../model_structures_inference_view/">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../operator_taxonomy/">3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../convolution_math_implementation/">3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">4. AI 推理优化核心策略</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../thread_block_grid_mapping/">5.1 线程模型 (Thread, Block, Grid) 与映射</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../explicit_memory_shared_vs_cache/">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../warp_simd_simt_divergence/">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../synchronization_primitives/">5.4 同步原语: __syncthreads, __syncwarp, 内存屏障</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../reduce_tree_implementation/">6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../scan_stream_compaction/">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../radix_sort_as_stream_compaction/">6.3 基数排序 (Radix Sort) = 逐位流压缩</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
+              <ul class="current">
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">11.1 Nano-vLLM: 框架架构、技术栈与源码实现</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#_1">这篇文章从哪里开始</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_2">一、先看框架全景，而不是模型计算</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1">1. 技术栈地图</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-enginestep-pipeline">2. 一次 engine.step() 的 Pipeline</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3">3. 三个平面</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#prefill-decode">二、框架为什么必须区分 Prefill 与 Decode</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#shape">一个用于后续调试的 Shape 示例</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#1-sequence">三、阶段 1：实现框架的数据契约与 Sequence 状态机</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#listint">为什么不能只保存 list[int]</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#samplingparams">实现 SamplingParams</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#sequence">实现 Sequence</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_3">三个计数不要混淆</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_4">状态不变量</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#2-gpu-batch">四、阶段 2：把多个变长请求编译成 GPU Batch</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_5">工程问题</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#cpu">CPU 打包代码</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#cpu_1">为什么由 CPU 做</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#cuda">CUDA 原语</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#decode-batch">Decode Batch 更简单</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#3-paged-kv-cache-prefix-cache">五、阶段 3：实现 Paged KV Cache 与 Prefix Cache</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-kv-cache">1. KV Cache 到底多大</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2">2. 分页的第一性原理</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-block-blockmanager">3. Block 与 BlockManager</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4">4. 为请求分配页表</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#5-slot-mapping-kernel">5. Slot Mapping：告诉 Kernel 写到哪里</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#6-prefix-cache-block">6. Prefix Cache 为什么只发布完整 Block</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#7">7. 引用计数的含义</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_6">本阶段测试</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#4-scheduler">六、阶段 4：实现 Scheduler</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-scheduler">1. Scheduler 的输入与输出</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2_1">2. 两种预算</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-scheduler">3. Scheduler 骨架</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4-prefill-chunked-prefill">4. Prefill 与 Chunked Prefill</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#5-decode">5. Decode 与抢占</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#6-postprocess">6. Postprocess 是事务提交</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#7_1">7. 调度策略不是硬件定律</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#5-modelrunner-metadata">七、阶段 5：实现 ModelRunner 的 Metadata 编译</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-runner">1. 为什么叫 Runner</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-attentioncontext">2. AttentionContext</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-padding-block-table">3. Padding Block Table</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4-prefill-metadata">4. Prefill Metadata 完整构造</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#5-decode-metadata">5. Decode Metadata 完整构造</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#6-context">6. 为什么 Context 是隐式全局状态</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#6-flashattention-triton-kv-kernel">八、阶段 6：接入 FlashAttention 与 Triton KV Kernel</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-kv-cache_1">1. KV Cache 物理布局</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-warmup-kv-cache">2. 为什么先 Warmup 再分 KV Cache</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-kv-cache">3. 写入 KV Cache</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4-prefill-attention">4. Prefill Attention 路径</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#5-decode-attention">5. Decode Attention 路径</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#6-pagedattention-flashattention">6. PagedAttention 与 FlashAttention 的分工</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#7-qwen3-model-adapter-weight-loader">九、阶段 7：实现 Qwen3 Model Adapter 与 Weight Loader</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-model-adapter">1. Model Adapter 的边界</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2_2">2. 为执行效率调整内部布局</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-weight-loader">3. Weight Loader 是布局编译器</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4-runtime">4. 模型配置如何影响 Runtime 容量</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#8-modelrunner">十、阶段 8：让 ModelRunner 形成执行闭环</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-runner_1">1. Runner 生命周期</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-run">2. run()</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-logits">3. 为什么只计算最后位置的 Logits</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4-sampling">4. Sampling</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#9-llmengine">十一、阶段 9：组装 LLMEngine</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#step">为什么 step() 是关键边界</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#10-cuda-graph-decode">十二、阶段 10：用 CUDA Graph 优化 Decode 提交</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1_1">1. 问题来自哪里</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-batch-bucket">2. 为什么需要 Batch Bucket</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-buffer">3. 静态 Buffer</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4_1">4. 三个不变量</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#5">5. 对应图形框架</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#11-tensor-parallel-worker">十三、阶段 11：接入 Tensor Parallel Worker</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-column-parallel">1. Column Parallel</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-row-parallel">2. Row Parallel</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-communication-behind-compute">3. Communication behind compute 的边界</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4-gpu">4. 一 GPU 一进程</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#step-trace">十四、用一次 Step Trace 串起所有模块</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#step-1s0-chunked-prefill">Step 1：S0 Chunked Prefill</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#step-2s1-prefill">Step 2：S1 Prefill</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#step-3s0-s1-decode-batch">Step 3：S0 与 S1 Decode Batch</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#step-4">Step 4：完成并释放</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#cuda_1">十五、框架技术栈与 CUDA 原语对照</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_7">调试工具栈</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_8">十六、正确的实现与调试顺序</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1_2">1. 不要一次打开全部优化</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2_3">2. 每层的测试</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3_1">3. 最有价值的断言</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4_2">4. 多步对齐比最终文本更重要</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_9">十七、性能分析从哪里开始</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1_3">1. 先看服务指标</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2_4">2. 再看时间分层</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3_2">3. 一次只打开一个优化</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#gpu">十八、从 GPU 第一性原理重新看整个引擎</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1_4">1. 数据移动比公式更早决定系统结构</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2_5">2. 调度器是一个在线装箱问题</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3_3">3. 页表是一次有价值的间接访问</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4-prefix-cache">4. Prefix Cache 是不可变资源复用</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#5-cuda-graph">5. CUDA Graph 是提交优化</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_10">十九、与渲染框架的准确连接</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_11">二十、读原源码的顺序</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_12">完成标准</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../paged_attention_dx12_tensorrt/">11.3 PagedAttention: DX12 与 TensorRT 双后端实践</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">A.3 关键知识点自检清单</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GPU 图形与 AI 推理知识手册</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">11. 推理引擎与算子实战</li>
+      <li class="breadcrumb-item active">11.1 Nano-vLLM: 框架架构、技术栈与源码实现</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="111-nano-vllm">11.1 Nano-vLLM 导学：框架架构、技术栈与源码实现<a class="headerlink" href="#111-nano-vllm" title="Permanent link">&para;</a></h1>
+<h2 id="_1">这篇文章从哪里开始<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>本文假设已经具备两部分背景。</p>
+<p>GPU 与并行计算：</p>
+<ul>
+<li>GPU 用大量并发任务隐藏单条指令和访存延迟；</li>
+<li>Register、Shared Memory/L1、L2、HBM 构成多级存储；</li>
+<li>合并访问、Bank Conflict、分支分歧会影响有效吞吐；</li>
+<li>Tiling 用片上复用减少外部内存流量；</li>
+<li>Reduce、Scan、Scatter、MatMul/GEMM 等并行模式；</li>
+<li>异步 Copy、双缓冲和 Communication behind compute 的基本思想。</li>
+</ul>
+<p>Transformer Decoder：</p>
+<ul>
+<li>知道 Decoder 大致由 Embedding、Attention、MLP、Norm、Residual 和 LM Head 组成；</li>
+<li>知道模型按自回归方式生成，历史 K/V 可以缓存；</li>
+<li>不要求会手推每一层公式，也不要求会从零实现 Transformer。</li>
+</ul>
+<p>本文<strong>不假设</strong>已经理解：</p>
+<ul>
+<li>一个推理框架如何表示请求状态；</li>
+<li>Scheduler 如何在 Token、序列数和显存预算下组 Batch；</li>
+<li>Paged KV Cache 的 Block Table 如何连接 CPU Allocator 与 GPU Kernel；</li>
+<li>ModelRunner 如何把 Python 对象编译为 GPU Metadata；</li>
+<li>FlashAttention、Triton、NCCL、CUDA Graph 和多进程分别位于哪一层；</li>
+<li>出现输出错误、显存错误、NCCL Hang 或性能问题时从哪里调试。</li>
+</ul>
+<p>目标不是把 Nano-vLLM 的文件依次念一遍，而是回答三个贯穿全文的问题：</p>
+<ol>
+<li><strong>这个框架由哪些模块和第三方技术组成？</strong></li>
+<li><strong>一次 Step 如何跨越调度、内存管理和 GPU 执行？</strong></li>
+<li><strong>每个工程机制解决了哪个资源或并发问题？</strong></li>
+</ol>
+<p>本文参考 <a href="https://github.com/GeeeekExplorer/nano-vllm">Nano-vLLM</a> <code>0.2.0</code>、提交
+<a href="https://github.com/GeeeekExplorer/nano-vllm/commit/bb823b3e06983d71485a8e1f23715ebd87d98ef8"><code>bb823b3</code></a>。原项目核心包约 1385 行 Python。本文实现的是结构等价的教学版，不逐字复制源码。</p>
+<hr />
+<h2 id="_2">一、先看框架全景，而不是模型计算<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<h3 id="1">1. 技术栈地图<a class="headerlink" href="#1" title="Permanent link">&para;</a></h3>
+<pre><code class="language-mermaid">flowchart TB
+    API[&quot;Python API: LLM / SamplingParams&quot;] --&gt; ENG[&quot;Engine: request loop&quot;]
+    ENG --&gt; SCH[&quot;Scheduler + Sequence&quot;]
+    SCH --&gt; BM[&quot;BlockManager + xxhash&quot;]
+    ENG --&gt; RUN[&quot;ModelRunner: PyTorch&quot;]
+    RUN --&gt; MODEL[&quot;Qwen3 model adapter&quot;]
+    MODEL --&gt; FA[&quot;FlashAttention&quot;]
+    MODEL --&gt; TRI[&quot;Triton KV-store kernel&quot;]
+    MODEL --&gt; DIST[&quot;torch.distributed + NCCL&quot;]
+    RUN --&gt; GRAPH[&quot;CUDA Graph&quot;]
+    RUN --&gt; SHM[&quot;multiprocessing + SharedMemory&quot;]
+    HF[&quot;Transformers config/tokenizer + Safetensors&quot;] --&gt; ENG
+    HF --&gt; MODEL
+</code></pre>
+<p>这张图定义本文边界：Qwen3 的数学不是主角，主角是框架如何把这些库组织成一个可调度、可复用显存、可多卡执行的 Runtime。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">技术</th>
+<th style="text-align: left;">在框架中的位置</th>
+<th style="text-align: left;">解决的问题</th>
+<th style="text-align: left;">调试入口</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Transformers</td>
+<td style="text-align: left;">配置、Tokenizer、模型规格</td>
+<td style="text-align: left;">对接 Hugging Face 模型生态</td>
+<td style="text-align: left;">配置与 Token ID 对齐</td>
+</tr>
+<tr>
+<td style="text-align: left;">Safetensors Loader</td>
+<td style="text-align: left;">权重读取与分片装载</td>
+<td style="text-align: left;">Checkpoint 到内部 Packed Layout</td>
+<td style="text-align: left;">参数 Shape、漏载权重</td>
+</tr>
+<tr>
+<td style="text-align: left;">PyTorch</td>
+<td style="text-align: left;">Tensor、Module、CUDA 调用</td>
+<td style="text-align: left;">模型与执行骨架</td>
+<td style="text-align: left;">Eager 对齐、Profiler</td>
+</tr>
+<tr>
+<td style="text-align: left;">FlashAttention</td>
+<td style="text-align: left;">Prefill/Decode Attention 后端</td>
+<td style="text-align: left;">变长序列与 KV Cache Attention</td>
+<td style="text-align: left;">Shape、页表、数值</td>
+</tr>
+<tr>
+<td style="text-align: left;">Triton</td>
+<td style="text-align: left;">KV Cache Scatter Kernel</td>
+<td style="text-align: left;">按 Slot Mapping 写物理页</td>
+<td style="text-align: left;">Triton IR、Compute Sanitizer</td>
+</tr>
+<tr>
+<td style="text-align: left;">xxhash</td>
+<td style="text-align: left;">Prefix Block 内容寻址</td>
+<td style="text-align: left;">查找可复用完整前缀</td>
+<td style="text-align: left;">Hash 链与 Token 比较</td>
+</tr>
+<tr>
+<td style="text-align: left;">CUDA Graph</td>
+<td style="text-align: left;">Decode 拓扑重放</td>
+<td style="text-align: left;">减少 CPU Launch Gap</td>
+<td style="text-align: left;">Eager/Graph 对齐、Nsight Systems</td>
+</tr>
+<tr>
+<td style="text-align: left;">NCCL</td>
+<td style="text-align: left;">TP Collective</td>
+<td style="text-align: left;">合并分片 Linear 结果</td>
+<td style="text-align: left;"><code>NCCL_DEBUG</code>、时间线</td>
+</tr>
+<tr>
+<td style="text-align: left;">multiprocessing/SHM</td>
+<td style="text-align: left;">一 GPU 一 Worker</td>
+<td style="text-align: left;">Rank 0 下发执行命令</td>
+<td style="text-align: left;">生命周期、死锁、资源泄漏</td>
+</tr>
+</tbody>
+</table>
+<h3 id="2-enginestep-pipeline">2. 一次 <code>engine.step()</code> 的 Pipeline<a class="headerlink" href="#2-enginestep-pipeline" title="Permanent link">&para;</a></h3>
+<p>一次 Step 只推进一批请求的一小步：</p>
+<pre><code class="language-mermaid">sequenceDiagram
+    participant E as LLMEngine
+    participant S as Scheduler
+    participant B as BlockManager
+    participant R as ModelRunner
+    participant A as Attention/KV Cache
+
+    E-&gt;&gt;S: schedule()
+    S-&gt;&gt;B: 检查并分配物理 KV Block
+    B--&gt;&gt;S: Block Table
+    S--&gt;&gt;E: seqs + is_prefill
+    E-&gt;&gt;R: run(seqs, is_prefill)
+    R-&gt;&gt;R: 打包 input_ids / positions / metadata
+    R-&gt;&gt;A: QKV + block_tables + slot_mapping
+    A--&gt;&gt;R: hidden states
+    R--&gt;&gt;E: sampled token_ids
+    E-&gt;&gt;S: postprocess(token_ids)
+    S-&gt;&gt;B: 发布缓存或释放 Block
+</code></pre>
+<p>对应到源码：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Pipeline 阶段</th>
+<th style="text-align: left;">Nano-vLLM 模块</th>
+<th style="text-align: left;">核心职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">请求状态</td>
+<td style="text-align: left;"><code>sequence.py</code></td>
+<td style="text-align: left;">Token、状态、进度、页表</td>
+</tr>
+<tr>
+<td style="text-align: left;">选择工作</td>
+<td style="text-align: left;"><code>scheduler.py</code></td>
+<td style="text-align: left;">Prefill/Decode、预算、抢占</td>
+</tr>
+<tr>
+<td style="text-align: left;">分配显存页</td>
+<td style="text-align: left;"><code>block_manager.py</code></td>
+<td style="text-align: left;">物理 Block、引用计数、Prefix Cache</td>
+</tr>
+<tr>
+<td style="text-align: left;">编译 GPU 输入</td>
+<td style="text-align: left;"><code>model_runner.py</code></td>
+<td style="text-align: left;">Packed Tensor、页表、Slot Mapping</td>
+</tr>
+<tr>
+<td style="text-align: left;">模型计算</td>
+<td style="text-align: left;"><code>models/qwen3.py</code>、<code>layers/*</code></td>
+<td style="text-align: left;">Qwen3、Attention、Linear、RoPE</td>
+</tr>
+<tr>
+<td style="text-align: left;">优化执行</td>
+<td style="text-align: left;"><code>model_runner.py</code></td>
+<td style="text-align: left;">KV Cache、CUDA Graph、Tensor Parallel</td>
+</tr>
+<tr>
+<td style="text-align: left;">外层循环</td>
+<td style="text-align: left;"><code>llm_engine.py</code></td>
+<td style="text-align: left;">Add Request、Step、Generate</td>
+</tr>
+</tbody>
+</table>
+<h3 id="3">3. 三个平面<a class="headerlink" href="#3" title="Permanent link">&para;</a></h3>
+<pre><code class="language-mermaid">flowchart TB
+    subgraph CONTROL[&quot;控制平面：CPU&quot;]
+        ENGINE[&quot;LLMEngine&quot;] --&gt; SCHED[&quot;Scheduler&quot;]
+        SCHED --&gt; SEQ[&quot;Sequence State&quot;]
+        SCHED --&gt; BM[&quot;BlockManager&quot;]
+    end
+
+    subgraph DATA[&quot;执行平面：GPU&quot;]
+        RUNNER[&quot;ModelRunner&quot;] --&gt; QWEN[&quot;Qwen3 Layers&quot;]
+        QWEN --&gt; ATTN[&quot;Attention Kernels&quot;]
+        QWEN --&gt; LINEAR[&quot;Linear / RMSNorm / RoPE&quot;]
+    end
+
+    subgraph MEMORY[&quot;状态存储&quot;]
+        KVC[&quot;Paged KV Cache&quot;]
+        TABLE[&quot;Block Tables / Slot Mapping&quot;]
+    end
+
+    SCHED --&gt; RUNNER
+    BM --&gt; TABLE
+    TABLE --&gt; ATTN
+    ATTN &lt;--&gt; KVC
+</code></pre>
+<ul>
+<li>控制平面解决“不规则请求如何组成规则 Batch”；</li>
+<li>执行平面解决“Batch 如何运行模型和 Kernel”；</li>
+<li>状态存储解决“历史 Token 的 K/V 放在哪里，下一步如何找到”。</li>
+</ul>
+<p>只有把三者连起来，才是推理引擎。</p>
+<hr />
+<h2 id="prefill-decode">二、框架为什么必须区分 Prefill 与 Decode<a class="headerlink" href="#prefill-decode" title="Permanent link">&para;</a></h2>
+<p>这里不重复解释 Transformer 计算，只说明它们对 Runtime 的约束。相同 Decoder 权重面对两类完全不同的执行 Shape：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">特征</th>
+<th style="text-align: left;">Prefill</th>
+<th style="text-align: left;">Decode</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">本步每条序列输入 Token</td>
+<td style="text-align: left;">多个</td>
+<td style="text-align: left;">1 个</td>
+</tr>
+<tr>
+<td style="text-align: left;">Linear 形态</td>
+<td style="text-align: left;">较大的 GEMM</td>
+<td style="text-align: left;">小 Batch GEMM/GEMV</td>
+</tr>
+<tr>
+<td style="text-align: left;">Attention Query Length</td>
+<td style="text-align: left;">Prompt/Chunk 长度</td>
+<td style="text-align: left;">1</td>
+</tr>
+<tr>
+<td style="text-align: left;">历史 K/V</td>
+<td style="text-align: left;">建立或复用 Prefix</td>
+<td style="text-align: left;">反复读取全部上下文</td>
+</tr>
+<tr>
+<td style="text-align: left;">常见瓶颈</td>
+<td style="text-align: left;">计算、HBM、中间结果</td>
+<td style="text-align: left;">KV 带宽、Kernel Launch、调度</td>
+</tr>
+<tr>
+<td style="text-align: left;">适合 CUDA Graph</td>
+<td style="text-align: left;">Shape 更动态</td>
+<td style="text-align: left;">按 Batch Size 分桶后较适合</td>
+</tr>
+</tbody>
+</table>
+<p>这一区分向下影响四层：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">框架层</th>
+<th style="text-align: left;">Prefill</th>
+<th style="text-align: left;">Decode</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Scheduler</td>
+<td style="text-align: left;">Token Budget，可做 Chunk</td>
+<td style="text-align: left;">Sequence Budget，每序列一个 Token</td>
+</tr>
+<tr>
+<td style="text-align: left;">Metadata</td>
+<td style="text-align: left;">Packed Tokens、<code>cu_seqlens</code></td>
+<td style="text-align: left;"><code>context_lens</code>、Block Tables</td>
+</tr>
+<tr>
+<td style="text-align: left;">Attention Backend</td>
+<td style="text-align: left;">Varlen Attention</td>
+<td style="text-align: left;">KV Cache Decode Attention</td>
+</tr>
+<tr>
+<td style="text-align: left;">Execution</td>
+<td style="text-align: left;">Eager Shape 较动态</td>
+<td style="text-align: left;">可按 Batch Bucket 捕获 CUDA Graph</td>
+</tr>
+</tbody>
+</table>
+<p>因此 <code>is_prefill</code> 不是模型知识补丁，而是贯穿 Scheduler、ModelRunner、Attention Backend 和 Graph Dispatch 的框架模式位。</p>
+<h3 id="shape">一个用于后续调试的 Shape 示例<a class="headerlink" href="#shape" title="Permanent link">&para;</a></h3>
+<p>两条请求：</p>
+<pre><code class="language-text">S0 prompt length = 5
+S1 prompt length = 3
+</code></pre>
+<p>第一次 Step：</p>
+<pre><code class="language-text">phase = prefill
+input_ids = S0[0:5] + S1[0:3]  # 共 8 个 Token，压平后送入 GPU
+</code></pre>
+<p>第二次 Step：</p>
+<pre><code class="language-text">phase = decode
+input_ids = [S0.last_token, S1.last_token]  # 共 2 个 Token
+</code></pre>
+<p>Prefill 的 Batch Size 更接近“本步 Token 总数”；Decode 的 Batch Size 更接近“活跃序列数”。后面 Scheduler 会分别设置 Sequence Budget 和 Token Budget。</p>
+<hr />
+<h2 id="1-sequence">三、阶段 1：实现框架的数据契约与 Sequence 状态机<a class="headerlink" href="#1-sequence" title="Permanent link">&para;</a></h2>
+<h3 id="listint">为什么不能只保存 <code>list[int]</code><a class="headerlink" href="#listint" title="Permanent link">&para;</a></h3>
+<p>调度器不仅需要 Token，还要知道：</p>
+<ul>
+<li>请求是在等待、运行还是完成；</li>
+<li>Prompt 与生成结果的边界；</li>
+<li>已有多少 Token 写入 KV Cache；</li>
+<li>本轮准备计算多少 Token；</li>
+<li>该请求持有哪些物理 KV Block；</li>
+<li>EOS、最大生成长度和温度。</li>
+</ul>
+<h3 id="samplingparams">实现 SamplingParams<a class="headerlink" href="#samplingparams" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">from dataclasses import dataclass
+
+@dataclass(slots=True)
+class SamplingParams:
+    temperature: float = 1.0
+    max_tokens: int = 64
+    ignore_eos: bool = False
+
+    def __post_init__(self):
+        if self.temperature &lt; 0:
+            raise ValueError(&quot;temperature must be &gt;= 0&quot;)
+        if self.max_tokens &lt;= 0:
+            raise ValueError(&quot;max_tokens must be positive&quot;)
+</code></pre>
+<h3 id="sequence">实现 Sequence<a class="headerlink" href="#sequence" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">from enum import Enum, auto
+from itertools import count
+
+class SequenceStatus(Enum):
+    WAITING = auto()
+    RUNNING = auto()
+    FINISHED = auto()
+
+class Sequence:
+    _counter = count()
+
+    def __init__(
+        self,
+        token_ids: list[int],
+        sampling: SamplingParams,
+        block_size: int,
+    ):
+        if not token_ids:
+            raise ValueError(&quot;empty prompt is not supported&quot;)
+
+        self.seq_id = next(self._counter)
+        self.status = SequenceStatus.WAITING
+        self.token_ids = list(token_ids)
+        self.prompt_len = len(token_ids)
+        self.cached_tokens = 0
+        self.scheduled_tokens = 0
+        self.block_table: list[int] = []
+        self.block_size = block_size
+        self.sampling = sampling
+
+    @property
+    def completion_token_ids(self) -&gt; list[int]:
+        return self.token_ids[self.prompt_len:]
+
+    @property
+    def num_blocks(self) -&gt; int:
+        n = len(self.token_ids)
+        return (n + self.block_size - 1) // self.block_size
+
+    @property
+    def last_token(self) -&gt; int:
+        return self.token_ids[-1]
+
+    def append_token(self, token_id: int) -&gt; None:
+        self.token_ids.append(token_id)
+</code></pre>
+<h3 id="_3">三个计数不要混淆<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
+<pre><code class="language-text">len(token_ids)      已知的全部 Token：Prompt + 已生成 Token
+cached_tokens       已经计算并写入 KV Cache 的 Token
+scheduled_tokens    本轮已经批准、但尚未提交完成的 Token
+</code></pre>
+<p>以长度 10 的 Prompt、Chunk Size 4 为例：</p>
+<pre><code class="language-text">初始：cached=0, scheduled=0
+Step 1 调度后：cached=0, scheduled=4
+Step 1 完成后：cached=4, scheduled=0
+Step 2 调度后：cached=4, scheduled=4
+Step 2 完成后：cached=8, scheduled=0
+Step 3 调度后：cached=8, scheduled=2
+</code></pre>
+<p><code>scheduled_tokens</code> 类似已录入 Command Buffer 但尚未完成的资源范围。只有 GPU 成功完成并进入 Postprocess 后，才能转入 <code>cached_tokens</code>。</p>
+<h3 id="_4">状态不变量<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">def validate_sequence(seq: Sequence) -&gt; None:
+    assert 0 &lt;= seq.cached_tokens &lt;= len(seq.token_ids)
+    assert 0 &lt;= seq.scheduled_tokens
+    assert seq.cached_tokens + seq.scheduled_tokens &lt;= len(seq.token_ids)
+    if seq.status is SequenceStatus.FINISHED:
+        assert not seq.block_table
+</code></pre>
+<p>状态机的价值不是面向对象，而是让错误尽早暴露。推理引擎最难查的 Bug 往往不是 Kernel Crash，而是 CPU 记录的进度与 GPU 中的 KV 数据错开一个 Token。</p>
+<hr />
+<h2 id="2-gpu-batch">四、阶段 2：把多个变长请求编译成 GPU Batch<a class="headerlink" href="#2-gpu-batch" title="Permanent link">&para;</a></h2>
+<h3 id="_5">工程问题<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
+<p>请求长度分别为 3、2、4：</p>
+<pre><code class="language-text">A = [a0, a1, a2]
+B = [b0, b1]
+C = [c0, c1, c2, c3]
+</code></pre>
+<p>若 Padding 到长度 4，需要计算 12 个位置，其中 3 个无效。更大的长度差会造成更多浪费。</p>
+<p>Nano-vLLM 在 Prefill 使用 Packed/Ragged Batch：</p>
+<pre><code class="language-text">input_ids  = [a0,a1,a2, b0,b1, c0,c1,c2,c3]
+cu_seqlens = [0,3,5,9]
+</code></pre>
+<p><code>cu_seqlens</code> 是 Prefix Sum。它把每条序列的长度 <code>[3,2,4]</code> 转换为起始 Offset <code>[0,3,5,9]</code>。这里直接用到了 Scan 的思想。</p>
+<h3 id="cpu">CPU 打包代码<a class="headerlink" href="#cpu" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">def pack_prefill(seqs: list[Sequence]):
+    input_ids: list[int] = []
+    positions: list[int] = []
+    cu_seqlens = [0]
+    max_query_len = 0
+
+    for seq in seqs:
+        start = seq.cached_tokens
+        end = start + seq.scheduled_tokens
+        query_len = end - start
+
+        input_ids.extend(seq.token_ids[start:end])
+        positions.extend(range(start, end))
+        cu_seqlens.append(cu_seqlens[-1] + query_len)
+        max_query_len = max(max_query_len, query_len)
+
+    return input_ids, positions, cu_seqlens, max_query_len
+</code></pre>
+<h3 id="cpu_1">为什么由 CPU 做<a class="headerlink" href="#cpu_1" title="Permanent link">&para;</a></h3>
+<p>Scheduler 已经在 CPU 持有每条请求的长度与状态。元数据量很小，在 CPU 构造后异步 H2D，通常比额外启动 GPU Scan Kernel 更合适。若请求规模非常大或元数据本来就在 GPU，选择可能不同。</p>
+<h3 id="cuda">CUDA 原语<a class="headerlink" href="#cuda" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">input_ids = torch.tensor(input_ids, dtype=torch.int64, pin_memory=True)
+input_ids = input_ids.cuda(non_blocking=True)
+</code></pre>
+<ul>
+<li>Pinned Memory 允许 DMA 高效读取 Host Buffer；</li>
+<li><code>non_blocking=True</code> 允许异步提交 Copy；</li>
+<li>真正重叠仍需要合适的 Stream 与无数据依赖；</li>
+<li>Ring Buffer 必须用 CUDA Event 保护，避免 CPU 覆盖 GPU 尚未读取的 Slot。</li>
+</ul>
+<h3 id="decode-batch">Decode Batch 更简单<a class="headerlink" href="#decode-batch" title="Permanent link">&para;</a></h3>
+<p>Decode 每条序列只提供最后一个 Token：</p>
+<pre><code class="language-python">def pack_decode(seqs: list[Sequence]):
+    input_ids = [seq.last_token for seq in seqs]
+    positions = [len(seq.token_ids) - 1 for seq in seqs]
+    context_lens = [len(seq.token_ids) for seq in seqs]
+    return input_ids, positions, context_lens
+</code></pre>
+<p>此时 Tensor 第一维等于活跃序列数。历史 Token 不重新放入 Input，而是从 KV Cache 读取。</p>
+<hr />
+<h2 id="3-paged-kv-cache-prefix-cache">五、阶段 3：实现 Paged KV Cache 与 Prefix Cache<a class="headerlink" href="#3-paged-kv-cache-prefix-cache" title="Permanent link">&para;</a></h2>
+<h3 id="1-kv-cache">1. KV Cache 到底多大<a class="headerlink" href="#1-kv-cache" title="Permanent link">&para;</a></h3>
+<p>单条序列每个 Token 的 KV 字节数：</p>
+<p>$$
+bytes_{token}=2 \times L \times H_{kv} \times D \times bytes_{dtype}
+$$</p>
+<ul>
+<li><code>2</code>：K 和 V；</li>
+<li>$L$：Decoder Layer 数；</li>
+<li>$H_{kv}$：KV Head 数；</li>
+<li>$D$：Head Size。</li>
+</ul>
+<p>若按 <code>max_model_len</code> 为每条请求预留连续空间，短请求也占用最大长度。请求结束时间不同，连续大块还会形成外部碎片。</p>
+<h3 id="2">2. 分页的第一性原理<a class="headerlink" href="#2" title="Permanent link">&para;</a></h3>
+<p>把逻辑 Token 序列切成固定大小 Block：</p>
+<pre><code class="language-text">logical tokens: [0..3] [4..7] [8..11]
+logical block:     0      1       2
+physical block:    7      2      11
+</code></pre>
+<p>逻辑 Token <code>t</code> 的物理位置：</p>
+<p>$$
+logical_block=\lfloor t/B \rfloor
+$$</p>
+<p>$$
+offset=t \bmod B
+$$</p>
+<p>$$
+slot=block_table[logical_block]\times B+offset
+$$</p>
+<p>这与虚拟内存页表、虚拟纹理和 Bindless Handle Table 使用相同原则：增加一次间接寻址，换取按需分配、非连续存储、共享和低碎片。</p>
+<h3 id="3-block-blockmanager">3. Block 与 BlockManager<a class="headerlink" href="#3-block-blockmanager" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">from collections import deque
+from dataclasses import dataclass
+
+@dataclass
+class Block:
+    block_id: int
+    ref_count: int = 0
+    content_hash: int | None = None
+    token_ids: tuple[int, ...] = ()
+
+class BlockManager:
+    def __init__(self, num_blocks: int, block_size: int):
+        self.block_size = block_size
+        self.blocks = [Block(i) for i in range(num_blocks)]
+        self.free_ids = deque(range(num_blocks))
+        self.used_ids: set[int] = set()
+        self.hash_to_id: dict[int, int] = {}
+
+    def allocate_one(self) -&gt; int:
+        if not self.free_ids:
+            raise RuntimeError(&quot;KV cache exhausted&quot;)
+
+        block_id = self.free_ids.popleft()
+        block = self.blocks[block_id]
+
+        # 这个物理页即将被覆盖，旧 Prefix Cache 索引失效。
+        if block.content_hash is not None:
+            if self.hash_to_id.get(block.content_hash) == block_id:
+                del self.hash_to_id[block.content_hash]
+
+        block.ref_count = 1
+        block.content_hash = None
+        block.token_ids = ()
+        self.used_ids.add(block_id)
+        return block_id
+
+    def retain(self, block_id: int) -&gt; None:
+        self.blocks[block_id].ref_count += 1
+
+    def release(self, block_id: int) -&gt; None:
+        block = self.blocks[block_id]
+        if block.ref_count &lt;= 0:
+            raise RuntimeError(&quot;double free&quot;)
+        block.ref_count -= 1
+        if block.ref_count == 0:
+            self.used_ids.remove(block_id)
+            self.free_ids.append(block_id)
+</code></pre>
+<h3 id="4">4. 为请求分配页表<a class="headerlink" href="#4" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">def allocate_sequence(manager: BlockManager, seq: Sequence) -&gt; None:
+    if seq.block_table:
+        raise RuntimeError(&quot;sequence already owns blocks&quot;)
+
+    required = seq.num_blocks
+    if len(manager.free_ids) &lt; required:
+        raise RuntimeError(&quot;not enough KV blocks&quot;)
+
+    for _ in range(required):
+        seq.block_table.append(manager.allocate_one())
+
+def release_sequence(manager: BlockManager, seq: Sequence) -&gt; None:
+    for block_id in reversed(seq.block_table):
+        manager.release(block_id)
+    seq.block_table.clear()
+    seq.cached_tokens = 0
+</code></pre>
+<p>逆序释放不是正确性的必要条件，但符合“先释放尾部私有页，再释放前缀共享页”的所有权顺序。</p>
+<h3 id="5-slot-mapping-kernel">5. Slot Mapping：告诉 Kernel 写到哪里<a class="headerlink" href="#5-slot-mapping-kernel" title="Permanent link">&para;</a></h3>
+<p>Block Table 用于读取整段历史；Slot Mapping 用于写入本轮新产生的 K/V：</p>
+<pre><code class="language-python">def build_slot_mapping(seq: Sequence) -&gt; list[int]:
+    start = seq.cached_tokens
+    end = start + seq.scheduled_tokens
+    slots = []
+
+    for token_pos in range(start, end):
+        logical_block = token_pos // seq.block_size
+        offset = token_pos % seq.block_size
+        physical_block = seq.block_table[logical_block]
+        slots.append(physical_block * seq.block_size + offset)
+
+    return slots
+</code></pre>
+<p>例：<code>B=4</code>、页表 <code>[7,2]</code>、写入 Token 3 至 5：</p>
+<pre><code class="language-text">token 3 → block 7, offset 3 → slot 31
+token 4 → block 2, offset 0 → slot 8
+token 5 → block 2, offset 1 → slot 9
+</code></pre>
+<h3 id="6-prefix-cache-block">6. Prefix Cache 为什么只发布完整 Block<a class="headerlink" href="#6-prefix-cache-block" title="Permanent link">&para;</a></h3>
+<p>未填满 Block 未来还会追加 Token，内容尚未不可变。只有完整 Block 才能形成稳定缓存键。</p>
+<p>链式哈希必须包含此前前缀：</p>
+<pre><code class="language-python">def block_hash(parent_hash: int | None, token_ids: list[int]) -&gt; int:
+    return hash((parent_hash, tuple(token_ids)))
+</code></pre>
+<p>相同局部 Token 出现在不同前缀后面时，链式 Hash 不同。Hash 命中后仍应比较 Token 内容，避免碰撞。</p>
+<p>先查找可复用的完整前缀：</p>
+<pre><code class="language-python">def find_cached_prefix(
+    manager: BlockManager,
+    seq: Sequence,
+) -&gt; list[int]:
+    cached_block_ids = []
+    parent_hash = None
+
+    # 最后一个 Block 即使刚好完整，也先留给当前请求继续管理；
+    # 教学版只复用“确定在 Prompt 内部”的完整前缀页。
+    num_full_prefix_blocks = max(0, seq.num_blocks - 1)
+
+    for logical_block in range(num_full_prefix_blocks):
+        start = logical_block * seq.block_size
+        end = start + seq.block_size
+        tokens = seq.token_ids[start:end]
+        content_hash = block_hash(parent_hash, tokens)
+
+        block_id = manager.hash_to_id.get(content_hash)
+        if block_id is None:
+            break
+
+        block = manager.blocks[block_id]
+        if block.token_ids != tuple(tokens):
+            break  # Hash 碰撞，不能复用。
+
+        cached_block_ids.append(block_id)
+        parent_hash = content_hash
+
+    return cached_block_ids
+</code></pre>
+<p>再把共享页和新页组成该请求的 Block Table：</p>
+<pre><code class="language-python">def allocate_with_prefix(
+    manager: BlockManager,
+    seq: Sequence,
+    cached_block_ids: list[int],
+) -&gt; None:
+    if seq.block_table:
+        raise RuntimeError(&quot;sequence already owns blocks&quot;)
+
+    new_block_count = seq.num_blocks - len(cached_block_ids)
+    reusable_free = sum(
+        manager.blocks[block_id].ref_count == 0
+        for block_id in cached_block_ids
+    )
+    required_from_free_list = new_block_count + reusable_free
+    if len(manager.free_ids) &lt; required_from_free_list:
+        raise RuntimeError(&quot;not enough KV blocks&quot;)
+
+    for block_id in cached_block_ids:
+        block = manager.blocks[block_id]
+        if block.ref_count == 0:
+            manager.free_ids.remove(block_id)
+            manager.used_ids.add(block_id)
+            block.ref_count = 1
+        else:
+            manager.retain(block_id)
+        seq.block_table.append(block_id)
+
+    for _ in range(new_block_count):
+        seq.block_table.append(manager.allocate_one())
+
+    seq.cached_tokens = len(cached_block_ids) * seq.block_size
+</code></pre>
+<p>GPU 完成本轮 Prefill 后，发布新填满的 Block：</p>
+<pre><code class="language-python">def publish_full_blocks(manager: BlockManager, seq: Sequence) -&gt; None:
+    completed_tokens = seq.cached_tokens + seq.scheduled_tokens
+    completed_blocks = completed_tokens // seq.block_size
+    first_unpublished = seq.cached_tokens // seq.block_size
+
+    parent_hash = None
+    if first_unpublished &gt; 0:
+        previous_id = seq.block_table[first_unpublished - 1]
+        parent_hash = manager.blocks[previous_id].content_hash
+
+    for logical_block in range(first_unpublished, completed_blocks):
+        start = logical_block * seq.block_size
+        end = start + seq.block_size
+        tokens = seq.token_ids[start:end]
+        content_hash = block_hash(parent_hash, tokens)
+        block = manager.blocks[seq.block_table[logical_block]]
+        block.content_hash = content_hash
+        block.token_ids = tuple(tokens)
+        manager.hash_to_id[content_hash] = block.block_id
+        parent_hash = content_hash
+</code></pre>
+<p>注意顺序：先由 GPU 写完 KV，再由 Postprocess 发布 Hash。若调度时就发布，其他请求可能命中一页尚未写完的数据。</p>
+<h3 id="7">7. 引用计数的含义<a class="headerlink" href="#7" title="Permanent link">&para;</a></h3>
+<p>两条请求共享 Prefix Block：</p>
+<pre><code class="language-text">S0 table = [7, 2]
+S1 table = [7, 9]
+block 7 ref_count = 2
+</code></pre>
+<p>S0 完成时只能把 <code>block 7</code> 引用减为 1，不能放回 Free List。Prefix Cache 的核心不是 Hash Map，而是一套“不可变内容 + 引用所有权 + 延迟回收”协议。</p>
+<h3 id="_6">本阶段测试<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">def test_allocate_release_is_symmetric(): ...
+def test_slot_mapping_crosses_block_boundary(): ...
+def test_shared_prefix_ref_count(): ...
+def test_partial_block_is_not_published(): ...
+def test_hash_collision_compares_tokens(): ...
+</code></pre>
+<hr />
+<h2 id="4-scheduler">六、阶段 4：实现 Scheduler<a class="headerlink" href="#4-scheduler" title="Permanent link">&para;</a></h2>
+<h3 id="1-scheduler">1. Scheduler 的输入与输出<a class="headerlink" href="#1-scheduler" title="Permanent link">&para;</a></h3>
+<p>输入：</p>
+<pre><code class="language-text">waiting sequences
+running sequences
+free KV blocks
+max_num_seqs
+max_num_batched_tokens
+</code></pre>
+<p>输出：</p>
+<pre><code class="language-text">selected sequences
+is_prefill
+每条序列的 scheduled_tokens
+已完成的 Block 分配
+</code></pre>
+<p>Scheduler 不执行模型，只做计划与资源预留。</p>
+<h3 id="2_1">2. 两种预算<a class="headerlink" href="#2_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>max_num_seqs</code>：控制 Batch 中的序列数、Decode 并发和元数据规模；</li>
+<li><code>max_num_batched_tokens</code>：控制 Prefill 本轮 Token 总数与临时张量规模。</li>
+</ul>
+<p>这类似渲染中同时限制 Draw 数量和 Upload/Transient Memory Budget，不能只用一个 Batch Size 表达。</p>
+<h3 id="3-scheduler">3. Scheduler 骨架<a class="headerlink" href="#3-scheduler" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">from collections import deque
+
+class Scheduler:
+    def __init__(self, config, block_manager: BlockManager):
+        self.max_num_seqs = config.max_num_seqs
+        self.max_num_batched_tokens = config.max_num_batched_tokens
+        self.eos_token_id = config.eos_token_id
+        self.block_manager = block_manager
+        self.waiting: deque[Sequence] = deque()
+        self.running: deque[Sequence] = deque()
+
+    def add(self, seq: Sequence) -&gt; None:
+        self.waiting.append(seq)
+
+    def is_finished(self) -&gt; bool:
+        return not self.waiting and not self.running
+
+    def schedule(self) -&gt; tuple[list[Sequence], bool]:
+        prefill = self._schedule_prefill()
+        if prefill:
+            return prefill, True
+        return self._schedule_decode(), False
+</code></pre>
+<h3 id="4-prefill-chunked-prefill">4. Prefill 与 Chunked Prefill<a class="headerlink" href="#4-prefill-chunked-prefill" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">def _schedule_prefill(self) -&gt; list[Sequence]:
+    selected = []
+    used_tokens = 0
+
+    while self.waiting and len(selected) &lt; self.max_num_seqs:
+        seq = self.waiting[0]
+        remaining = self.max_num_batched_tokens - used_tokens
+        if remaining == 0:
+            break
+
+        if not seq.block_table:
+            cached = find_cached_prefix(self.block_manager, seq)
+            new_blocks = seq.num_blocks - len(cached)
+            reusable_free = sum(
+                self.block_manager.blocks[block_id].ref_count == 0
+                for block_id in cached
+            )
+            if len(self.block_manager.free_ids) &lt; new_blocks + reusable_free:
+                break
+            allocate_with_prefix(self.block_manager, seq, cached)
+
+        unscheduled = len(seq.token_ids) - seq.cached_tokens
+
+        # 简化：Batch 中已有请求时，不让下一条长 Prompt 做 Partial Chunk。
+        if unscheduled &gt; remaining and selected:
+            break
+
+        seq.scheduled_tokens = min(unscheduled, remaining)
+        used_tokens += seq.scheduled_tokens
+        selected.append(seq)
+
+        if seq.cached_tokens + seq.scheduled_tokens == len(seq.token_ids):
+            self.waiting.popleft()
+            seq.status = SequenceStatus.RUNNING
+            self.running.append(seq)
+        else:
+            # 第一条请求只处理一个 Chunk，仍留在 waiting[0]。
+            break
+
+    return selected
+</code></pre>
+<p>Chunked Prefill 把超长 Prompt 拆成多个 Step。它和长任务分帧处理具有同样目标：避免一次工作独占整个预算，同时引入更多状态和调度次数。</p>
+<h3 id="5-decode">5. Decode 与抢占<a class="headerlink" href="#5-decode" title="Permanent link">&para;</a></h3>
+<p>Decode 新增 Token 可能跨越 Block 边界。如果没有空闲 Block，Scheduler 需要选择受害请求。</p>
+<pre><code class="language-python">def needs_new_block(seq: Sequence) -&gt; bool:
+    # last_token 尚未写入 KV；它位于新 Block 的第一个位置时需要新页。
+    return len(seq.token_ids) % seq.block_size == 1
+
+def _schedule_decode(self) -&gt; list[Sequence]:
+    selected = []
+
+    while self.running and len(selected) &lt; self.max_num_seqs:
+        seq = self.running.popleft()
+
+        while needs_new_block(seq) and not self.block_manager.free_ids:
+            if self.running:
+                self._preempt(self.running.pop())
+            else:
+                self._preempt(seq)
+                break
+        else:
+            if needs_new_block(seq):
+                seq.block_table.append(self.block_manager.allocate_one())
+            seq.scheduled_tokens = 1
+            selected.append(seq)
+
+    self.running.extendleft(reversed(selected))
+    if not selected:
+        raise RuntimeError(&quot;no schedulable sequence&quot;)
+    return selected
+
+def _preempt(self, seq: Sequence) -&gt; None:
+    release_sequence(self.block_manager, seq)
+    seq.status = SequenceStatus.WAITING
+    self.waiting.appendleft(seq)
+</code></pre>
+<p>Nano-vLLM 采用 Recompute Preemption：释放 KV Cache，之后重新 Prefill。它用计算换显存，结构简单。生产系统可能使用 Swap、Priority 或更复杂的受害者选择。</p>
+<h3 id="6-postprocess">6. Postprocess 是事务提交<a class="headerlink" href="#6-postprocess" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">def postprocess(self, seqs, token_ids, is_prefill):
+    for seq, token_id in zip(seqs, token_ids):
+        if is_prefill:
+            publish_full_blocks(self.block_manager, seq)
+        seq.cached_tokens += seq.scheduled_tokens
+        seq.scheduled_tokens = 0
+
+        # Chunk 尚未完成整个 Prompt，不产生新 Token。
+        if is_prefill and seq.cached_tokens &lt; len(seq.token_ids):
+            continue
+
+        seq.append_token(token_id)
+        hit_eos = (
+            token_id == self.eos_token_id
+            and not seq.sampling.ignore_eos
+        )
+        hit_limit = (
+            len(seq.completion_token_ids) &gt;= seq.sampling.max_tokens
+        )
+
+        if hit_eos or hit_limit:
+            seq.status = SequenceStatus.FINISHED
+            release_sequence(self.block_manager, seq)
+            self.running.remove(seq)
+</code></pre>
+<p>先执行 GPU，成功后再提交 <code>cached_tokens</code> 和 Token 状态。这个顺序等价于资源状态变更必须发生在对应 GPU 工作真正成立之后。</p>
+<h3 id="7_1">7. 调度策略不是硬件定律<a class="headerlink" href="#7_1" title="Permanent link">&para;</a></h3>
+<p>示例实现优先 Prefill：只要选到 Prefill，就不组成 Decode Batch。它容易理解，但会影响已有请求的 Inter-Token Latency。生产系统需要在以下目标间权衡：</p>
+<ul>
+<li>TTFT：新请求首 Token 延迟；</li>
+<li>TPOT/ITL：已有请求相邻 Token 延迟；</li>
+<li>总吞吐；</li>
+<li>公平性与长请求饥饿；</li>
+<li>KV Cache 压力。</li>
+</ul>
+<p>必须区分“资源不能超预算”的正确性约束与“谁先运行”的策略选择。</p>
+<hr />
+<h2 id="5-modelrunner-metadata">七、阶段 5：实现 ModelRunner 的 Metadata 编译<a class="headerlink" href="#5-modelrunner-metadata" title="Permanent link">&para;</a></h2>
+<h3 id="1-runner">1. 为什么叫 Runner<a class="headerlink" href="#1-runner" title="Permanent link">&para;</a></h3>
+<p>模型层不应该认识 Python <code>Sequence</code> 对象。Runner 把控制平面状态编译为紧凑 Tensor：</p>
+<pre><code class="language-text">Sequence objects
+    ↓ compile metadata
+input_ids / positions
+cu_seqlens_q / cu_seqlens_k
+slot_mapping / context_lens / block_tables
+    ↓
+Qwen3 model + Attention kernels
+</code></pre>
+<p>这类似渲染器把 Scene Object、Material 和 Resource Handle 编译成 Command/Indirect Buffer。</p>
+<h3 id="2-attentioncontext">2. AttentionContext<a class="headerlink" href="#2-attentioncontext" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">@dataclass(slots=True)
+class AttentionContext:
+    is_prefill: bool
+    cu_seqlens_q: torch.Tensor | None = None
+    cu_seqlens_k: torch.Tensor | None = None
+    max_seqlen_q: int = 0
+    max_seqlen_k: int = 0
+    slot_mapping: torch.Tensor | None = None
+    context_lens: torch.Tensor | None = None
+    block_tables: torch.Tensor | None = None
+</code></pre>
+<h3 id="3-padding-block-table">3. Padding Block Table<a class="headerlink" href="#3-padding-block-table" title="Permanent link">&para;</a></h3>
+<p>每条请求 Block 数不同。只 Padding 页表，不复制完整 KV：</p>
+<pre><code class="language-python">def make_block_tables(seqs: list[Sequence]) -&gt; torch.Tensor:
+    width = max(len(seq.block_table) for seq in seqs)
+    rows = [
+        seq.block_table + [-1] * (width - len(seq.block_table))
+        for seq in seqs
+    ]
+    return torch.tensor(rows, dtype=torch.int32, pin_memory=True).cuda(
+        non_blocking=True
+    )
+</code></pre>
+<p>Kernel 通过 <code>context_lens</code> 知道有效 Token 范围，不能访问 <code>-1</code> Padding 页。</p>
+<h3 id="4-prefill-metadata">4. Prefill Metadata 完整构造<a class="headerlink" href="#4-prefill-metadata" title="Permanent link">&para;</a></h3>
+<p>先统一小型 Host 元数据的上传函数：</p>
+<pre><code class="language-python">def to_cuda_i32(values: list[int]) -&gt; torch.Tensor:
+    host = torch.tensor(values, dtype=torch.int32, pin_memory=True)
+    return host.cuda(non_blocking=True)
+
+def to_cuda_i64(values: list[int]) -&gt; torch.Tensor:
+    host = torch.tensor(values, dtype=torch.int64, pin_memory=True)
+    return host.cuda(non_blocking=True)
+</code></pre>
+<p>这些临时 Host Tensor 在教学代码中依赖 PyTorch 管理生命周期。工程版应使用持久 Pinned Ring Buffer，并用 Event 确认某个 Slot 已经可以复用。</p>
+<pre><code class="language-python">def prepare_prefill(seqs: list[Sequence], block_size: int):
+    input_ids = []
+    positions = []
+    cu_q = [0]
+    cu_k = [0]
+    slot_mapping = []
+    max_q = 0
+    max_k = 0
+
+    for seq in seqs:
+        start = seq.cached_tokens
+        q_len = seq.scheduled_tokens
+        end = start + q_len
+        k_len = end
+
+        input_ids.extend(seq.token_ids[start:end])
+        positions.extend(range(start, end))
+        cu_q.append(cu_q[-1] + q_len)
+        cu_k.append(cu_k[-1] + k_len)
+        max_q = max(max_q, q_len)
+        max_k = max(max_k, k_len)
+        slot_mapping.extend(build_slot_mapping(seq))
+
+    has_cached_prefix = cu_k[-1] &gt; cu_q[-1]
+    block_tables = make_block_tables(seqs) if has_cached_prefix else None
+
+    return AttentionContext(
+        is_prefill=True,
+        cu_seqlens_q=to_cuda_i32(cu_q),
+        cu_seqlens_k=to_cuda_i32(cu_k),
+        max_seqlen_q=max_q,
+        max_seqlen_k=max_k,
+        slot_mapping=to_cuda_i32(slot_mapping),
+        block_tables=block_tables,
+    ), to_cuda_i64(input_ids), to_cuda_i64(positions)
+</code></pre>
+<p>为什么 <code>cu_k</code> 可能大于 <code>cu_q</code>：Query 只包含本轮新 Token，Key Length 包含已缓存前缀。</p>
+<h3 id="5-decode-metadata">5. Decode Metadata 完整构造<a class="headerlink" href="#5-decode-metadata" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">def prepare_decode(seqs: list[Sequence], block_size: int):
+    input_ids = [seq.last_token for seq in seqs]
+    positions = [len(seq.token_ids) - 1 for seq in seqs]
+    context_lens = [len(seq.token_ids) for seq in seqs]
+    slot_mapping = []
+
+    for seq in seqs:
+        token_pos = len(seq.token_ids) - 1
+        logical_block = token_pos // block_size
+        offset = token_pos % block_size
+        physical_block = seq.block_table[logical_block]
+        slot_mapping.append(physical_block * block_size + offset)
+
+    context = AttentionContext(
+        is_prefill=False,
+        slot_mapping=to_cuda_i32(slot_mapping),
+        context_lens=to_cuda_i32(context_lens),
+        block_tables=make_block_tables(seqs),
+    )
+    return context, to_cuda_i64(input_ids), to_cuda_i64(positions)
+</code></pre>
+<h3 id="6-context">6. 为什么 Context 是隐式全局状态<a class="headerlink" href="#6-context" title="Permanent link">&para;</a></h3>
+<p>Nano-vLLM 把本轮 Context 存在进程内全局对象中，Attention Layer 调用 <code>get_context()</code>。好处是模型 <code>forward(input_ids, positions)</code> 不必在每层传大量元数据；代价是：</p>
+<ul>
+<li>同一进程同一时刻只能有一个有效 Context；</li>
+<li>异常路径必须 Reset；</li>
+<li>并发 Stream 与重入更难推理。</li>
+</ul>
+<p>教学实现可以先显式传参，理解后再改成 Context。这是接口整洁与隐式状态之间的工程权衡，不是 CUDA 要求。</p>
+<hr />
+<h2 id="6-flashattention-triton-kv-kernel">八、阶段 6：接入 FlashAttention 与 Triton KV Kernel<a class="headerlink" href="#6-flashattention-triton-kv-kernel" title="Permanent link">&para;</a></h2>
+<h3 id="1-kv-cache_1">1. KV Cache 物理布局<a class="headerlink" href="#1-kv-cache_1" title="Permanent link">&para;</a></h3>
+<p>Nano-vLLM 一次性分配：</p>
+<pre><code class="language-text">[2, num_layers, num_blocks, block_size, kv_heads_per_rank, head_dim]
+ ↑
+ K/V
+</code></pre>
+<p>每层 Attention 持有属于自己的 K/V View。单 Block 字节数：</p>
+<p>$$
+2\times L\times B\times H_{kv,rank}\times D\times bytes_{dtype}
+$$</p>
+<h3 id="2-warmup-kv-cache">2. 为什么先 Warmup 再分 KV Cache<a class="headerlink" href="#2-warmup-kv-cache" title="Permanent link">&para;</a></h3>
+<p>模型权重不是唯一显存占用。Forward 还需要临时 Tensor、Kernel Workspace、通信 Buffer 和编译缓存。</p>
+<pre><code class="language-text">可用 KV 预算
+= total_memory × utilization
+- 当前非 KV 占用
+- Forward 峰值临时占用
+</code></pre>
+<p>Runner 先用最大计划 Shape Warmup，记录峰值，再用剩余预算计算 <code>num_kv_blocks</code>。这是一种内存容量规划，不只是让 Kernel 变热。</p>
+<h3 id="3-kv-cache">3. 写入 KV Cache<a class="headerlink" href="#3-kv-cache" title="Permanent link">&para;</a></h3>
+<p>概念上是 Scatter：</p>
+<pre><code class="language-python">def store_kv(key, value, k_cache, v_cache, slot_mapping):
+    flat_k = k_cache.view(-1, key.shape[-2], key.shape[-1])
+    flat_v = v_cache.view(-1, value.shape[-2], value.shape[-1])
+    valid = slot_mapping &gt;= 0
+    flat_k[slot_mapping[valid]] = key[valid]
+    flat_v[slot_mapping[valid]] = value[valid]
+</code></pre>
+<p>Nano-vLLM 使用 Triton Kernel。一个 Program 处理一个 Token 的全部 KV Head 数据：</p>
+<pre><code class="language-python">@triton.jit
+def store_kv_kernel(
+    key_ptr, value_ptr, k_cache_ptr, v_cache_ptr,
+    slot_mapping_ptr, token_stride: tl.constexpr, D: tl.constexpr,
+):
+    token = tl.program_id(0)
+    slot = tl.load(slot_mapping_ptr + token)
+    offsets = tl.arange(0, D)
+    mask = (offsets &lt; D) &amp; (slot &gt;= 0)
+
+    key = tl.load(key_ptr + token * token_stride + offsets, mask=mask)
+    value = tl.load(value_ptr + token * token_stride + offsets, mask=mask)
+    tl.store(k_cache_ptr + slot * D + offsets, key, mask=mask)
+    tl.store(v_cache_ptr + slot * D + offsets, value, mask=mask)
+</code></pre>
+<p>GPU 原理：</p>
+<ul>
+<li><code>offsets</code> 让同一 Program 的 Lane 读取连续 Head 数据，便于合并；</li>
+<li>Slot Mapping 是 Scatter 目标；</li>
+<li><code>slot=-1</code> 用于 CUDA Graph Padding，必须 Mask；</li>
+<li>写入后 Attention 在同一 Stream 执行，Stream 顺序保证依赖，不需要 CPU 同步。</li>
+</ul>
+<h3 id="4-prefill-attention">4. Prefill Attention 路径<a class="headerlink" href="#4-prefill-attention" title="Permanent link">&para;</a></h3>
+<p>没有缓存前缀：K/V 就是本轮 Packed K/V。</p>
+<p>存在缓存前缀：K/V 从分页 Cache 通过 Block Table 读取，本轮新 K/V 已先 Scatter 进去。</p>
+<pre><code class="language-python">if ctx.is_prefill:
+    output = flash_attn_varlen_func(
+        q,
+        k_cache if ctx.block_tables is not None else k,
+        v_cache if ctx.block_tables is not None else v,
+        cu_seqlens_q=ctx.cu_seqlens_q,
+        cu_seqlens_k=ctx.cu_seqlens_k,
+        max_seqlen_q=ctx.max_seqlen_q,
+        max_seqlen_k=ctx.max_seqlen_k,
+        block_table=ctx.block_tables,
+        causal=True,
+    )
+</code></pre>
+<h3 id="5-decode-attention">5. Decode Attention 路径<a class="headerlink" href="#5-decode-attention" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">else:
+    output = flash_attn_with_kvcache(
+        q.unsqueeze(1),
+        k_cache,
+        v_cache,
+        cache_seqlens=ctx.context_lens,
+        block_table=ctx.block_tables,
+        causal=True,
+    )
+</code></pre>
+<p>每条序列只有一个 Query，但读取不同长度、不同物理页的 K/V。</p>
+<h3 id="6-pagedattention-flashattention">6. PagedAttention 与 FlashAttention 的分工<a class="headerlink" href="#6-pagedattention-flashattention" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Paged KV Cache：解决缓存如何分配、共享和寻址；</li>
+<li>FlashAttention：解决 QK/Softmax/PV 如何分块，减少中间结果 HBM 流量；</li>
+<li>两者可以同时使用，但不是同一个算法。</li>
+</ul>
+<p>PagedAttention 增加间接寻址，并不保证单 Kernel 自动变快。系统收益来自更低碎片、按需增长、Prefix 共享和无需聚合复制 KV。</p>
+<hr />
+<h2 id="7-qwen3-model-adapter-weight-loader">九、阶段 7：实现 Qwen3 Model Adapter 与 Weight Loader<a class="headerlink" href="#7-qwen3-model-adapter-weight-loader" title="Permanent link">&para;</a></h2>
+<h3 id="1-model-adapter">1. Model Adapter 的边界<a class="headerlink" href="#1-model-adapter" title="Permanent link">&para;</a></h3>
+<p>框架不重新发明 Transformer Decoder。<code>Qwen3ForCausalLM</code> 的作用是把标准模型接到 Runtime 约定上：</p>
+<pre><code class="language-text">Runtime 输入契约
+input_ids + positions + AttentionContext
+        ↓
+Qwen3 Model Adapter
+        ├── 使用框架的 Parallel Linear
+        ├── 使用框架的 Paged Attention Backend
+        ├── 暴露 KV Cache 绑定位置
+        └── 暴露 compute_logits(hidden)
+        ↓
+Runtime 输出契约
+hidden states / selected logits
+</code></pre>
+<p>阅读 <code>models/qwen3.py</code> 时不需要重新学习 Decoder 每层公式，只检查四件事：</p>
+<ol>
+<li>原模型参数名如何映射到框架 Module；</li>
+<li>哪些 Linear 被替换为 TP 版本；</li>
+<li>Attention 如何取得本轮 Context 与 KV Cache；</li>
+<li>Hidden State 在哪里进入 LM Head。</li>
+</ol>
+<h3 id="2_2">2. 为执行效率调整内部布局<a class="headerlink" href="#2_2" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">qkv = self.qkv_proj(hidden_states)
+q, k, v = qkv.split([q_size, kv_size, kv_size], dim=-1)
+
+gate_up = self.gate_up_proj(hidden_states)
+gate, up = gate_up.chunk(2, dim=-1)
+hidden = F.silu(gate) * up
+</code></pre>
+<p>融合权重使相同输入只读取一次，并减少 Kernel Launch。代价是 Loader 必须把 Hugging Face 的独立权重写入正确 Slice。</p>
+<h3 id="3-weight-loader">3. Weight Loader 是布局编译器<a class="headerlink" href="#3-weight-loader" title="Permanent link">&para;</a></h3>
+<p>外部 Checkpoint：</p>
+<pre><code class="language-text">q_proj.weight
+k_proj.weight
+v_proj.weight
+gate_proj.weight
+up_proj.weight
+</code></pre>
+<p>内部布局：</p>
+<pre><code class="language-text">qkv_proj.weight      = [Q shard | K shard | V shard]
+gate_up_proj.weight  = [Gate shard | Up shard]
+</code></pre>
+<p>Loader 还需要：</p>
+<ul>
+<li>按 Tensor Parallel Rank 切片；</li>
+<li>处理 Tied Embedding；</li>
+<li>检查 Shape 与 Dtype；</li>
+<li>逐 Tensor 加载，避免同时保留完整模型的额外副本。</li>
+</ul>
+<p>这不是辅助 I/O，而是 Checkpoint Schema 到高性能执行 Layout 的转换。</p>
+<h3 id="4-runtime">4. 模型配置如何影响 Runtime 容量<a class="headerlink" href="#4-runtime" title="Permanent link">&para;</a></h3>
+<p>若 <code>num_q_heads=16</code>、<code>num_kv_heads=2</code>，每 8 个 Q Head 共享一个 KV Head：</p>
+<pre><code class="language-text">Q head 0..7  → KV head 0
+Q head 8..15 → KV head 1
+</code></pre>
+<p>KV Head 维度相对 16:16 MHA 缩小到 <code>2/16=1/8</code>。这是 KV Cache 核心维度的理论缩减，不等于整个推理进程显存缩小到八分之一。</p>
+<p>Runner 从 Hugging Face Config 读取 <code>num_hidden_layers</code>、<code>num_key_value_heads</code>、<code>head_dim</code> 和 Dtype，计算单个 KV Block 的字节数。也就是说，Model Adapter 不只决定计算图，还向 Runtime 提供容量规划所需的静态规格。</p>
+<hr />
+<h2 id="8-modelrunner">十、阶段 8：让 ModelRunner 形成执行闭环<a class="headerlink" href="#8-modelrunner" title="Permanent link">&para;</a></h2>
+<h3 id="1-runner_1">1. Runner 生命周期<a class="headerlink" href="#1-runner_1" title="Permanent link">&para;</a></h3>
+<pre><code class="language-text">初始化：
+load config
+→ init device / process group
+→ build model
+→ load weights
+→ warmup model
+→ measure peak memory
+→ allocate KV cache
+→ capture CUDA graphs（可选）
+
+每一步：
+prepare metadata
+→ H2D
+→ set attention context
+→ model forward
+→ LM head
+→ sample
+→ reset context
+</code></pre>
+<h3 id="2-run">2. <code>run()</code><a class="headerlink" href="#2-run" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">class ModelRunner:
+    @torch.inference_mode()
+    def run(self, seqs: list[Sequence], is_prefill: bool) -&gt; list[int]:
+        if is_prefill:
+            ctx, input_ids, positions = prepare_prefill(seqs, self.block_size)
+        else:
+            ctx, input_ids, positions = prepare_decode(seqs, self.block_size)
+
+        set_context(ctx)
+        try:
+            hidden = self.run_model(input_ids, positions, is_prefill)
+            last_hidden = self.select_last_hidden(hidden, seqs, is_prefill)
+            logits = self.model.compute_logits(last_hidden)
+            temperatures = self.prepare_temperatures(seqs)
+            return self.sampler(logits, temperatures).tolist()
+        finally:
+            reset_context()
+</code></pre>
+<p><code>finally</code> 保证异常时也清理隐式 Context。</p>
+<h3 id="3-logits">3. 为什么只计算最后位置的 Logits<a class="headerlink" href="#3-logits" title="Permanent link">&para;</a></h3>
+<p>Prefill 为多个 Token 产生 Hidden State，但生成只需要每条序列最后一个 Query 位置。若对所有 Prompt Token 执行完整 Vocab Projection，会产生大量无用 GEMM 和 Logits Buffer。</p>
+<p>选择末尾位置是一种 Gather：</p>
+<pre><code class="language-python">last_indices = cu_seqlens_q[1:] - 1
+last_hidden = hidden[last_indices]
+</code></pre>
+<h3 id="4-sampling">4. Sampling<a class="headerlink" href="#4-sampling" title="Permanent link">&para;</a></h3>
+<p>Greedy：</p>
+<pre><code class="language-python">token_ids = logits.argmax(dim=-1)
+</code></pre>
+<p>Temperature Sampling：</p>
+<pre><code class="language-python">scaled = logits.float() / temperatures[:, None]
+probs = torch.softmax(scaled, dim=-1)
+noise = torch.empty_like(probs).exponential_().clamp_min_(1e-10)
+token_ids = (probs / noise).argmax(dim=-1)
+</code></pre>
+<p>这里包含 Elementwise、Softmax Reduce 和 Argmax Reduce。生产采样器还需 Top-k/Top-p、重复惩罚、随机数状态和 Logit Bias。</p>
+<hr />
+<h2 id="9-llmengine">十一、阶段 9：组装 LLMEngine<a class="headerlink" href="#9-llmengine" title="Permanent link">&para;</a></h2>
+<pre><code class="language-python">class LLMEngine:
+    def __init__(self, config, tokenizer, runner, scheduler):
+        self.config = config
+        self.tokenizer = tokenizer
+        self.runner = runner
+        self.scheduler = scheduler
+
+    def add_request(self, prompt: str, sampling: SamplingParams) -&gt; int:
+        token_ids = self.tokenizer.encode(prompt)
+        seq = Sequence(token_ids, sampling, self.config.block_size)
+        self.scheduler.add(seq)
+        return seq.seq_id
+
+    def step(self):
+        seqs, is_prefill = self.scheduler.schedule()
+        token_ids = self.runner.run(seqs, is_prefill)
+        self.scheduler.postprocess(seqs, token_ids, is_prefill)
+        return [seq for seq in seqs if seq.status is SequenceStatus.FINISHED]
+
+    def generate(self, prompts, sampling):
+        for prompt in prompts:
+            self.add_request(prompt, sampling)
+
+        outputs = {}
+        while not self.scheduler.is_finished():
+            for seq in self.step():
+                outputs[seq.seq_id] = seq.completion_token_ids
+
+        return [
+            self.tokenizer.decode(outputs[seq_id])
+            for seq_id in sorted(outputs)
+        ]
+</code></pre>
+<h3 id="step">为什么 <code>step()</code> 是关键边界<a class="headerlink" href="#step" title="Permanent link">&para;</a></h3>
+<p>一次 Step 完成：</p>
+<pre><code class="language-text">计划资源
+→ 构造 GPU 工作
+→ 执行模型
+→ 取得结果
+→ 提交状态
+</code></pre>
+<p>流式输出、异步 Server、指标采集和取消请求都可以建立在 Step 边界之上。</p>
+<hr />
+<h2 id="10-cuda-graph-decode">十二、阶段 10：用 CUDA Graph 优化 Decode 提交<a class="headerlink" href="#10-cuda-graph-decode" title="Permanent link">&para;</a></h2>
+<h3 id="1_1">1. 问题来自哪里<a class="headerlink" href="#1_1" title="Permanent link">&para;</a></h3>
+<p>Decode 每步输入 Token 少，但模型层数多，会产生大量小 Kernel：</p>
+<pre><code class="language-text">CPU launch kernel A
+CPU launch kernel B
+CPU launch kernel C
+...
+</code></pre>
+<p>如果单 Kernel 很短，Launch Gap 在时间线中占比明显。CUDA Graph 把稳定的 Kernel 拓扑捕获后一次重放。</p>
+<p>它优化 CPU 提交，不会自动：</p>
+<ul>
+<li>融合 Kernel；</li>
+<li>减少 KV Cache 读取；</li>
+<li>提高单 Kernel 算术强度。</li>
+</ul>
+<h3 id="2-batch-bucket">2. 为什么需要 Batch Bucket<a class="headerlink" href="#2-batch-bucket" title="Permanent link">&para;</a></h3>
+<p>Graph 要求 Shape 与地址相对稳定。预先捕获：</p>
+<pre><code class="language-python">graph_batch_sizes = [1, 2, 4, 8, 16, 32, 48, 64]
+</code></pre>
+<p>真实 Batch <code>B=13</code> 使用 Bucket 16，后三条是 Padding。</p>
+<h3 id="3-buffer">3. 静态 Buffer<a class="headerlink" href="#3-buffer" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">self.static_input_ids = torch.zeros(max_batch, dtype=torch.int64, device=&quot;cuda&quot;)
+self.static_positions = torch.zeros(max_batch, dtype=torch.int64, device=&quot;cuda&quot;)
+self.static_slot_mapping = torch.full(
+    (max_batch,), -1, dtype=torch.int32, device=&quot;cuda&quot;
+)
+self.static_context_lens = torch.zeros(max_batch, dtype=torch.int32, device=&quot;cuda&quot;)
+</code></pre>
+<p>每次只 Copy 内容，不替换 Tensor 对象：</p>
+<pre><code class="language-python">self.static_input_ids[:bs].copy_(input_ids)
+self.static_positions[:bs].copy_(positions)
+self.static_slot_mapping.fill_(-1)
+self.static_slot_mapping[:bs].copy_(slot_mapping)
+graph.replay()
+</code></pre>
+<h3 id="4_1">4. 三个不变量<a class="headerlink" href="#4_1" title="Permanent link">&para;</a></h3>
+<ol>
+<li>捕获和重放使用相同 Tensor 地址；</li>
+<li>Kernel 拓扑保持稳定；</li>
+<li>Padding 无副作用：Slot 为 <code>-1</code>、Context Length 为 0、输出被裁掉。</li>
+</ol>
+<h3 id="5">5. 对应图形框架<a class="headerlink" href="#5" title="Permanent link">&para;</a></h3>
+<p>它最接近“预先录制并重放稳定 Command List”。它不是 RenderGraph，也不是 GPU Driven Rendering：RenderGraph 还负责资源依赖与 Pass 规划，GPU Driven 则把可见性和间接参数生成移到 GPU。</p>
+<hr />
+<h2 id="11-tensor-parallel-worker">十三、阶段 11：接入 Tensor Parallel Worker<a class="headerlink" href="#11-tensor-parallel-worker" title="Permanent link">&para;</a></h2>
+<h3 id="1-column-parallel">1. Column Parallel<a class="headerlink" href="#1-column-parallel" title="Permanent link">&para;</a></h3>
+<p>按输出维切权重：</p>
+<pre><code class="language-text">W[out, in]
+→ rank 0 owns W[0:out/p, :]
+→ rank 1 owns W[out/p:2out/p, :]
+</code></pre>
+<p>每个 Rank 产生不同输出 Slice。QKV 和 Gate/Up 可以继续本地计算，不立即通信。</p>
+<h3 id="2-row-parallel">2. Row Parallel<a class="headerlink" href="#2-row-parallel" title="Permanent link">&para;</a></h3>
+<p>按输入维切权重：</p>
+<p>$$
+y=\sum_r x_r W_r^T
+$$</p>
+<pre><code class="language-python">def forward(self, x):
+    y = F.linear(x, self.weight, self.bias if self.rank == 0 else None)
+    if self.world_size &gt; 1:
+        dist.all_reduce(y)
+    return y
+</code></pre>
+<p>Bias 只能在一个 Rank 加，否则 AllReduce 后会重复累加。</p>
+<h3 id="3-communication-behind-compute">3. Communication behind compute 的边界<a class="headerlink" href="#3-communication-behind-compute" title="Permanent link">&para;</a></h3>
+<p>TP 的 AllReduce 位于层内数据依赖上：后续计算需要完整结果时，通信不能无限延后。可以通过分块、Stream、ReduceScatter/AllGather 组合或算子重排寻找重叠，但必须满足依赖。</p>
+<p>“存在独立 Copy/Communication Engine”不等于自动重叠。应使用 Nsight Systems 验证 NCCL 与计算是否在时间线上并行。</p>
+<h3 id="4-gpu">4. 一 GPU 一进程<a class="headerlink" href="#4-gpu" title="Permanent link">&para;</a></h3>
+<p>Nano-vLLM 使用 <code>spawn</code> 创建 Worker，每个 Rank：</p>
+<pre><code class="language-text">bind CUDA device
+→ init NCCL process group
+→ build same model structure
+→ load local weight shard
+→ receive run command
+→ execute collectives in identical order
+</code></pre>
+<p>Collective 顺序是全局协议。某个 Rank 少进入一次 AllReduce，会导致其他 Rank 永久等待。</p>
+<hr />
+<h2 id="step-trace">十四、用一次 Step Trace 串起所有模块<a class="headerlink" href="#step-trace" title="Permanent link">&para;</a></h2>
+<p>请求：</p>
+<pre><code class="language-text">S0: prompt 6 tokens, max_new_tokens=2
+S1: prompt 3 tokens, max_new_tokens=2
+block_size=4
+token_budget=6
+</code></pre>
+<h3 id="step-1s0-chunked-prefill">Step 1：S0 Chunked Prefill<a class="headerlink" href="#step-1s0-chunked-prefill" title="Permanent link">&para;</a></h3>
+<pre><code class="language-text">Scheduler:
+S0 scheduled=6
+allocate S0 block_table=[7,2]
+
+Runner:
+input_ids=S0[0:6]
+positions=[0,1,2,3,4,5]
+slot_mapping=[28,29,30,31,8,9]
+
+Attention:
+write K/V to physical blocks 7 and 2
+
+Postprocess:
+S0 cached=6
+append sampled token x0
+</code></pre>
+<h3 id="step-2s1-prefill">Step 2：S1 Prefill<a class="headerlink" href="#step-2s1-prefill" title="Permanent link">&para;</a></h3>
+<p>Prefill 优先策略使新等待请求先运行：</p>
+<pre><code class="language-text">S1 block_table=[11]
+input_ids=S1[0:3]
+slot_mapping=[44,45,46]
+append sampled token y0
+</code></pre>
+<h3 id="step-3s0-s1-decode-batch">Step 3：S0 与 S1 Decode Batch<a class="headerlink" href="#step-3s0-s1-decode-batch" title="Permanent link">&para;</a></h3>
+<pre><code class="language-text">input_ids=[x0,y0]
+positions=[6,3]
+context_lens=[7,4]
+block_tables:
+[7,2]
+[11,-1]
+slot_mapping=[10,47]
+</code></pre>
+<p>GPU 只计算两个新 Token，但 Attention 分别通过页表读取 7 和 4 个历史位置。</p>
+<h3 id="step-4">Step 4：完成并释放<a class="headerlink" href="#step-4" title="Permanent link">&para;</a></h3>
+<p>生成第二个 Token 后命中 <code>max_new_tokens=2</code>：</p>
+<pre><code class="language-text">S0 releases [2,7]
+S1 releases [11]
+free block pool recovers all pages
+</code></pre>
+<p>这一完整 Trace 应在读源码前手工推一遍。只要某一步的 <code>cached_tokens</code>、页表或 Slot Mapping 算不出来，就说明对应模块尚未真正理解。</p>
+<hr />
+<h2 id="cuda_1">十五、框架技术栈与 CUDA 原语对照<a class="headerlink" href="#cuda_1" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">CUDA/并行原语</th>
+<th style="text-align: left;">在 Nano-vLLM 中解决什么</th>
+<th style="text-align: left;">常见错误</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Pinned Memory + Async H2D</td>
+<td style="text-align: left;">上传 Token 和页表元数据</td>
+<td style="text-align: left;">Host Buffer 太早复用、隐式同步</td>
+</tr>
+<tr>
+<td style="text-align: left;">Stream 顺序</td>
+<td style="text-align: left;">KV Store 后再执行 Attention</td>
+<td style="text-align: left;">跨 Stream 缺 Event 依赖</td>
+</tr>
+<tr>
+<td style="text-align: left;">Event</td>
+<td style="text-align: left;">元数据 Ring Buffer 和异步完成</td>
+<td style="text-align: left;">把 Event 当内存屏障使用</td>
+</tr>
+<tr>
+<td style="text-align: left;">Triton/CUDA Scatter</td>
+<td style="text-align: left;">根据 Slot Mapping 写 KV</td>
+<td style="text-align: left;">Off-by-one、Padding 写入有效页</td>
+</tr>
+<tr>
+<td style="text-align: left;">Reduce/Softmax</td>
+<td style="text-align: left;">Attention、Sampling、Norm</td>
+<td style="text-align: left;">数值不稳定、跨 Block 归约错误</td>
+</tr>
+<tr>
+<td style="text-align: left;">Shared Memory/Tiling</td>
+<td style="text-align: left;">Attention/GEMM 片上复用</td>
+<td style="text-align: left;">Bank Conflict、容量压低驻留率</td>
+</tr>
+<tr>
+<td style="text-align: left;">Warp Shuffle</td>
+<td style="text-align: left;">Warp 内 Reduce/数据交换</td>
+<td style="text-align: left;">Active Mask 错误</td>
+</tr>
+<tr>
+<td style="text-align: left;">NCCL AllReduce</td>
+<td style="text-align: left;">Row Parallel 合并部分和</td>
+<td style="text-align: left;">Collective 顺序不同、Bias 重复</td>
+</tr>
+<tr>
+<td style="text-align: left;">CUDA Graph</td>
+<td style="text-align: left;">重放 Decode Kernel 拓扑</td>
+<td style="text-align: left;">地址变化、Padding 有副作用</td>
+</tr>
+<tr>
+<td style="text-align: left;">Memory Pool</td>
+<td style="text-align: left;">稳态避免频繁分配</td>
+<td style="text-align: left;">GPU 尚未完成就回收 Buffer</td>
+</tr>
+</tbody>
+</table>
+<p>这里没有“为了使用 CUDA 原语而使用”。每个原语都对应一个具体工程约束：数据依赖、状态所有权、访存成本或提交开销。</p>
+<h3 id="_7">调试工具栈<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h3>
+<p>框架问题应先按层定位，再选择工具：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">现象</th>
+<th style="text-align: left;">优先怀疑的层</th>
+<th style="text-align: left;">第一组工具或开关</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Token 从某一步开始错误</td>
+<td style="text-align: left;">Metadata、KV Slot、模型权重</td>
+<td style="text-align: left;">Eager Greedy 对齐、逐 Step Dump</td>
+</tr>
+<tr>
+<td style="text-align: left;">CUDA Illegal Memory Access</td>
+<td style="text-align: left;">Triton KV Store、Block Table</td>
+<td style="text-align: left;">Compute Sanitizer、边界断言</td>
+</tr>
+<tr>
+<td style="text-align: left;">显存持续增长</td>
+<td style="text-align: left;">Block 引用、Graph Pool、临时 Tensor</td>
+<td style="text-align: left;">Block 统计、PyTorch Memory Snapshot</td>
+</tr>
+<tr>
+<td style="text-align: left;">GPU 时间线有大量空洞</td>
+<td style="text-align: left;">CPU Launch、H2D、同步</td>
+<td style="text-align: left;">Nsight Systems、NVTX</td>
+</tr>
+<tr>
+<td style="text-align: left;">某个 Kernel 慢</td>
+<td style="text-align: left;">Layout、带宽、寄存器、Occupancy</td>
+<td style="text-align: left;">Nsight Compute</td>
+</tr>
+<tr>
+<td style="text-align: left;">Graph 与 Eager 输出不同</td>
+<td style="text-align: left;">静态 Buffer、Padding、隐式状态</td>
+<td style="text-align: left;"><code>enforce_eager=True</code> A/B 对比</td>
+</tr>
+<tr>
+<td style="text-align: left;">多卡卡死</td>
+<td style="text-align: left;">Collective 顺序、Worker 异常</td>
+<td style="text-align: left;"><code>NCCL_DEBUG=INFO</code>、Rank 日志、Systems</td>
+</tr>
+<tr>
+<td style="text-align: left;">子进程退出不干净</td>
+<td style="text-align: left;">Event/SHM/Process 生命周期</td>
+<td style="text-align: left;"><code>faulthandler</code>、资源清单、超时 Join</td>
+</tr>
+</tbody>
+</table>
+<p>建议为一次 Step 加 NVTX Range：</p>
+<pre><code class="language-python">with torch.cuda.nvtx.range(&quot;schedule&quot;):
+    seqs, is_prefill = scheduler.schedule()
+
+with torch.cuda.nvtx.range(&quot;prepare_metadata&quot;):
+    batch = runner.prepare(seqs, is_prefill)
+
+with torch.cuda.nvtx.range(&quot;model_forward&quot;):
+    token_ids = runner.execute(batch)
+
+with torch.cuda.nvtx.range(&quot;postprocess&quot;):
+    scheduler.postprocess(seqs, token_ids, is_prefill)
+</code></pre>
+<p>这样 Nsight Systems 中看到的不再是一串无上下文的 Kernel，而是与框架阶段对应的时间线。</p>
+<p>常用诊断命令：</p>
+<pre><code class="language-bash"># GPU 时间线、CUDA API、NCCL 和 NVTX
+nsys profile --trace=cuda,nvtx,nccl,osrt -o nano_step python example.py
+
+# 下钻 KV Store Kernel
+ncu --kernel-name regex:store_kvcache --set full -o kv_store python example.py
+
+# 自定义 CUDA/Triton Kernel 的越界检查
+compute-sanitizer --tool memcheck python example.py
+
+# NCCL 初始化和 Collective 日志
+NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=INIT,COLL python example.py
+</code></pre>
+<p>Profiler 会改变时序与性能。正确性问题先用小 Shape、Eager、同步边界和断言缩小范围，再开启重型采集。</p>
+<hr />
+<h2 id="_8">十六、正确的实现与调试顺序<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h2>
+<h3 id="1_2">1. 不要一次打开全部优化<a class="headerlink" href="#1_2" title="Permanent link">&para;</a></h3>
+<pre><code class="language-text">Hugging Face Eager 作为数值 Reference
+→ 阶段 1 Sequence 状态机
+→ 阶段 2 Packed Batch Metadata
+→ 阶段 3 Paged KV，先不做 Prefix Cache
+→ 阶段 4 Scheduler，先不做抢占
+→ 阶段 5/6 Runner + Attention Backend
+→ Prefix Cache
+→ Chunked Prefill
+→ CUDA Graph
+→ Tensor Parallel
+</code></pre>
+<h3 id="2_3">2. 每层的测试<a class="headerlink" href="#2_3" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">层</th>
+<th style="text-align: left;">测试方法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Sequence</td>
+<td style="text-align: left;">纯 CPU 状态迁移与边界</td>
+</tr>
+<tr>
+<td style="text-align: left;">BlockManager</td>
+<td style="text-align: left;">分配释放、跨页、引用计数、Hash 碰撞</td>
+</tr>
+<tr>
+<td style="text-align: left;">Scheduler</td>
+<td style="text-align: left;">预算、Chunk、抢占、结束释放</td>
+</tr>
+<tr>
+<td style="text-align: left;">Metadata</td>
+<td style="text-align: left;">手算 <code>cu_seqlens</code>、Slot、Block Table</td>
+</tr>
+<tr>
+<td style="text-align: left;">Attention</td>
+<td style="text-align: left;">与连续 KV CPU/PyTorch Reference 对齐</td>
+</tr>
+<tr>
+<td style="text-align: left;">Model</td>
+<td style="text-align: left;">与 Hugging Face 每层或 Logits 对齐</td>
+</tr>
+<tr>
+<td style="text-align: left;">Graph</td>
+<td style="text-align: left;">Eager 与 Graph Token 完全一致</td>
+</tr>
+<tr>
+<td style="text-align: left;">TP</td>
+<td style="text-align: left;">TP=1 与 TP=2 数值接近、Token 一致</td>
+</tr>
+</tbody>
+</table>
+<h3 id="3_1">3. 最有价值的断言<a class="headerlink" href="#3_1" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">assert len(slot_mapping) == sum(seq.scheduled_tokens for seq in seqs)
+assert max(slot_mapping) &lt; num_kv_blocks * block_size
+assert all(block_id &gt;= 0 for seq in seqs for block_id in seq.block_table)
+assert len(token_ids) == len(seqs)
+assert not (used_block_ids &amp; set(free_block_ids))
+</code></pre>
+<h3 id="4_2">4. 多步对齐比最终文本更重要<a class="headerlink" href="#4_2" title="Permanent link">&para;</a></h3>
+<p>建议逐步记录：</p>
+<pre><code class="language-text">step
+selected seq ids
+phase
+cached/scheduled tokens
+block tables
+slot mapping
+sampled token
+free block count
+</code></pre>
+<p>最终文本错误时，可以定位从哪一步开始偏离。只比较文本会把 Tokenizer、Sampling、KV 和模型数值问题混在一起。</p>
+<hr />
+<h2 id="_9">十七、性能分析从哪里开始<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h2>
+<h3 id="1_3">1. 先看服务指标<a class="headerlink" href="#1_3" title="Permanent link">&para;</a></h3>
+<ul>
+<li>TTFT：请求进入到首 Token；</li>
+<li>TPOT/ITL：相邻输出 Token 间隔；</li>
+<li>Throughput：总输出 Token/s；</li>
+<li>P50/P99：常见与尾部延迟。</li>
+</ul>
+<p>Continuous Batching 可能提高吞吐却增加排队延迟，不能只看 Tokens/s。</p>
+<h3 id="2_4">2. 再看时间分层<a class="headerlink" href="#2_4" title="Permanent link">&para;</a></h3>
+<pre><code class="language-text">engine.step wall time
+├── Scheduler CPU
+├── Metadata build + H2D
+├── Model GPU
+│   ├── GEMM/GEMV
+│   ├── Attention/KV
+│   ├── NCCL
+│   └── Launch gaps
+├── Sampling
+└── Postprocess
+</code></pre>
+<p>Nsight Systems 用于看 CPU/GPU 时间线、Memcpy、NCCL 和 Launch Gap；Nsight Compute 用于分析单 Kernel 的带宽、指令、Stall、Register 和 Occupancy。</p>
+<h3 id="3_2">3. 一次只打开一个优化<a class="headerlink" href="#3_2" title="Permanent link">&para;</a></h3>
+<pre><code class="language-text">Eager TP=1 no prefix cache
+→ Paged KV
+→ Prefix Cache
+→ Chunked Prefill
+→ CUDA Graph
+→ TP=2/4
+</code></pre>
+<p>每次记录正确性、TTFT、TPOT、吞吐、显存和 Shape 分布。</p>
+<hr />
+<h2 id="gpu">十八、从 GPU 第一性原理重新看整个引擎<a class="headerlink" href="#gpu" title="Permanent link">&para;</a></h2>
+<h3 id="1_4">1. 数据移动比公式更早决定系统结构<a class="headerlink" href="#1_4" title="Permanent link">&para;</a></h3>
+<p>Transformer 公式没有规定必须有 Paged KV、Prefix Cache 或 CUDA Graph。这些结构来自：</p>
+<ul>
+<li>KV 历史太大，不能反复重算或连续预留；</li>
+<li>Decode 每步反复读取历史，HBM 流量重要；</li>
+<li>不规则请求需要压成规则 Batch；</li>
+<li>小 Kernel 多，CPU 提交间隙不可忽略；</li>
+<li>多卡切分后必须合并部分结果。</li>
+</ul>
+<h3 id="2_5">2. 调度器是一个在线装箱问题<a class="headerlink" href="#2_5" title="Permanent link">&para;</a></h3>
+<p>Scheduler 每步把不同长度、不同状态的请求装入有限 Token、Sequence 和 KV Block 预算。它类似 Bin Packing，但还带时间、公平性与反馈循环。</p>
+<h3 id="3_3">3. 页表是一次有价值的间接访问<a class="headerlink" href="#3_3" title="Permanent link">&para;</a></h3>
+<p>Block Table 增加 Gather/间接寻址，却消除大块连续分配要求，并允许共享与按需增长。和纹理缓存一样，不能只看一次地址计算的成本，要看整个系统减少了多少搬移与浪费。</p>
+<h3 id="4-prefix-cache">4. Prefix Cache 是不可变资源复用<a class="headerlink" href="#4-prefix-cache" title="Permanent link">&para;</a></h3>
+<p>它的成立条件是：内容完整、Hash 可验证、引用仍有效、物理页尚未覆盖。它与渲染中的 PSO/资源缓存共享“内容寻址 + 生命周期”原则，但缓存的数据语义不同。</p>
+<h3 id="5-cuda-graph">5. CUDA Graph 是提交优化<a class="headerlink" href="#5-cuda-graph" title="Permanent link">&para;</a></h3>
+<p>它减少重复录制与 Launch，不改变 Attention 的渐进复杂度，也不替代 Kernel Fusion。先用 Systems 证明 CPU Gap 存在，再决定是否捕获。</p>
+<hr />
+<h2 id="_10">十九、与渲染框架的准确连接<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Nano-vLLM</th>
+<th style="text-align: left;">渲染框架中的近似问题</th>
+<th style="text-align: left;">共同原理</th>
+<th style="text-align: left;">不同点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>engine.step()</code></td>
+<td style="text-align: left;">Frame/Submit 边界</td>
+<td style="text-align: left;">CPU 计划后提交 GPU 工作</td>
+<td style="text-align: left;">Token 状态跨 Step 反馈</td>
+</tr>
+<tr>
+<td style="text-align: left;">Scheduler</td>
+<td style="text-align: left;">动态 Draw/Pass 批处理</td>
+<td style="text-align: left;">在预算内组 Batch</td>
+<td style="text-align: left;">请求到达和结束更不规则</td>
+</tr>
+<tr>
+<td style="text-align: left;">Packed Metadata</td>
+<td style="text-align: left;">Indirect Argument Buffer</td>
+<td style="text-align: left;">高层对象编译为紧凑 GPU 数据</td>
+<td style="text-align: left;">描述变长序列而非 Draw</td>
+</tr>
+<tr>
+<td style="text-align: left;">Block Table</td>
+<td style="text-align: left;">Descriptor/虚拟纹理页表</td>
+<td style="text-align: left;">间接寻址解耦逻辑与物理资源</td>
+<td style="text-align: left;">KV 保存时序历史</td>
+</tr>
+<tr>
+<td style="text-align: left;">KV Block Pool</td>
+<td style="text-align: left;">Transient Resource Pool</td>
+<td style="text-align: left;">按完成状态回收</td>
+<td style="text-align: left;">可共享 Prefix 引用</td>
+</tr>
+<tr>
+<td style="text-align: left;">Chunked Prefill</td>
+<td style="text-align: left;">大任务拆帧</td>
+<td style="text-align: left;">避免单任务独占预算</td>
+<td style="text-align: left;">会推迟首 Token</td>
+</tr>
+<tr>
+<td style="text-align: left;">CUDA Graph</td>
+<td style="text-align: left;">录制并重放 Command List</td>
+<td style="text-align: left;">降低重复 CPU 提交</td>
+<td style="text-align: left;">捕获模型 Kernel 拓扑</td>
+</tr>
+<tr>
+<td style="text-align: left;">Tensor Parallel</td>
+<td style="text-align: left;">Multi-GPU 分片</td>
+<td style="text-align: left;">分区计算后通信合并</td>
+<td style="text-align: left;">每层可能频繁 Collective</td>
+</tr>
+</tbody>
+</table>
+<p>类比的用途是迁移资源管理直觉，不是宣称两个系统完全同构。</p>
+<hr />
+<h2 id="_11">二十、读原源码的顺序<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h2>
+<p>完成教学实现后，再按依赖阅读：</p>
+<ol>
+<li><code>sampling_params.py</code>、<code>config.py</code>；</li>
+<li><code>engine/sequence.py</code>；</li>
+<li><code>engine/block_manager.py</code>；</li>
+<li><code>engine/scheduler.py</code>；</li>
+<li><code>utils/context.py</code>；</li>
+<li><code>layers/attention.py</code>；</li>
+<li><code>models/qwen3.py</code> 与 <code>layers/*</code>；</li>
+<li><code>engine/model_runner.py</code>；</li>
+<li><code>engine/llm_engine.py</code>。</li>
+</ol>
+<p>不要从 <code>model_runner.py</code> 开始。它同时包含模型初始化、显存测量、Metadata、KV Cache、CUDA Graph 和多进程，是所有概念的汇合点，不是入口。</p>
+<h2 id="_12">完成标准<a class="headerlink" href="#_12" title="Permanent link">&para;</a></h2>
+<p>读完并实现后，应能不看源码回答：</p>
+<ol>
+<li>一个请求如何从 Waiting 经过 Prefill、Decode 到 Finished？</li>
+<li><code>cached_tokens</code> 和 <code>scheduled_tokens</code> 为什么必须分开？</li>
+<li>Prefill 的 Packed Tensor 与 Decode Batch 在 Shape 上有什么不同？</li>
+<li>Block Table 与 Slot Mapping 分别用于读还是写？</li>
+<li>为什么 Prefix Cache 只能发布完整 Block？</li>
+<li>KV Cache 不足时 Recompute Preemption 做了什么交换？</li>
+<li>Runner 如何把 Sequence 编译为 GPU Metadata？</li>
+<li>PagedAttention 与 FlashAttention 分别解决什么问题？</li>
+<li>CUDA Graph 为什么适合 Decode，它不优化什么？</li>
+<li>Row Parallel Linear 为什么需要 AllReduce？</li>
+</ol>
+<p>若能手算第十四节的完整 Step Trace，并让 Hugging Face Reference、Paged Eager、CUDA Graph 和 TP 版本在固定输入下得到一致结果，就真正理解了 Nano-vLLM 的框架主干，而不是只看过一遍源码。</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../graphics_vs_compute_driver/" class="btn btn-neutral float-left" title="10.4 图形驱动 vs 通用计算驱动: 差异与交集"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../attention_kernel_gqa_practice/" class="btn btn-neutral float-right" title="11.2 Attention Kernel: QK、Softmax、PV 与 GQA">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../graphics_vs_compute_driver/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../attention_kernel_gqa_practice/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

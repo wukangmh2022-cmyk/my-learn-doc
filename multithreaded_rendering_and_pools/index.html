@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="writer-html5" lang="en" >
+<html class="writer-html5" lang="zh_CN" >
 <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
@@ -48,7 +48,7 @@
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 渲染管线与硬件单元 (SM, TMU, ROP)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
                   </li>
@@ -67,7 +67,7 @@
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#1-command-list">1. 多线程 Command List 录制的铁律</a>
         <ul>
-    <li class="toctree-l3"><a class="reference internal" href="#11-command-list">1.1 核心规则：每个线程独享一个 Command List</a>
+    <li class="toctree-l3"><a class="reference internal" href="#11-command-list">1.1 核心规则：同一时刻只有一个线程录制一个 Command List</a>
         <ul>
     <li class="toctree-l4"><a class="reference internal" href="#1">约束 1：状态累积</a>
     </li>
@@ -115,11 +115,11 @@
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 为何图形做多 Pass，AI 做单 Pass Tiling</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention (类比 DX12 资源池 / 伙伴分配器)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
                   </li>
               </ul>
               <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
@@ -134,6 +134,8 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
               </ul>
               <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
               <ul>
@@ -146,33 +148,54 @@
                   <li class="toctree-l1"><a class="reference internal" href="../flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">7. 专用硬件加速单元</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">7.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                <li class="toctree-l1"><a class="reference internal" href="../llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">7.2 RT Core: BVH 遍历专用电路 (压缩解决随机访问，专用电路解决分支分歧)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">7.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">8. GPU 软件栈与驱动开发</span></p>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">8.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">8.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">8.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">8.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">9. 职业发展与工程实践</span></p>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">9.1 四个核心岗位对比: 算子开发 / 推理框架 / 编译器 / 驱动</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../nano_vllm_from_scratch/">11.1 Nano-vLLM: 框架架构、技术栈与源码实现</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">9.2 简历技能清单 (基于我们对话的认知总结)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">9.3 关键知识点自检清单 (MkDocs 版)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../paged_attention_dx12_tensorrt/">11.3 PagedAttention: DX12 与 TensorRT 双后端实践</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">A.3 关键知识点自检清单</a>
                   </li>
               </ul>
       </div>
@@ -199,23 +222,23 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
             <div class="section" itemprop="articleBody">
               
-                <h1 id="23">2.3 多线程渲染与资源池管理</h1>
-<h2 id="_1">概述</h2>
+                <h1 id="23">2.3 多线程渲染与资源池管理<a class="headerlink" href="#23" title="Permanent link">&para;</a></h1>
+<h2 id="_1">概述<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
 <p>现代 3A 游戏引擎（如顽皮狗、寒霜、虚幻）充分利用多核 CPU 来并行准备渲染数据。其核心模式是：<strong>多个线程各自录制自己的 Command List，然后在主线程按顺序提交到同一个 Command Queue。</strong></p>
-<p>这个模式直接对应到 CUDA 的多流并发——你让多个线程往不同的 CUDA Stream 里发 Kernel，然后在主线程同步等待所有 Stream 完成。</p>
-<h2 id="1-command-list">1. 多线程 Command List 录制的铁律</h2>
-<h3 id="11-command-list">1.1 核心规则：每个线程独享一个 Command List</h3>
+<p>CUDA 也允许多个 Host 线程提交工作，但 Stream 不是 Command List 的一一对应物，也不要求绑定到创建它的线程。是否使用多 Host 线程应由 CPU 提交开销、上下文与调度设计决定。</p>
+<h2 id="1-command-list">1. 多线程 Command List 录制的铁律<a class="headerlink" href="#1-command-list" title="Permanent link">&para;</a></h2>
+<h3 id="11-command-list">1.1 核心规则：同一时刻只有一个线程录制一个 Command List<a class="headerlink" href="#11-command-list" title="Permanent link">&para;</a></h3>
 <blockquote>
 <p><strong>你的原话</strong>："至少 command list 是不能复用的在多个线程上。"</p>
 </blockquote>
-<p><strong>完全正确。</strong> 这条铁律的根源在于三个设计约束：</p>
-<h4 id="1">约束 1：状态累积</h4>
+<p>更准确地说，不能从多个线程并发录制同一个 Command List。对象可以在不同时间由不同线程使用，只要应用自行保证互斥和生命周期；工程上通常为每个并行录制任务准备独立的 List 与 Allocator。</p>
+<h4 id="1">约束 1：状态累积<a class="headerlink" href="#1" title="Permanent link">&para;</a></h4>
 <p><code>SetPipelineState</code>、<code>SetGraphicsRootSignature</code> 等操作会影响 Command List 的内部状态机。多线程同时写同一个 List 会导致状态互相覆盖，渲染结果完全不可预测。</p>
-<h4 id="2command-allocator">约束 2：Command Allocator 非线程安全</h4>
-<p>DX12 中，Command List 绑定到一个 Command Allocator，而 Allocator <strong>不是线程安全的</strong>。同一个 Allocator 被多个线程同时 <code>Reset()</code> 会直接崩溃。</p>
-<h4 id="3api">约束 3：API 设计约束</h4>
+<h4 id="2command-allocator">约束 2：Command Allocator 非线程安全<a class="headerlink" href="#2command-allocator" title="Permanent link">&para;</a></h4>
+<p>DX12 中，Command List 录制时使用 Command Allocator。应用不能并发使用/重置同一个 Allocator，也不能在 GPU 尚未执行完关联命令时重置它；违反约束是未定义行为或调试层错误，不应笼统描述为“必然崩溃”。</p>
+<h4 id="3api">约束 3：API 设计约束<a class="headerlink" href="#3api" title="Permanent link">&para;</a></h4>
 <p><code>ID3D12GraphicsCommandList</code> 本身不是线程安全的。多线程同时调用其方法会导致未定义行为。</p>
-<h3 id="12">1.2 正确做法：并发录制 + 串行提交</h3>
+<h3 id="12">1.2 正确做法：并发录制 + 串行提交<a class="headerlink" href="#12" title="Permanent link">&para;</a></h3>
 <pre><code class="language-cpp">// DX12 多线程 Command List 录制
 const int NUM_THREADS = 4;
 
@@ -261,7 +284,7 @@ cmdQueue-&gt;Signal(fence, ++fenceValue);
 <p><strong>注意</strong>：
 - 所有 Command List 提交顺序必须正确（依赖关系由你保证）
 - 提交后不能立即 Reset，需要等待 GPU 执行完成</p>
-<h3 id="13-cuda">1.3 映射到 CUDA 多流并发</h3>
+<h3 id="13-cuda">1.3 映射到 CUDA 多流并发<a class="headerlink" href="#13-cuda" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -272,24 +295,24 @@ cmdQueue-&gt;Signal(fence, ++fenceValue);
 </thead>
 <tbody>
 <tr>
-<td style="text-align: left;">Command List (每个线程独享)</td>
-<td style="text-align: left;">CUDA Stream (每个线程独享)</td>
-<td style="text-align: left;">任务序列，可并发录制</td>
+<td style="text-align: left;">Command List（并发录制时彼此独立）</td>
+<td style="text-align: left;">Stream 中的工作序列</td>
+<td style="text-align: left;">都能表达有序 GPU 工作，但录制模型不同</td>
 </tr>
 <tr>
-<td style="text-align: left;">Command Queue (主线程提交)</td>
-<td style="text-align: left;">CUDA Context (隐式)</td>
-<td style="text-align: left;">提交到同一个设备</td>
+<td style="text-align: left;">Command Queue</td>
+<td style="text-align: left;">CUDA Context/Device 的调度入口</td>
+<td style="text-align: left;">都把工作送往设备，抽象层级不完全相同</td>
 </tr>
 <tr>
-<td style="text-align: left;">Command Allocator (独立绑定)</td>
-<td style="text-align: left;">Stream 的隐式内存管理</td>
-<td style="text-align: left;">管理底层资源</td>
+<td style="text-align: left;">Command Allocator</td>
+<td style="text-align: left;">无直接对应</td>
+<td style="text-align: left;">DX12 存储录制命令；Stream 不是命令内存分配器</td>
 </tr>
 <tr>
-<td style="text-align: left;">多线程录制 → 主线程提交</td>
-<td style="text-align: left;">多线程往不同 Stream 发 Kernel → 主线程等待</td>
-<td style="text-align: left;">完全相同的并发模式</td>
+<td style="text-align: left;">多线程录制后提交</td>
+<td style="text-align: left;">多 Host 线程可向一个或多个 Stream 提交</td>
+<td style="text-align: left;">都可降低 CPU 瓶颈，但同步语义不同</td>
 </tr>
 <tr>
 <td style="text-align: left;">Fence (跨帧/跨流同步)</td>
@@ -327,12 +350,12 @@ for (int i = 0; i &lt; NUM_STREAMS; i++) {
 }
 </code></pre>
 <blockquote>
-<p><strong>你的直觉再次验证</strong>：你刚才说"可以在多个线程上写入多个 command list，然后最后拼接起来就行"——完全正确。DX12 的 Command List 和 CUDA 的 Stream 一样，都是线程绑定的资源。每个线程独享一个；主线程只负责拼接和提交。</p>
+<p>实用结论：DX12 并发录制时使用独立 Command List/Allocator；CUDA Stream 可跨 Host 线程使用，但应用必须明确默认 Stream 模式、提交顺序和共享数据同步。</p>
 </blockquote>
-<h2 id="2">2. 资源池管理模式</h2>
+<h2 id="2">2. 资源池管理模式<a class="headerlink" href="#2" title="Permanent link">&para;</a></h2>
 <p>多线程录制引出了另一个关键问题：<strong>谁来管理显存分配？</strong> 如果每个线程都去 <code>cudaMalloc</code> / <code>CreateCommittedResource</code>，会产生大量分配开销和碎片。</p>
 <p>图形引擎和 AI 推理引擎的答案是相同的：<strong>使用资源池 (Resource Pool)，预分配大块显存，自己管理切片。</strong></p>
-<h3 id="21-linear-allocator">2.1 线性分配器 (Linear Allocator)</h3>
+<h3 id="21-linear-allocator">2.1 线性分配器 (Linear Allocator)<a class="headerlink" href="#21-linear-allocator" title="Permanent link">&para;</a></h3>
 <p>最简单的池化策略，适用于每帧临时分配的短期资源（如 Upload Buffer、Scratch Buffer）。</p>
 <p><strong>原理</strong>：维护一个指针，每次分配只移动指针位置，从不释放单个对象。帧结束时整块重置。</p>
 <pre><code>线性分配器初始状态:
@@ -377,7 +400,7 @@ public:
     void Reset() { m_offset = 0; }  // 整块重置，O(1)
 };
 </code></pre>
-<h3 id="22-buddy-allocator">2.2 伙伴分配器 (Buddy Allocator)</h3>
+<h3 id="22-buddy-allocator">2.2 伙伴分配器 (Buddy Allocator)<a class="headerlink" href="#22-buddy-allocator" title="Permanent link">&para;</a></h3>
 <p>适用于需要分配和释放不同大小内存块的场景，如纹理/缓冲区创建销毁、KV Cache 的 Block 管理。</p>
 <p><strong>原理</strong>：将显存按 2 的幂切分成块，分配时不断二分，释放时合并相邻空闲块。</p>
 <pre><code>初始（1MB 池子）:
@@ -399,7 +422,7 @@ public:
 <p><strong>你的原话</strong>："有点类似于图形 API 里面的 Committed resource，自己先分一大片出来，然后管理切片句柄，类似于微软 dx12 资源仓库，里面写了一些线性分配器或伙伴分配器。"</p>
 <p>这句话完美证明了你的跨领域直觉——图形 API 的显存池管理直接对应到 vLLM 的 PagedAttention。你在图形里积累的"预分配大 Heap，自己管理偏移量"的习惯，正是写高性能 AI 推理引擎所需要的能力。</p>
 </blockquote>
-<h3 id="23_1">2.3 资源池对比总结</h3>
+<h3 id="23_1">2.3 资源池对比总结<a class="headerlink" href="#23_1" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -446,7 +469,7 @@ public:
 </tr>
 </tbody>
 </table>
-<h2 id="3-cuda">3. CUDA 多流并发与资源池协同</h2>
+<h2 id="3-cuda">3. CUDA 多流并发与资源池协同<a class="headerlink" href="#3-cuda" title="Permanent link">&para;</a></h2>
 <p>多流并发 + 资源池管理，构成了现代 GPU 推理引擎的全景图：</p>
 <pre><code class="language-cpp">// CUDA 多流 + 线性分配器 Ring Buffer 协同
 const int NUM_STREAMS = 4;
@@ -479,14 +502,14 @@ while (running) {
 <p><strong>这整段代码等价于：</strong>
 - 游戏引擎中：多线程录制 Command List + Ring Buffer 轮转 + 每帧 Reset 线性分配器
 - AI 推理中：vLLM 的调度器循环 + Block Table + PagedAttention 显存池</p>
-<h2 id="_2">总结</h2>
+<h2 id="_2">总结<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
 <p>多线程渲染和资源池管理的核心思想可以浓缩为三条原则：</p>
 <ol>
-<li><strong>线程绑定</strong>：Command List / CUDA Stream 是线程独享资源，不能跨线程复用</li>
+<li><strong>并发所有权</strong>：不要并发录制同一个 Command List/Allocator；CUDA Stream 可跨 Host 线程使用，但提交顺序必须明确</li>
 <li><strong>资源池化</strong>：预分配大块显存，用线性分配器或伙伴分配器管理切片，避免运行时 <code>malloc</code> 开销</li>
 <li><strong>帧级轮转</strong>：用 Ring Buffer 实现 N 帧的资源隔离，配合 Fence 轮询确保安全复用</li>
 </ol>
-<p>这些原则从图形引擎原封不动地搬到了 AI 推理引擎中。你在写 Vulkan/DX12 时积累的"显式管理一切"的习惯，正是写高性能 AI Kernel 和推理引擎所需要的思维方式。</p>
+<p>这些原则在图形和 AI 运行时中都有应用，但对象生命周期、同步语义和调度粒度不同。迁移经验时应重新验证具体 API 约束。</p>
               
             </div>
           </div><footer>
@@ -526,6 +549,9 @@ while (running) {
     <script>var base_url = "..";</script>
     <script src="../js/theme_extra.js"></script>
     <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
       <script src="../search/main.js"></script>
     <script>
         jQuery(function () {

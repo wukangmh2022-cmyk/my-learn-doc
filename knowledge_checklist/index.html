@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html class="writer-html5" lang="en" >
+<html class="writer-html5" lang="zh_CN" >
 <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <link rel="shortcut icon" href="../img/favicon.ico" />
-    <title>9.3 关键知识点自检清单 (MkDocs 版) - GPU 图形与 AI 推理知识手册</title>
+    <title>A.3 关键知识点自检清单 - GPU 图形与 AI 推理知识手册</title>
     <link rel="stylesheet" href="../css/theme.css" />
     <link rel="stylesheet" href="../css/theme_extra.css" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
@@ -13,7 +13,7 @@
     
       <script>
         // Current page data
-        var mkdocs_page_name = "9.3 \u5173\u952e\u77e5\u8bc6\u70b9\u81ea\u68c0\u6e05\u5355 (MkDocs \u7248)";
+        var mkdocs_page_name = "A.3 \u5173\u952e\u77e5\u8bc6\u70b9\u81ea\u68c0\u6e05\u5355";
         var mkdocs_page_input_path = "knowledge_checklist.md";
         var mkdocs_page_url = null;
       </script>
@@ -48,7 +48,7 @@
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 渲染管线与硬件单元 (SM, TMU, ROP)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
                   </li>
@@ -79,11 +79,11 @@
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 为何图形做多 Pass，AI 做单 Pass Tiling</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention (类比 DX12 资源池 / 伙伴分配器)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
                   </li>
               </ul>
               <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
@@ -98,6 +98,8 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
               </ul>
               <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
               <ul>
@@ -110,33 +112,54 @@
                   <li class="toctree-l1"><a class="reference internal" href="../flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">7. 专用硬件加速单元</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">7.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                <li class="toctree-l1"><a class="reference internal" href="../llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">7.2 RT Core: BVH 遍历专用电路 (压缩解决随机访问，专用电路解决分支分歧)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">7.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">8. GPU 软件栈与驱动开发</span></p>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">8.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">8.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">8.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">8.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">9. 职业发展与工程实践</span></p>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../nano_vllm_from_scratch/">11.1 Nano-vLLM: 框架架构、技术栈与源码实现</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../paged_attention_dx12_tensorrt/">11.3 PagedAttention: DX12 与 TensorRT 双后端实践</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
               <ul class="current">
-                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">9.1 四个核心岗位对比: 算子开发 / 推理框架 / 编译器 / 驱动</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">A.1 四个核心岗位对比</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">9.2 简历技能清单 (基于我们对话的认知总结)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">A.2 简历技能清单</a>
                   </li>
-                  <li class="toctree-l1 current"><a class="reference internal current" href="#">9.3 关键知识点自检清单 (MkDocs 版)</a>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">A.3 关键知识点自检清单</a>
     <ul class="current">
     <li class="toctree-l2"><a class="reference internal" href="#_1">概述</a>
         <ul>
@@ -156,11 +179,17 @@
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#6">第 6 章：高性能算子实现模式</a>
     </li>
-    <li class="toctree-l2"><a class="reference internal" href="#7">第 7 章：专用硬件加速单元</a>
+    <li class="toctree-l2"><a class="reference internal" href="#7-llm-cuda">第 7 章：LLM 核心算子（推导 + CUDA 实现）</a>
     </li>
-    <li class="toctree-l2"><a class="reference internal" href="#8-gpu">第 8 章：GPU 软件栈与驱动开发</a>
+    <li class="toctree-l2"><a class="reference internal" href="#8-vllm">第 8 章：vLLM 推理调优与多卡系统</a>
     </li>
-    <li class="toctree-l2"><a class="reference internal" href="#9">第 9 章：职业发展与工程实践（本章）</a>
+    <li class="toctree-l2"><a class="reference internal" href="#9">第 9 章：专用硬件加速单元</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#10-gpu">第 10 章：GPU 软件栈与驱动开发</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#11">第 11 章：推理引擎与算子实战</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#a">附录 A：职业发展与工程实践</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#a3-3-3-ai-infra">附 A：3 天 / 3 周 / 3 个月学习计划（图形工程师→AI Infra 定制版）</a>
         <ul>
@@ -203,8 +232,8 @@
         <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
   <ul class="wy-breadcrumbs">
     <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
-          <li class="breadcrumb-item">9. 职业发展与工程实践</li>
-      <li class="breadcrumb-item active">9.3 关键知识点自检清单 (MkDocs 版)</li>
+          <li class="breadcrumb-item">附录 A. 学习与职业实践</li>
+      <li class="breadcrumb-item active">A.3 关键知识点自检清单</li>
     <li class="wy-breadcrumbs-aside">
     </li>
   </ul>
@@ -213,13 +242,13 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
             <div class="section" itemprop="articleBody">
               
-                <h1 id="93-mkdocs">9.3 关键知识点自检清单（MkDocs 版）</h1>
-<h2 id="_1">概述</h2>
-<p>这份自检清单基于本书全 9 章的内容体系，采用 ✅/🟡/❌ 三级掌握度评估，帮助一位拥有图形渲染背景（Vulkan/DX12 现代图形 API）的工程师快速定位自己的 AI Infra 知识短板，并规划学习路径。</p>
+                <h1 id="a3">A.3 关键知识点自检清单<a class="headerlink" href="#a3" title="Permanent link">&para;</a></h1>
+<h2 id="_1">概述<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>这份自检清单基于本书 11 章技术主线，采用熟练、理解、待学三级掌握度评估，帮助具有图形渲染背景的工程师定位 AI Infra 知识短板并规划学习路径。</p>
 <blockquote>
 <p><strong>注意</strong>：掌握度评估面向图形背景读者。你不需要像纯新手一样\"从零学\"，而是检查自己是否已经完成了\"图形概念→AI 概念\"的翻译和实战验证。你已经会的东西，直接跳过。</p>
 </blockquote>
-<h3 id="_2">掌握度等级定义</h3>
+<h3 id="_2">掌握度等级定义<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -231,8 +260,8 @@
 <tbody>
 <tr>
 <td style="text-align: center;">✅ 熟练</td>
-<td style="text-align: left;">你已经理解并能清晰表达该概念与图形经验的对应关系，甚至能给其他人讲明白</td>
-<td style="text-align: left;">跳过，不需要再学</td>
+<td style="text-align: left;">能脱离类比解释概念，写出正确实现，并用测试或 Profiler 数据验证</td>
+<td style="text-align: left;">定期复测，不必重复入门材料</td>
 </tr>
 <tr>
 <td style="text-align: center;">🟡 理解</td>
@@ -247,7 +276,7 @@
 </tbody>
 </table>
 <hr />
-<h2 id="1-gpu">第 1 章：图形渲染管线与 GPU 硬件基础</h2>
+<h2 id="1-gpu">第 1 章：图形渲染管线与 GPU 硬件基础<a class="headerlink" href="#1-gpu" title="Permanent link">&para;</a></h2>
 <p>这一章是你的\"主场\"。你应该全部 ✅，不需要再花时间。</p>
 <table>
 <thead>
@@ -266,9 +295,9 @@
 <td style="text-align: center;">1.1</td>
 </tr>
 <tr>
-<td style="text-align: left;">渲染管线与硬件单元（SM, TMU, ROP）</td>
+<td style="text-align: left;">GPU 硬件层级</td>
 <td style="text-align: center;">✅ 熟练</td>
-<td style="text-align: left;">你知道 SM ≈ GPU 的 Compute Unit，TMU 对应纹理采样硬件</td>
+<td style="text-align: left;">能说明 SM、SM 内执行管线、存储系统与图形固定功能单元不在同一层级</td>
 <td style="text-align: center;">1.2</td>
 </tr>
 <tr>
@@ -287,7 +316,7 @@
 </table>
 <p><strong>自检问题</strong>：你能不能用 3 句话给一个算法背景的同事讲清楚\"为什么 GPU 需要显式 Barrier 管理\"？</p>
 <hr />
-<h2 id="2-gpu">第 2 章：GPU 并发模型与系统思维</h2>
+<h2 id="2-gpu">第 2 章：GPU 并发模型与系统思维<a class="headerlink" href="#2-gpu" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -319,14 +348,14 @@
 <tr>
 <td style="text-align: left;">图形→AI 第一性原理映射</td>
 <td style="text-align: center;">🟡 理解</td>
-<td style="text-align: left;">你直觉很强，但需要系统化整理（见 9.2 翻译词典）</td>
+<td style="text-align: left;">你直觉很强，但需要系统化整理（见 11.2 翻译词典）</td>
 <td style="text-align: center;">2.4</td>
 </tr>
 </tbody>
 </table>
 <p><strong>自检问题</strong>：你能不能用一句话说清\"三重缓冲的生产者-消费者模型\"和\"AI 推理中计算与通信重叠\"的对应关系？</p>
 <hr />
-<h2 id="3-ai">第 3 章：AI 模型与算子基础</h2>
+<h2 id="3-ai">第 3 章：AI 模型与算子基础<a class="headerlink" href="#3-ai" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -365,7 +394,7 @@
 </table>
 <p><strong>自检问题</strong>：你是否能快速说出\"Elementwise ≈ Pixel Shader，Reduce ≈ Mipmap/Hi-Z 生成，Stencil ≈ Sobel 边缘检测\"？</p>
 <hr />
-<h2 id="4-ai">第 4 章：AI 推理优化核心策略</h2>
+<h2 id="4-ai">第 4 章：AI 推理优化核心策略<a class="headerlink" href="#4-ai" title="Permanent link">&para;</a></h2>
 <p>这是你的\"优势区\"——你对绝大多数概念有深刻的图形直觉。</p>
 <table>
 <thead>
@@ -405,7 +434,7 @@
 </table>
 <p><strong>自检问题</strong>：你是否能用\"合并 Pass\"的直觉推导 Conv+BN+ReLU 融合算子的设计思路，并指出中间数据如何从显存读写变为片上 SRAM 访问？</p>
 <hr />
-<h2 id="5-cuda">第 5 章：CUDA 编程与硬件执行模型</h2>
+<h2 id="5-cuda">第 5 章：CUDA 编程与硬件执行模型<a class="headerlink" href="#5-cuda" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -425,7 +454,7 @@
 <tr>
 <td style="text-align: left;">内存层级与显式管理：<code>__shared__</code> vs L1/L2 缓存</td>
 <td style="text-align: center;">✅ 熟练</td>
-<td style="text-align: left;"><code>groupshared</code> → <code>__shared__</code>，纹理采样 → 全局内存加载，完全同构</td>
+<td style="text-align: left;">能说明 <code>groupshared</code> / <code>__shared__</code> 的相似点及 API/硬件差异</td>
 <td style="text-align: center;">5.2</td>
 </tr>
 <tr>
@@ -450,7 +479,7 @@
 </table>
 <p><strong>自检问题</strong>：你是否用 CUDA 写过至少一个完整的 Kernel（向量加法或 Shared Memory 归约）并且成功编译运行过？</p>
 <hr />
-<h2 id="6">第 6 章：高性能算子实现模式</h2>
+<h2 id="6">第 6 章：高性能算子实现模式<a class="headerlink" href="#6" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -489,7 +518,140 @@
 </table>
 <p><strong>建议</strong>：第 6 章是你\"图形→AI 平移\"最直观的体现。<strong>建议优先实战 Reduce 和 FlashAttention。</strong> 尤其是 FlashAttention，它把 Tiling、Online Softmax、Communication behind compute 全部串起来了。</p>
 <hr />
-<h2 id="7">第 7 章：专用硬件加速单元</h2>
+<hr />
+<h2 id="7-llm-cuda">第 7 章：LLM 核心算子（推导 + CUDA 实现）<a class="headerlink" href="#7-llm-cuda" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">知识点</th>
+<th style="text-align: center;">掌握度</th>
+<th style="text-align: left;">自检提示</th>
+<th style="text-align: center;">对应章节</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">KQV Attention 数学推导（QKᵀ→scale→softmax→×V→多头）</td>
+<td style="text-align: center;">🟡 理解</td>
+<td style="text-align: left;">面试常要求手推公式并写朴素 kernel，你能口述并写出吗</td>
+<td style="text-align: center;">7.1</td>
+</tr>
+<tr>
+<td style="text-align: left;">变种 MHA / MQA / GQA</td>
+<td style="text-align: center;">🟡 理解</td>
+<td style="text-align: left;">能画 K/V 头形状差异，说清 GQA 省的是访存带宽</td>
+<td style="text-align: center;">7.2</td>
+</tr>
+<tr>
+<td style="text-align: left;">Softmax 与 Online Softmax（数值稳定、在线归约）</td>
+<td style="text-align: center;">🟡 理解</td>
+<td style="text-align: left;">能口述 online softmax 两条更新公式</td>
+<td style="text-align: center;">7.3</td>
+</tr>
+<tr>
+<td style="text-align: left;">RMSNorm / LayerNorm</td>
+<td style="text-align: center;">🟡 理解</td>
+<td style="text-align: left;">能说清 RMSNorm 比 LayerNorm 少了什么</td>
+<td style="text-align: center;">7.4</td>
+</tr>
+<tr>
+<td style="text-align: left;">RoPE 旋转位置编码（2D 旋转矩阵推导）</td>
+<td style="text-align: center;">❌ 待学</td>
+<td style="text-align: left;">面试高频，需能推导并证明内积只依赖相对位置</td>
+<td style="text-align: center;">7.5</td>
+</tr>
+<tr>
+<td style="text-align: left;">GEMM（分块 + Shared Memory Tiling + Tensor Core）</td>
+<td style="text-align: center;">🟡 理解</td>
+<td style="text-align: left;">能写一个 naive tiled GEMM 并指出 Bank Conflict</td>
+<td style="text-align: center;">7.6</td>
+</tr>
+<tr>
+<td style="text-align: left;">GEMV（Decode 阶段主导，memory-bound）</td>
+<td style="text-align: center;">❌ 待学</td>
+<td style="text-align: left;">能解释 Decode 是 GEMV、Prefill 是 GEMM</td>
+<td style="text-align: center;">7.7</td>
+</tr>
+<tr>
+<td style="text-align: left;">Transpose / 数据重排（Bank Conflict 练兵）</td>
+<td style="text-align: center;">🟡 理解</td>
+<td style="text-align: left;">能写一个 +1 padding 的分块转置</td>
+<td style="text-align: center;">7.8</td>
+</tr>
+</tbody>
+</table>
+<p><strong>建议</strong>：第 7 章是面试手写题的核心。优先实战 <strong>KQV Attention（7.1）+ RoPE（7.5）+ GEMM（7.6）</strong>，这三块最常考。</p>
+<hr />
+<h2 id="8-vllm">第 8 章：vLLM 推理调优与多卡系统<a class="headerlink" href="#8-vllm" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">知识点</th>
+<th style="text-align: center;">掌握度</th>
+<th style="text-align: left;">自检提示</th>
+<th style="text-align: center;">对应章节</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">CUDA Graph（减 launch 开销）</td>
+<td style="text-align: center;">🟡 理解</td>
+<td style="text-align: left;">能说清 vLLM 为什么 Decode 用 Graph、Prefill 不用</td>
+<td style="text-align: center;">8.1</td>
+</tr>
+<tr>
+<td style="text-align: left;">Occupancy 深度（寄存器/Shared 约束）</td>
+<td style="text-align: center;">🟡 理解</td>
+<td style="text-align: left;">能解释"高 Occupancy ≠ 高性能"的反例</td>
+<td style="text-align: center;">8.2</td>
+</tr>
+<tr>
+<td style="text-align: left;">FP8 / INT8 量化推理（H100 FP8）</td>
+<td style="text-align: center;">❌ 待学</td>
+<td style="text-align: left;">能说清量化为什么对 Decode 收益最大</td>
+<td style="text-align: center;">8.3</td>
+</tr>
+<tr>
+<td style="text-align: left;">NCCL 与集合通信（AllReduce Ring/Tree）</td>
+<td style="text-align: center;">❌ 待学</td>
+<td style="text-align: left;">能画 Ring AllReduce 两阶段、说清总通信量</td>
+<td style="text-align: center;">8.4</td>
+</tr>
+<tr>
+<td style="text-align: left;">张量并行 &amp; 流水线并行</td>
+<td style="text-align: center;">❌ 待学</td>
+<td style="text-align: left;">能说清 TP 切什么、PP 切什么、通信特征</td>
+<td style="text-align: center;">8.5</td>
+</tr>
+<tr>
+<td style="text-align: left;">Continuous Batching / Spec Decoding / Prefix Caching</td>
+<td style="text-align: center;">🟡 理解</td>
+<td style="text-align: left;">能类比图形中的帧并行 / 预测着色 / 着色器缓存</td>
+<td style="text-align: center;">8.6</td>
+</tr>
+<tr>
+<td style="text-align: left;">Nsight 实战（bank conflict / occupancy 指标）</td>
+<td style="text-align: center;">❌ 待学</td>
+<td style="text-align: left;">能指出 <code>shared_load_bank_conflict</code> 看什么</td>
+<td style="text-align: center;">8.7</td>
+</tr>
+<tr>
+<td style="text-align: left;">Roofline 模型（compute vs memory bound）</td>
+<td style="text-align: center;">❌ 待学</td>
+<td style="text-align: left;">能用 Roofline 解释 Decode 量化 / Prefill Tensor Core</td>
+<td style="text-align: center;">8.8</td>
+</tr>
+<tr>
+<td style="text-align: left;">Atomic 操作（采样/计数）</td>
+<td style="text-align: center;">🟡 理解</td>
+<td style="text-align: left;">能区分原子性、同步与内存可见性</td>
+<td style="text-align: center;">5.6</td>
+</tr>
+</tbody>
+</table>
+<p><strong>建议</strong>：第 8 章是"读 vLLM 源码 + 调优"的钥匙。优先级：<strong>CUDA Graph（8.1）→ NCCL/TP（8.4/8.5）→ FP8（8.3）</strong>。</p>
+<hr />
+<h2 id="9">第 9 章：专用硬件加速单元<a class="headerlink" href="#9" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -504,25 +666,25 @@
 <td style="text-align: left;">Tensor Core（专用矩阵乘单元 vs CUDA Core）</td>
 <td style="text-align: center;">🟡 理解</td>
 <td style="text-align: left;">你理解 \"Tensor Core = 专用矩阵乘 ALU\"，但没亲手写过使用 WMMA/mma.sync 指令的 Kernel</td>
-<td style="text-align: center;">7.1</td>
+<td style="text-align: center;">9.1</td>
 </tr>
 <tr>
 <td style="text-align: left;">RT Core（BVH 遍历专用电路）</td>
 <td style="text-align: center;">✅ 熟练</td>
 <td style="text-align: left;">你的渲染背景直接覆盖——BVH 构建与遍历、Ray Tracing Pipeline 是你熟悉的概念</td>
-<td style="text-align: center;">7.2</td>
+<td style="text-align: center;">9.2</td>
 </tr>
 <tr>
 <td style="text-align: left;">存算一体（Computing-in-Memory）的未来</td>
 <td style="text-align: center;">❌ 前沿展望</td>
 <td style="text-align: left;">属于行业前沿，非当前 AI Infra 就业必需，但可作为技术视野储备</td>
-<td style="text-align: center;">7.3</td>
+<td style="text-align: center;">9.3</td>
 </tr>
 </tbody>
 </table>
 <p><strong>建议</strong>：Tensor Core 是 AI 推理的核心硬件差异化单元。建议花 1 天了解 <code>wmma::load_matrix_sync</code>、<code>wmma::mma_sync</code>、<code>wmma::store_matrix_sync</code> 的使用模式。</p>
 <hr />
-<h2 id="8-gpu">第 8 章：GPU 软件栈与驱动开发</h2>
+<h2 id="10-gpu">第 10 章：GPU 软件栈与驱动开发<a class="headerlink" href="#10-gpu" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -537,31 +699,70 @@
 <td style="text-align: left;">驱动分层: UMD（用户态）vs KMD（内核态）</td>
 <td style="text-align: center;">✅ 熟练</td>
 <td style="text-align: left;">你聊过\"现代图形 API 把驱动原来做的脏活累活搬到了应用层\"——你清楚 UMD 的职责边界</td>
-<td style="text-align: center;">8.1</td>
+<td style="text-align: center;">10.1</td>
 </tr>
 <tr>
 <td style="text-align: left;">驱动开发模式: 芯片前（仿真/FPGA）vs 芯片后（持续优化）</td>
 <td style="text-align: center;">🟡 理解</td>
 <td style="text-align: left;">你理解驱动开发的验证流程，但缺乏实际硬件调试经验</td>
-<td style="text-align: center;">8.2</td>
+<td style="text-align: center;">10.2</td>
 </tr>
 <tr>
 <td style="text-align: left;">编译器抽象: PTX / SASS / 寄存器分配 / 指令调度</td>
 <td style="text-align: center;">✅ 熟练</td>
-<td style="text-align: left;">你懂 HLSL → DXIL → 驱动的编译链路，本质与 CUDA → PTX → SASS 完全同构</td>
-<td style="text-align: center;">8.3</td>
+<td style="text-align: left;">能区分 DXIL/SPIR-V/PTX 的执行环境、兼容范围与最终机器码</td>
+<td style="text-align: center;">10.3</td>
 </tr>
 <tr>
 <td style="text-align: left;">图形驱动 vs 通用计算驱动: 差异与交集</td>
 <td style="text-align: center;">🟡 理解</td>
 <td style="text-align: left;">能凭直觉推测差异（图形驱动优化三角形 vs 计算驱动优化吞吐），但需要系统了解</td>
-<td style="text-align: center;">8.4</td>
+<td style="text-align: center;">10.4</td>
 </tr>
 </tbody>
 </table>
 <p><strong>自检问题</strong>：你是否能解释\"为什么 Vulkan/DX12 的驱动设计和 CUDA 驱动设计既有交集（共享 UMD 层）又有差异（优化目标不同）\"？</p>
 <hr />
-<h2 id="9">第 9 章：职业发展与工程实践（本章）</h2>
+<h2 id="11">第 11 章：推理引擎与算子实战<a class="headerlink" href="#11" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">实战</th>
+<th style="text-align: left;">验收标准</th>
+<th style="text-align: center;">对应章节</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Nano-vLLM 从零实现</td>
+<td style="text-align: left;">能画出 Sequence、Scheduler、BlockManager、Runner 与模型执行闭环</td>
+<td style="text-align: center;">11.1</td>
+</tr>
+<tr>
+<td style="text-align: left;">Attention Kernel 与 GQA</td>
+<td style="text-align: left;">CPU Reference 对齐，完成三 Kernel 基线与 Online Softmax 融合</td>
+<td style="text-align: center;">11.2</td>
+</tr>
+<tr>
+<td style="text-align: left;">DX12/TensorRT PagedAttention</td>
+<td style="text-align: left;">两个后端共享页表契约，混合长度与非连续 Block Table 测试通过</td>
+<td style="text-align: center;">11.3</td>
+</tr>
+<tr>
+<td style="text-align: left;">Nsight、Decode Linear 与 H2D</td>
+<td style="text-align: left;">能从 Systems 定位瓶颈，再用 Compute 解释单 Kernel 指标</td>
+<td style="text-align: center;">11.4</td>
+</tr>
+<tr>
+<td style="text-align: left;">Runtime 与部署验证</td>
+<td style="text-align: left;">完成动态批处理、KV 生命周期和 HF→ORT→TensorRT 分层对齐</td>
+<td style="text-align: center;">11.5</td>
+</tr>
+</tbody>
+</table>
+<p><strong>建议</strong>：按 11.1 → 11.2 → 11.3 → 11.4 → 11.5 顺序完成。每篇都保留正确性基线、Profiler 报告、失败样例与版本环境，性能数字才具有可复现性。</p>
+<hr />
+<h2 id="a">附录 A：职业发展与工程实践<a class="headerlink" href="#a" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -575,27 +776,27 @@
 <tr>
 <td style="text-align: left;">四个核心岗位对比与个人定位</td>
 <td style="text-align: center;">✅ 熟练</td>
-<td style="text-align: left;">看完 9.1 你就能根据自己的偏好选择方向</td>
-<td style="text-align: center;">9.1</td>
+<td style="text-align: left;">根据工作内容和能力证据选择方向</td>
+<td style="text-align: center;">A.1</td>
 </tr>
 <tr>
 <td style="text-align: left;">简历技能清单与图形→AI 翻译词典</td>
 <td style="text-align: center;">🟡 需实操</td>
-<td style="text-align: left;">9.2 的内容你需要实际用到简历撰写和面试准备中</td>
-<td style="text-align: center;">9.2</td>
+<td style="text-align: left;">只写有项目或测量结果支撑的技能</td>
+<td style="text-align: center;">A.2</td>
 </tr>
 <tr>
 <td style="text-align: left;">学习路线规划（3 天/3 周/3 月）</td>
 <td style="text-align: center;">🟡 需跟进</td>
-<td style="text-align: left;">下面的计划请实际执行，不要只看不练</td>
-<td style="text-align: center;">9.3</td>
+<td style="text-align: left;">用可运行代码和性能数据验收</td>
+<td style="text-align: center;">A.3</td>
 </tr>
 </tbody>
 </table>
 <hr />
-<h2 id="a3-3-3-ai-infra">附 A：3 天 / 3 周 / 3 个月学习计划（图形工程师→AI Infra 定制版）</h2>
+<h2 id="a3-3-3-ai-infra">附 A：3 天 / 3 周 / 3 个月学习计划（图形工程师→AI Infra 定制版）<a class="headerlink" href="#a3-3-3-ai-infra" title="Permanent link">&para;</a></h2>
 <p>以下计划来自对话中的讨论，结合你的图形背景定制——<strong>目标不是\"学会 CUDA\"，而是\"让你的图形直觉在 AI 领域变现\"。</strong></p>
-<h3 id="3-kernel">🚀 3 天速通：语法映射 + 第一个 Kernel</h3>
+<h3 id="3-kernel">🚀 3 天速通：语法映射 + 第一个 Kernel<a class="headerlink" href="#3-kernel" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -626,8 +827,8 @@
 </tr>
 </tbody>
 </table>
-<p><strong>3 天后你能做到</strong>：读懂 vLLM / TensorRT-LLM 源码中 80% 的 CUDA Kernel 代码结构。</p>
-<h3 id="3">📘 3 周实战：推理引擎核心链路</h3>
+<p><strong>3 天后的合理验收</strong>：能编译、运行并检查一个简单 CUDA Kernel，解释线程映射、边界检查和一次同步；尚不足以宣称读懂生产级推理 Kernel。</p>
+<h3 id="3">📘 3 周实战：推理引擎核心链路<a class="headerlink" href="#3" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -659,7 +860,7 @@
 </tbody>
 </table>
 <p><strong>3 周后你能做到</strong>：独立完成一个模型从训练权重到推理加速引擎的全链路部署，并理解每个环节的性能瓶颈。</p>
-<h3 id="3_1">🎯 3 个月专项：成为稀缺交叉人才</h3>
+<h3 id="3_1">🎯 3 个月专项：成为稀缺交叉人才<a class="headerlink" href="#3_1" title="Permanent link">&para;</a></h3>
 <p>三选一方向，<strong>强烈推荐方向 A</strong>（覆盖算子开发 + 推理框架两个领域）：</p>
 <table>
 <thead>
@@ -691,10 +892,10 @@
 </tr>
 </tbody>
 </table>
-<p><strong>3 个月后你能达到</strong>：对标大厂 P7/P8 级的 AI Infra 工程能力，面试时能用\"硬件→系统→算法\"三层类比清晰表达推理优化方案。</p>
+<p><strong>3 个月后的合理验收</strong>：完成一个可复现项目，包含正确性基线、不同形状的 Benchmark、Profiler 分析、失败案例和文档。职级取决于工程范围、影响力与组织标准，不能由学习时长推导。</p>
 <hr />
-<h2 id="b">附 B：推荐学习资源</h2>
-<h3 id="_3">必读文档</h3>
+<h2 id="b">附 B：推荐学习资源<a class="headerlink" href="#b" title="Permanent link">&para;</a></h2>
+<h3 id="_3">必读文档<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -731,7 +932,7 @@
 </tr>
 </tbody>
 </table>
-<h3 id="_4">必读论文</h3>
+<h3 id="_4">必读论文<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -763,7 +964,7 @@
 </tr>
 </tbody>
 </table>
-<h3 id="_5">必用工具（你的上手策略）</h3>
+<h3 id="_5">必用工具（你的上手策略）<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -796,7 +997,7 @@
 </tbody>
 </table>
 <hr />
-<h2 id="c-10">附 C：面试前自测 10 题（图形背景版）</h2>
+<h2 id="c-10">附 C：面试前自测 10 题（图形背景版）<a class="headerlink" href="#c-10" title="Permanent link">&para;</a></h2>
 <p>这 10 个问题来自对话中的讨论，旨在检验你能否将图形直觉清晰地翻译为 AI Infra 领域的表达。</p>
 <ol>
 <li>
@@ -831,7 +1032,7 @@
 </li>
 </ol>
 <hr />
-<h2 id="d">附 D：掌握度汇总表（快速全局定位）</h2>
+<h2 id="d">附 D：掌握度汇总表（快速全局定位）<a class="headerlink" href="#d" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -880,21 +1081,39 @@
 </tr>
 <tr>
 <td style="text-align: center;">7</td>
+<td style="text-align: left;">LLM 核心算子（推导+实现）</td>
+<td style="text-align: center;">🟡 理解</td>
+<td style="text-align: left;"><strong>面试手写题核心：KQV / RoPE / GEMM</strong></td>
+</tr>
+<tr>
+<td style="text-align: center;">8</td>
+<td style="text-align: left;">vLLM 推理调优与多卡系统</td>
+<td style="text-align: center;">🟡 理解-❌ 待学</td>
+<td style="text-align: left;"><strong>读源码+调优钥匙：Graph / NCCL / FP8</strong></td>
+</tr>
+<tr>
+<td style="text-align: center;">9</td>
 <td style="text-align: left;">专用硬件加速单元</td>
 <td style="text-align: center;">🟡 理解</td>
 <td style="text-align: left;">重点了解 Tensor Core 编程</td>
 </tr>
 <tr>
-<td style="text-align: center;">8</td>
+<td style="text-align: center;">10</td>
 <td style="text-align: left;">GPU 软件栈与驱动</td>
 <td style="text-align: center;">✅ 熟练-🟡 理解</td>
 <td style="text-align: left;">了解 UMD/KMD 分界即可</td>
 </tr>
 <tr>
-<td style="text-align: center;">9</td>
+<td style="text-align: center;">11</td>
+<td style="text-align: left;">推理引擎与算子实战</td>
+<td style="text-align: center;">❌ 待实作</td>
+<td style="text-align: left;">按 Reference→Kernel→Runtime→部署完成闭环</td>
+</tr>
+<tr>
+<td style="text-align: center;">附录 A</td>
 <td style="text-align: left;">职业发展与工程实践</td>
 <td style="text-align: center;">🟡 需实操</td>
-<td style="text-align: left;">简历改起来，项目做起来</td>
+<td style="text-align: left;">用项目证据更新简历与自评</td>
 </tr>
 </tbody>
 </table>
@@ -908,7 +1127,7 @@
             </div>
           </div><footer>
     <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
-        <a href="../resume_knowledge_summary/" class="btn btn-neutral float-left" title="9.2 简历技能清单 (基于我们对话的认知总结)"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../resume_knowledge_summary/" class="btn btn-neutral float-left" title="A.2 简历技能清单"><span class="icon icon-circle-arrow-left"></span> Previous</a>
     </div>
 
   <hr/>
@@ -940,6 +1159,9 @@
     <script>var base_url = "..";</script>
     <script src="../js/theme_extra.js"></script>
     <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
       <script src="../search/main.js"></script>
     <script>
         jQuery(function () {

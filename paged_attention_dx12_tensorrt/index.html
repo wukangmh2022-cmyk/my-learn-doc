@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="zh_CN" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>11.3 PagedAttention: DX12 与 TensorRT 双后端实践 - GPU 图形与 AI 推理知识手册</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "11.3 PagedAttention: DX12 \u4e0e TensorRT \u53cc\u540e\u7aef\u5b9e\u8df5";
+        var mkdocs_page_input_path = "paged_attention_dx12_tensorrt.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GPU 图形与 AI 推理知识手册
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">首页</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">1. 图形渲染管线与 GPU 硬件基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_passes_and_sync/">1.4 图形管线中的 Pass 与同步 (RenderPass, Barrier)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">2. GPU 并发模型与系统思维</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../cpu_gpu_async_pipeline/">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../command_buffer_ring_buffer/">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../multithreaded_rendering_and_pools/">2.3 多线程渲染与资源池管理</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_to_ai_first_principles/">2.4 从图形管线到 AI 推理的第一性原理映射</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">3. AI 模型与算子基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../model_structures_inference_view/">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../operator_taxonomy/">3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../convolution_math_implementation/">3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">4. AI 推理优化核心策略</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../thread_block_grid_mapping/">5.1 线程模型 (Thread, Block, Grid) 与映射</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../explicit_memory_shared_vs_cache/">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../warp_simd_simt_divergence/">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../synchronization_primitives/">5.4 同步原语: __syncthreads, __syncwarp, 内存屏障</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../reduce_tree_implementation/">6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../scan_stream_compaction/">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../radix_sort_as_stream_compaction/">6.3 基数排序 (Radix Sort) = 逐位流压缩</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../nano_vllm_from_scratch/">11.1 Nano-vLLM: 框架架构、技术栈与源码实现</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">11.3 PagedAttention: DX12 与 TensorRT 双后端实践</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#_1">实战范围</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_2">一、先定义后端无关的数据契约</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1">1. 张量与页表</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2">2. 参数结构</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#cpu-reference-attention">二、CPU Reference：先验证页表，再验证 Attention</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#dx12-compute-shader">三、DX12 Compute Shader 原型</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-resource-binding">1. Resource Binding</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-hlsl">2. HLSL 基线</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-dx12">3. DX12 资源状态与同步</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4-dispatch">4. Dispatch</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#tensorrt-plugin">四、TensorRT Plugin 后端</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-plugin">1. Plugin 输入输出</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-plugin">2. Plugin 骨架</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-shape-format">3. Shape 与 Format 校验</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4-tensorrt-network">4. TensorRT Network 接入</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#runtime-block-manager">五、Runtime 侧 Block Manager</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#decode-batch">六、混合长度 Decode Batch</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_3">七、正确性验证</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_4">八、性能验收与结论边界</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_5">九、与前文的连接</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">A.3 关键知识点自检清单</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GPU 图形与 AI 推理知识手册</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">11. 推理引擎与算子实战</li>
+      <li class="breadcrumb-item active">11.3 PagedAttention: DX12 与 TensorRT 双后端实践</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="113-pagedattention-dx12-tensorrt">11.3 PagedAttention 实战：DX12 与 TensorRT 双后端<a class="headerlink" href="#113-pagedattention-dx12-tensorrt" title="Permanent link">&para;</a></h1>
+<h2 id="_1">实战范围<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>本篇实现一个用于理解分页 KV Cache 的简化 Decode Attention：</p>
+<ul>
+<li>FP16 K/V，FP32 累加；</li>
+<li>每个请求本步一个 Query Token；</li>
+<li>支持不同 <code>context_len</code>；</li>
+<li>支持 GQA；</li>
+<li>KV Cache 使用固定大小的物理 Block；</li>
+<li>CPU 维护 Block Table，GPU 根据页表读取非连续 K/V；</li>
+<li>提供 DX12/HLSL 原型和 TensorRT/CUDA Plugin 两个后端。</li>
+</ul>
+<p>DX12 与 TensorRT 是两个不同执行生态。本文让它们共享数据契约、CPU Reference 和测试向量，但不假设 DX12 Resource 能被 TensorRT 直接绑定。跨 API 零拷贝需要 CUDA-D3D12 External Memory、同步句柄和平台支持，超出简化实现范围。</p>
+<h2 id="_2">一、先定义后端无关的数据契约<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<h3 id="1">1. 张量与页表<a class="headerlink" href="#1" title="Permanent link">&para;</a></h3>
+<pre><code class="language-text">Q              [batch, num_q_heads, head_size]
+KCache/VCache  [num_blocks, block_size, num_kv_heads, head_size]
+BlockTable     [batch, max_blocks_per_seq]
+ContextLens    [batch]
+Output         [batch, num_q_heads, head_size]
+</code></pre>
+<p>逻辑位置到物理位置：</p>
+<pre><code class="language-cpp">logical_block = token_pos / block_size;
+offset        = token_pos % block_size;
+physical      = block_table[batch_id * max_blocks + logical_block];
+slot          = physical * block_size + offset;
+</code></pre>
+<p>GQA Head 映射：</p>
+<pre><code class="language-cpp">group_size = num_q_heads / num_kv_heads;
+kv_head = q_head / group_size;
+</code></pre>
+<h3 id="2">2. 参数结构<a class="headerlink" href="#2" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">struct PagedAttentionParams {
+    uint32_t batch_size;
+    uint32_t num_q_heads;
+    uint32_t num_kv_heads;
+    uint32_t head_size;
+    uint32_t block_size;
+    uint32_t max_blocks_per_seq;
+    float scale;
+};
+</code></pre>
+<p>校验项：</p>
+<ul>
+<li><code>num_q_heads % num_kv_heads == 0</code>；</li>
+<li><code>context_len &lt;= max_blocks_per_seq * block_size</code>；</li>
+<li>所有有效 Block ID 位于 <code>[0, num_blocks)</code>；</li>
+<li>Buffer Size 满足 Shape 与数据类型要求；</li>
+<li>HLSL Constant Buffer 布局与 C++ 端 16 字节对齐一致；</li>
+<li>TensorRT Plugin 的输入类型与 Format 组合受支持。</li>
+</ul>
+<h2 id="cpu-reference-attention">二、CPU Reference：先验证页表，再验证 Attention<a class="headerlink" href="#cpu-reference-attention" title="Permanent link">&para;</a></h2>
+<pre><code class="language-cpp">size_t kv_index(
+    int block_id, int offset, int kv_head, int d,
+    int block_size, int num_kv_heads, int head_size)
+{
+    return (((size_t)block_id * block_size + offset) * num_kv_heads + kv_head)
+           * head_size + d;
+}
+
+void paged_attention_ref(
+    const float* q, const float* k_cache, const float* v_cache,
+    const int32_t* block_table, const int32_t* context_lens,
+    float* output, const PagedAttentionParams&amp; p)
+{
+    for (int b = 0; b &lt; p.batch_size; ++b) {
+        for (int qh = 0; qh &lt; p.num_q_heads; ++qh) {
+            const int kvh = qh / (p.num_q_heads / p.num_kv_heads);
+            std::vector&lt;float&gt; scores(context_lens[b]);
+            float row_max = -INFINITY;
+
+            for (int t = 0; t &lt; context_lens[b]; ++t) {
+                int logical_block = t / p.block_size;
+                int offset = t % p.block_size;
+                int block_id = block_table[b * p.max_blocks_per_seq + logical_block];
+                float score = 0.0f;
+                for (int d = 0; d &lt; p.head_size; ++d) {
+                    size_t ki = kv_index(block_id, offset, kvh, d,
+                                         p.block_size, p.num_kv_heads, p.head_size);
+                    score += q[(b * p.num_q_heads + qh) * p.head_size + d] * k_cache[ki];
+                }
+                scores[t] = score * p.scale;
+                row_max = std::max(row_max, scores[t]);
+            }
+
+            float denominator = 0.0f;
+            for (float&amp; score : scores) {
+                score = std::exp(score - row_max);
+                denominator += score;
+            }
+
+            float* out = output + (b * p.num_q_heads + qh) * p.head_size;
+            std::fill(out, out + p.head_size, 0.0f);
+            for (int t = 0; t &lt; context_lens[b]; ++t) {
+                int lb = t / p.block_size;
+                int off = t % p.block_size;
+                int block_id = block_table[b * p.max_blocks_per_seq + lb];
+                float weight = scores[t] / denominator;
+                for (int d = 0; d &lt; p.head_size; ++d) {
+                    size_t vi = kv_index(block_id, off, kvh, d,
+                                         p.block_size, p.num_kv_heads, p.head_size);
+                    out[d] += weight * v_cache[vi];
+                }
+            }
+        }
+    }
+}
+</code></pre>
+<p>测试时故意让 Block Table 非连续，例如 <code>[7, 2, 11]</code>，否则连续页表会让错误实现也得到正确结果。</p>
+<h2 id="dx12-compute-shader">三、DX12 Compute Shader 原型<a class="headerlink" href="#dx12-compute-shader" title="Permanent link">&para;</a></h2>
+<h3 id="1-resource-binding">1. Resource Binding<a class="headerlink" href="#1-resource-binding" title="Permanent link">&para;</a></h3>
+<pre><code class="language-text">t0: StructuredBuffer&lt;float&gt; Q
+t1: StructuredBuffer&lt;float&gt; KCache
+t2: StructuredBuffer&lt;float&gt; VCache
+t3: StructuredBuffer&lt;int&gt;   BlockTable
+t4: StructuredBuffer&lt;int&gt;   ContextLens
+u0: RWStructuredBuffer&lt;float&gt; Output
+b0: PagedAttentionConstants
+</code></pre>
+<p>教学版使用 FP32 Buffer 简化 HLSL 读写。正确后再改为打包 FP16，并确认硬件支持、Load 粒度和转换成本。</p>
+<h3 id="2-hlsl">2. HLSL 基线<a class="headerlink" href="#2-hlsl" title="Permanent link">&para;</a></h3>
+<p>一个 Thread Group 处理一个 <code>(batch, q_head)</code>，Group 内线程协作完成 Head Dim 与 Context 归约：</p>
+<pre><code class="language-hlsl">cbuffer Params : register(b0)
+{
+    uint BatchSize;
+    uint NumQHeads;
+    uint NumKVHeads;
+    uint HeadSize;
+    uint BlockSize;
+    uint MaxBlocksPerSeq;
+    float Scale;
+    uint Padding;
+};
+
+StructuredBuffer&lt;float&gt; Q           : register(t0);
+StructuredBuffer&lt;float&gt; KCache      : register(t1);
+StructuredBuffer&lt;float&gt; VCache      : register(t2);
+StructuredBuffer&lt;int&gt; BlockTable    : register(t3);
+StructuredBuffer&lt;int&gt; ContextLens   : register(t4);
+RWStructuredBuffer&lt;float&gt; Output    : register(u0);
+
+groupshared float Scores[4096];       // 仅用于固定上限的教学版本
+groupshared float Reduction[256];
+
+uint KVIndex(uint blockId, uint offset, uint kvHead, uint d)
+{
+    return (((blockId * BlockSize + offset) * NumKVHeads + kvHead)
+            * HeadSize + d);
+}
+
+[numthreads(256, 1, 1)]
+void CSMain(uint3 groupId : SV_GroupID, uint lane : SV_GroupThreadID)
+{
+    uint b = groupId.y;
+    uint qh = groupId.x;
+    uint kvh = qh / (NumQHeads / NumKVHeads);
+    uint contextLen = ContextLens[b];
+
+    for (uint t = lane; t &lt; contextLen; t += 256) {
+        uint logicalBlock = t / BlockSize;
+        uint offset = t % BlockSize;
+        uint blockId = BlockTable[b * MaxBlocksPerSeq + logicalBlock];
+        float dot = 0.0f;
+        for (uint d = 0; d &lt; HeadSize; ++d) {
+            uint qi = (b * NumQHeads + qh) * HeadSize + d;
+            dot += Q[qi] * KCache[KVIndex(blockId, offset, kvh, d)];
+        }
+        Scores[t] = dot * Scale;
+    }
+    GroupMemoryBarrierWithGroupSync();
+
+    // reduceMax、exp/reduceSum 和 PV 在辅助函数中实现。
+    float rowMax = ReduceMax(Scores, contextLen, lane);
+    GroupMemoryBarrierWithGroupSync();
+    float denominator = ExpAndReduceSum(Scores, contextLen, rowMax, lane);
+    GroupMemoryBarrierWithGroupSync();
+    AccumulatePV(b, qh, kvh, contextLen, denominator, lane);
+}
+</code></pre>
+<p><code>groupshared Scores[4096]</code> 只是正确性原型，会限制 Context Length 并占用较多 Shared Memory。优化版应采用第 11.2 节的 Online Softmax 分块流式处理，避免完整 Score Buffer。</p>
+<h3 id="3-dx12">3. DX12 资源状态与同步<a class="headerlink" href="#3-dx12" title="Permanent link">&para;</a></h3>
+<p>每轮需要保证：</p>
+<pre><code class="language-text">上传 BlockTable/ContextLens
+  → COPY_DEST
+  → UAV/SRV 可读状态
+  → Dispatch
+  → UAV Barrier（若后续 Pass 读取 Output）
+</code></pre>
+<p>若 Block Table 和 Context Lens 每步更新，使用持久映射 Upload Ring Buffer 或预分配 Upload Heap，避免逐步创建 Resource。Fence 保护 Ring Segment 在 GPU 完成前不被 CPU 覆盖。</p>
+<h3 id="4-dispatch">4. Dispatch<a class="headerlink" href="#4-dispatch" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">commandList-&gt;SetPipelineState(pagedAttentionPSO.Get());
+commandList-&gt;SetComputeRootSignature(rootSignature.Get());
+commandList-&gt;SetComputeRootDescriptorTable(...);
+commandList-&gt;Dispatch(numQHeads, batchSize, 1);
+</code></pre>
+<p>PSO、Root Signature 和 Descriptor Heap 应在初始化阶段创建。逐 Token 重建 PSO 或 Descriptor Heap 会让 CPU 开销淹没教学 Kernel 的收益。</p>
+<h2 id="tensorrt-plugin">四、TensorRT Plugin 后端<a class="headerlink" href="#tensorrt-plugin" title="Permanent link">&para;</a></h2>
+<p>TensorRT 不执行 HLSL。Plugin 的 <code>enqueue()</code> 接收 CUDA Tensor 地址，并启动 CUDA/Triton Kernel。现代 TensorRT 版本的 Plugin 接口会演进，实际代码应以目标 TensorRT SDK 的头文件和示例为准。</p>
+<h3 id="1-plugin">1. Plugin 输入输出<a class="headerlink" href="#1-plugin" title="Permanent link">&para;</a></h3>
+<p>建议把运行时变化值作为 Tensor 输入：</p>
+<pre><code class="language-text">inputs[0] Q             FP16 [B, Hq, D]
+inputs[1] KCache        FP16 [NB, BS, Hkv, D]
+inputs[2] VCache        FP16 [NB, BS, Hkv, D]
+inputs[3] BlockTable    INT32 [B, MaxBlocks]
+inputs[4] ContextLens   INT32 [B]
+output[0] O             FP16 [B, Hq, D]
+</code></pre>
+<p><code>block_size</code>、<code>num_heads</code>、<code>head_size</code> 等模型不变量可序列化进 Plugin Field；Batch Size 和 Context Length 必须保持运行时动态。</p>
+<h3 id="2-plugin">2. Plugin 骨架<a class="headerlink" href="#2-plugin" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">class PagedAttentionPlugin final : public nvinfer1::IPluginV2DynamicExt {
+public:
+    int enqueue(
+        const nvinfer1::PluginTensorDesc* inputDesc,
+        const nvinfer1::PluginTensorDesc* outputDesc,
+        const void* const* inputs,
+        void* const* outputs,
+        void* workspace,
+        cudaStream_t stream) noexcept override
+    {
+        Params p = makeParams(inputDesc);
+        if (!validateRuntimeParams(p))
+            return 1;
+
+        launchPagedAttention(
+            static_cast&lt;const half*&gt;(inputs[0]),
+            static_cast&lt;const half*&gt;(inputs[1]),
+            static_cast&lt;const half*&gt;(inputs[2]),
+            static_cast&lt;const int32_t*&gt;(inputs[3]),
+            static_cast&lt;const int32_t*&gt;(inputs[4]),
+            static_cast&lt;half*&gt;(outputs[0]),
+            p, stream);
+        return cudaPeekAtLastError() == cudaSuccess ? 0 : 1;
+    }
+};
+</code></pre>
+<p><code>enqueue()</code> 中不能隐式使用默认 Stream，不能执行同步 <code>cudaMemcpy</code>，也不应反复 <code>cudaMalloc/cudaFree</code>。临时空间使用 TensorRT 提供的 <code>workspace</code> 或初始化阶段持久分配。</p>
+<h3 id="3-shape-format">3. Shape 与 Format 校验<a class="headerlink" href="#3-shape-format" title="Permanent link">&para;</a></h3>
+<p><code>supportsFormatCombination()</code> 应明确允许的组合，<code>getOutputDimensions()</code> 返回 <code>[B,Hq,D]</code>，<code>configurePlugin()</code> 检查静态不变量。不要等到 Kernel 内部才发现 <code>Hq % Hkv != 0</code>。</p>
+<h3 id="4-tensorrt-network">4. TensorRT Network 接入<a class="headerlink" href="#4-tensorrt-network" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">auto* pluginLayer = network-&gt;addPluginV2(inputs, 5, plugin);
+auto* output = pluginLayer-&gt;getOutput(0);
+</code></pre>
+<p>若 KV Cache 需要跨多次 <code>enqueueV3()</code> 保持，最好由 Runtime Session 管理其 Device Buffer，并作为显式 Binding 传入。把可变请求状态藏在 Plugin 对象内部会破坏并发 Session、序列化和生命周期管理。</p>
+<h2 id="runtime-block-manager">五、Runtime 侧 Block Manager<a class="headerlink" href="#runtime-block-manager" title="Permanent link">&para;</a></h2>
+<pre><code class="language-cpp">class KvBlockPool {
+public:
+    explicit KvBlockPool(uint32_t numBlocks)
+        : refCount_(numBlocks, 0) {
+        for (uint32_t i = 0; i &lt; numBlocks; ++i)
+            free_.push_back(i);
+    }
+
+    uint32_t allocate() {
+        if (free_.empty()) throw std::runtime_error(&quot;KV pool exhausted&quot;);
+        uint32_t id = free_.front();
+        free_.pop_front();
+        refCount_[id] = 1;
+        return id;
+    }
+
+    void retain(uint32_t id) { ++refCount_.at(id); }
+
+    void release(uint32_t id) {
+        auto&amp; count = refCount_.at(id);
+        if (count == 0) throw std::logic_error(&quot;double release&quot;);
+        if (--count == 0) free_.push_back(id);
+    }
+
+private:
+    std::deque&lt;uint32_t&gt; free_;
+    std::vector&lt;uint32_t&gt; refCount_;
+};
+</code></pre>
+<p>Request 保存逻辑 Block Table；Pool 只管理物理页和引用。不要让 Shader/Plugin 自行决定请求应获得哪个 Block，它缺少全局调度和其他请求的生命周期信息。</p>
+<h2 id="decode-batch">六、混合长度 Decode Batch<a class="headerlink" href="#decode-batch" title="Permanent link">&para;</a></h2>
+<p>不同请求拥有不同 <code>ContextLens</code> 和 Block Table，但 Q Shape 可以统一为 <code>[B,Hq,D]</code>。无需把 KV 聚合复制成一个新的连续 Buffer；PagedAttention 的价值正是直接通过页表读取原物理页。</p>
+<p>Padding 只用于元数据 Shape 或 CUDA Graph Bucket，不应复制完整 KV：</p>
+<pre><code class="language-text">request A: len=65, blocks=[7,2]
+request B: len=17, blocks=[9]
+
+BlockTable padded:
+[7, 2]
+[9,-1]
+
+ContextLens:
+[65,17]
+</code></pre>
+<p>Kernel 必须只读取 <code>token_pos &lt; context_len</code> 的逻辑页，不能访问 Padding 的 <code>-1</code>。</p>
+<h2 id="_3">七、正确性验证<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<p>分四层对齐：</p>
+<ol>
+<li>CPU 连续 KV Reference 与 CPU Paged Reference；</li>
+<li>CPU Paged Reference 与 DX12 输出；</li>
+<li>CPU Paged Reference 与 TensorRT Plugin 输出；</li>
+<li>多步 Decode：每步写入新 KV 后再次计算。</li>
+</ol>
+<p>测试矩阵：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">维度</th>
+<th style="text-align: left;">样例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Batch</td>
+<td style="text-align: left;">1、2、7</td>
+</tr>
+<tr>
+<td style="text-align: left;">Hq:Hkv</td>
+<td style="text-align: left;">1:1、8:1、16:2</td>
+</tr>
+<tr>
+<td style="text-align: left;">Head Size</td>
+<td style="text-align: left;">64、128</td>
+</tr>
+<tr>
+<td style="text-align: left;">Block Size</td>
+<td style="text-align: left;">16、64、256</td>
+</tr>
+<tr>
+<td style="text-align: left;">Context Length</td>
+<td style="text-align: left;">1、B-1、B、B+1、上限</td>
+</tr>
+<tr>
+<td style="text-align: left;">Block Table</td>
+<td style="text-align: left;">连续、乱序、共享前缀</td>
+</tr>
+</tbody>
+</table>
+<p>DX12 使用 PIX/GPU Validation，CUDA 使用 Compute Sanitizer：</p>
+<pre><code class="language-bash">compute-sanitizer --tool memcheck ./paged_attention_test
+compute-sanitizer --tool racecheck ./paged_attention_test
+</code></pre>
+<p>Racecheck 对所有自定义访问模式并非都能给出完整结论，仍需边界测试和代码审查。</p>
+<h2 id="_4">八、性能验收与结论边界<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<p>分别测量：</p>
+<ul>
+<li>Kernel GPU 时间；</li>
+<li>每 Token 的 Block Table/ContextLens H2D 时间；</li>
+<li>Runtime 组 Batch 的 CPU 时间；</li>
+<li>Decode Step 端到端时间；</li>
+<li>连续 KV 基线与 Paged KV 的差异；</li>
+<li>不同碎片率和 Context Length 分布。</li>
+</ul>
+<p><code>TPOT 12.85 ms → 6.50 ms</code> 只有在基线包含的复制、分配或低效 Kernel 被明确记录时才有解释力。PagedAttention 本身增加间接寻址，它的主要系统收益是降低碎片、避免 KV 聚合复制并支持动态批处理；某个 Kernel 是否变快取决于基线和实现。</p>
+<h2 id="_5">九、与前文的连接<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<ul>
+<li>第 4.4 节解释 PagedAttention 的概念，本篇把页表、物理 Slot 和生命周期写成代码；</li>
+<li>第 2.3 节的资源池对应 <code>KvBlockPool</code>，但释放条件由请求完成和 GPU 使用状态共同决定；</li>
+<li>第 5.1 节决定 Thread Group/Grid 映射；</li>
+<li>第 5.2、4.2 节决定 KV Tile 的加载与片上复用；</li>
+<li>第 11.2 节提供 QK/Softmax/PV 的融合 Kernel；</li>
+<li>DX12 Descriptor/Buffer 与 TensorRT Binding 只是不同后端接口，真正共享的是 Shape、页表与资源所有权契约。</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../attention_kernel_gqa_practice/" class="btn btn-neutral float-left" title="11.2 Attention Kernel: QK、Softmax、PV 与 GQA"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../kernel_profiling_linear_h2d/" class="btn btn-neutral float-right" title="11.4 性能分析: Nsight、Decode Linear 与 H2D">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../attention_kernel_gqa_practice/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../kernel_profiling_linear_h2d/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

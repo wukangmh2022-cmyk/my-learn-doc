@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="writer-html5" lang="en" >
+<html class="writer-html5" lang="zh_CN" >
 <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
@@ -48,7 +48,7 @@
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 渲染管线与硬件单元 (SM, TMU, ROP)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
                   </li>
@@ -97,7 +97,7 @@
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#4-cpu-vs-gpu">4. CPU 准备下一帧 vs GPU 渲染当前帧</a>
         <ul>
-    <li class="toctree-l3"><a class="reference internal" href="#ai">在 AI 推理中完全一样</a>
+    <li class="toctree-l3"><a class="reference internal" href="#ai">在 AI 推理中的相似流水线</a>
     </li>
         </ul>
     </li>
@@ -123,11 +123,11 @@
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 为何图形做多 Pass，AI 做单 Pass Tiling</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention (类比 DX12 资源池 / 伙伴分配器)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
                   </li>
               </ul>
               <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
@@ -142,6 +142,8 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
               </ul>
               <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
               <ul>
@@ -154,33 +156,54 @@
                   <li class="toctree-l1"><a class="reference internal" href="../flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">7. 专用硬件加速单元</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">7.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                <li class="toctree-l1"><a class="reference internal" href="../llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">7.2 RT Core: BVH 遍历专用电路 (压缩解决随机访问，专用电路解决分支分歧)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">7.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">8. GPU 软件栈与驱动开发</span></p>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">8.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">8.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">8.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">8.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">9. 职业发展与工程实践</span></p>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">9.1 四个核心岗位对比: 算子开发 / 推理框架 / 编译器 / 驱动</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../nano_vllm_from_scratch/">11.1 Nano-vLLM: 框架架构、技术栈与源码实现</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">9.2 简历技能清单 (基于我们对话的认知总结)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">9.3 关键知识点自检清单 (MkDocs 版)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../paged_attention_dx12_tensorrt/">11.3 PagedAttention: DX12 与 TensorRT 双后端实践</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">A.3 关键知识点自检清单</a>
                   </li>
               </ul>
       </div>
@@ -207,19 +230,19 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
             <div class="section" itemprop="articleBody">
               
-                <h1 id="22-command-buffer-ring-buffer">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)</h1>
-<h2 id="_1">概述</h2>
+                <h1 id="22-command-buffer-ring-buffer">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)<a class="headerlink" href="#22-command-buffer-ring-buffer" title="Permanent link">&para;</a></h1>
+<h2 id="_1">概述<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
 <p>在 Vulkan 和 DX12 中，你不再像 OpenGL 那样直接调用 <code>glDraw*</code> 让驱动在背后帮你构建命令流。取而代之的是，你<strong>显式录制 Command Buffer / Command List</strong>，然后一次性提交给 GPU 执行。</p>
 <p>这个机制直接对应到 CUDA 的两个核心概念：
 - <strong>CUDA Stream</strong>：隐式的命令序列，等价于一个 Queue
 - <strong>CUDA Graph</strong>：显式录制的命令序列，等价于 Command List 的"先录后放"</p>
-<h2 id="1-command-buffer-command-list">1. Command Buffer / Command List 生命周期</h2>
-<h3 id="11">1.1 三个核心阶段</h3>
+<h2 id="1-command-buffer-command-list">1. Command Buffer / Command List 生命周期<a class="headerlink" href="#1-command-buffer-command-list" title="Permanent link">&para;</a></h2>
+<h3 id="11">1.1 三个核心阶段<a class="headerlink" href="#11" title="Permanent link">&para;</a></h3>
 <pre><code>[录制] → [提交] → [执行] → [重置] → [录制] ...
          ↑                       重置后回到开始
          └── GPU 正在执行，CPU 不能重置
 </code></pre>
-<h4 id="record">阶段一：录制 (Record)</h4>
+<h4 id="record">阶段一：录制 (Record)<a class="headerlink" href="#record" title="Permanent link">&para;</a></h4>
 <p>你把所有 GPU 命令（Draw、Dispatch、Copy、Barrier）记录到 Command Buffer 中，这个过程完全在 CPU 端完成，不涉及 GPU 执行。</p>
 <pre><code class="language-cpp">// DX12 Command List 录制
 cmdList-&gt;Reset(cmdAllocator, pInitialState);
@@ -237,7 +260,7 @@ vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &amp;vertexBuffer, &amp;offsets);
 vkCmdDrawIndexed(cmdBuffer, indexCount, 1, 0, 0, 0);
 vkEndCommandBuffer(cmdBuffer);  // 录制完成
 </code></pre>
-<h4 id="submit">阶段二：提交 (Submit)</h4>
+<h4 id="submit">阶段二：提交 (Submit)<a class="headerlink" href="#submit" title="Permanent link">&para;</a></h4>
 <p>将录制好的 Command Buffer 放入 GPU 的命令队列 (Queue)，GPU 开始异步执行。</p>
 <pre><code class="language-cpp">// DX12
 cmdQueue-&gt;ExecuteCommandLists(1, &amp;cmdList);
@@ -250,7 +273,7 @@ vkQueueSubmit(queue, 1, &amp;submitInfo, fence);
 kernel&lt;&lt;&lt;grid, block, 0, stream&gt;&gt;&gt;(args);
 // 每个 cudaLaunchKernel 等效于向 Stream 追加一条命令
 </code></pre>
-<h4 id="reset">阶段三：重置 (Reset)</h4>
+<h4 id="reset">阶段三：重置 (Reset)<a class="headerlink" href="#reset" title="Permanent link">&para;</a></h4>
 <p>GPU 执行完成后，必须重置 Command Buffer 才能再次录制。<strong>关键约束</strong>：重置前必须确保 GPU 不再执行这个 Command Buffer。</p>
 <pre><code class="language-cpp">// 等待 GPU 完成
 WaitForSingleObject(fence, INFINITE);
@@ -259,7 +282,7 @@ WaitForSingleObject(fence, INFINITE);
 cmdAllocator-&gt;Reset();     // 释放底层内存
 cmdList-&gt;Reset(cmdAllocator, nullptr);  // 绑定到新的一帧
 </code></pre>
-<h3 id="12-command-allocator">1.2 Command Allocator 的作用</h3>
+<h3 id="12-command-allocator">1.2 Command Allocator 的作用<a class="headerlink" href="#12-command-allocator" title="Permanent link">&para;</a></h3>
 <p>DX12 中 Command List 需要绑定一个 <strong>Command Allocator</strong>，它负责管理底层内存。你曾精准指出过这一点：</p>
 <blockquote>
 <p><strong>你的原话</strong>："是不是至少 command list 是不能复用的在多个线程上" + "分配器绑定：DX12 里，Command List 绑定到一个 Command Allocator，Allocator 不是线程安全的。"</p>
@@ -268,11 +291,11 @@ cmdList-&gt;Reset(cmdAllocator, nullptr);  // 绑定到新的一帧
 - 每个 Command List 绑定独立的 Allocator
 - Allocator 不是线程安全的
 - 重置 Allocator 会释放其内部管理的所有内存</p>
-<h2 id="2-ring-buffer">2. Ring Buffer 分配策略</h2>
-<h3 id="21-ring-buffer">2.1 为什么需要 Ring Buffer</h3>
+<h2 id="2-ring-buffer">2. Ring Buffer 分配策略<a class="headerlink" href="#2-ring-buffer" title="Permanent link">&para;</a></h2>
+<h3 id="21-ring-buffer">2.1 为什么需要 Ring Buffer<a class="headerlink" href="#21-ring-buffer" title="Permanent link">&para;</a></h3>
 <p>有了 Command List 的录制-提交-重置生命周期，再结合 CPU-GPU 异步流水线（见 2.1 节），自然就需要 Ring Buffer 来做帧级资源管理。</p>
 <p>Ring Buffer 的核心思想：<strong>预分配 N 个槽位，每帧轮转使用一个槽位，通过 Fence 轮询确保不覆盖正在被 GPU 使用的槽位。</strong></p>
-<h3 id="22-tripleframed-ring-buffer">2.2 Triple/Framed Ring Buffer 实战</h3>
+<h3 id="22-tripleframed-ring-buffer">2.2 Triple/Framed Ring Buffer 实战<a class="headerlink" href="#22-tripleframed-ring-buffer" title="Permanent link">&para;</a></h3>
 <pre><code class="language-cpp">// DX12 三重 Ring Buffer 架构
 const int FRAME_COUNT = 3;
 
@@ -313,7 +336,7 @@ while (running) {
     frameIndex = (frameIndex + 1) % FRAME_COUNT;
 }
 </code></pre>
-<h3 id="23-ring-buffer-cuda">2.3 Ring Buffer 在 CUDA 中的等价实现</h3>
+<h3 id="23-ring-buffer-cuda">2.3 Ring Buffer 在 CUDA 中的等价实现<a class="headerlink" href="#23-ring-buffer-cuda" title="Permanent link">&para;</a></h3>
 <pre><code class="language-cpp">// CUDA Stream + Event 实现 Ring Buffer
 const int NUM_SLOTS = 3;
 
@@ -342,7 +365,7 @@ while (true) {
     slot = (slot + 1) % NUM_SLOTS;
 }
 </code></pre>
-<h2 id="3-command-list-cuda-graph">3. Command List → CUDA Graph 映射</h2>
+<h2 id="3-command-list-cuda-graph">3. Command List → CUDA Graph 映射<a class="headerlink" href="#3-command-list-cuda-graph" title="Permanent link">&para;</a></h2>
 <p>CUDA Graph 是比 CUDA Stream 更接近 DX12/Vulkan Command List 的概念：</p>
 <table>
 <thead>
@@ -386,7 +409,7 @@ while (true) {
 </tr>
 </tbody>
 </table>
-<h3 id="31-cuda-graph">3.1 CUDA Graph 的"先录后放"模式</h3>
+<h3 id="31-cuda-graph">3.1 CUDA Graph 的"先录后放"模式<a class="headerlink" href="#31-cuda-graph" title="Permanent link">&para;</a></h3>
 <pre><code class="language-cpp">// === 录制阶段（等价于录制 Command List）===
 cudaStream_t stream;
 cudaStreamCreate(&amp;stream);
@@ -416,7 +439,7 @@ cudaGraphLaunch(graphExec, stream);  // 第二次执行
 <p><strong>你的原话</strong>：CUDA Graph 确实应该对标渲染管线里的"状态缓存与合并"——合并 Batch Draw Call、PSO 缓存、Barrier 合并。</p>
 <p>这个定位非常精准。CUDA Graph 没有让 GPU 自己"决策"，只是让 CPU"少跑几趟腿"：把多次 <code>cudaLaunchKernel</code> 打包成一次 <code>cudaGraphLaunch</code>，就像把多次 <code>DrawIndexed</code> 合并成一次 <code>ExecuteCommandLists</code>。</p>
 </blockquote>
-<h2 id="4-cpu-vs-gpu">4. CPU 准备下一帧 vs GPU 渲染当前帧</h2>
+<h2 id="4-cpu-vs-gpu">4. CPU 准备下一帧 vs GPU 渲染当前帧<a class="headerlink" href="#4-cpu-vs-gpu" title="Permanent link">&para;</a></h2>
 <p>这正是帧并行 (Frame Parallelism) 的精髓所在：</p>
 <pre><code>时间轴 → 
 CPU: 录制 Frame N → 提交 → 录制 Frame N+1 → 提交 → 录制 Frame N+2 → ...
@@ -424,13 +447,13 @@ GPU:                执行 Frame N              执行 Frame N+1              �
                    ↑ 流水线满负荷运转 ↑
 </code></pre>
 <p><strong>你的直觉完全正确</strong>：CPU 在 GPU 执行第 N 帧时，已经在录制第 N+1 帧的 Command List、更新骨骼动画数据、上传纹理。这就是 Ring Buffer 和 Fence 轮询配合实现的完美流水线。</p>
-<h3 id="ai">在 AI 推理中完全一样</h3>
+<h3 id="ai">在 AI 推理中的相似流水线<a class="headerlink" href="#ai" title="Permanent link">&para;</a></h3>
 <pre><code>CPU: 预处理 Batch N → 提交 → 预处理 Batch N+1 → 提交 → 预处理 Batch N+2 ...
 GPU:                  执行 Batch N              执行 Batch N+1              执行 Batch N+2
 </code></pre>
-<p>vLLM 的调度器中，CPU 在 GPU 执行 Decode 阶段时，已经在准备下一个请求的 Token IDs 和 KV Cache——正是使用了完全相同的 Ring Buffer 思想。</p>
-<h2 id="_2">总结</h2>
-<p>Command Buffer/Command List 的"录制-提交-重置"三段式生命周期，加上 Ring Buffer 的帧级资源轮转，构成了现代 GPU 应用（无论是图形渲染还是 AI 推理）的高性能骨架。<strong>CUDA Graph 就是 AI 版的 Command List</strong>，而你早已在图形管线中熟练掌握了这套模式。</p>
+<p>推理运行时也会在 GPU 执行时准备后续调度元数据和输入，但请求队列、KV Block 生命周期与固定帧槽不同，具体是否形成重叠应通过时间线确认。</p>
+<h2 id="_2">总结<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<p>Command Buffer/Command List 的“录制-提交-重置”和帧资源轮转是图形应用的常见模式。CUDA Graph 同样支持先定义后重放，但还包含节点依赖、实例化和更新约束；它与 Command List 适合类比，不是同一个对象模型。</p>
 <table>
 <thead>
 <tr>
@@ -506,6 +529,9 @@ GPU:                  执行 Batch N              执行 Batch N+1              
     <script>var base_url = "..";</script>
     <script src="../js/theme_extra.js"></script>
     <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
       <script src="../search/main.js"></script>
     <script>
         jQuery(function () {

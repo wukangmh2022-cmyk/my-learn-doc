@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="zh_CN" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>7. LLM 核心算子：推导 + CUDA 实现 - GPU 图形与 AI 推理知识手册</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "7. LLM \u6838\u5fc3\u7b97\u5b50\uff1a\u63a8\u5bfc + CUDA \u5b9e\u73b0";
+        var mkdocs_page_input_path = "llm_core_operators.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GPU 图形与 AI 推理知识手册
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">首页</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">1. 图形渲染管线与 GPU 硬件基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_passes_and_sync/">1.4 图形管线中的 Pass 与同步 (RenderPass, Barrier)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">2. GPU 并发模型与系统思维</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../cpu_gpu_async_pipeline/">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../command_buffer_ring_buffer/">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../multithreaded_rendering_and_pools/">2.3 多线程渲染与资源池管理</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_to_ai_first_principles/">2.4 从图形管线到 AI 推理的第一性原理映射</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">3. AI 模型与算子基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../model_structures_inference_view/">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../operator_taxonomy/">3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../convolution_math_implementation/">3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">4. AI 推理优化核心策略</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../thread_block_grid_mapping/">5.1 线程模型 (Thread, Block, Grid) 与映射</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../explicit_memory_shared_vs_cache/">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../warp_simd_simt_divergence/">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../synchronization_primitives/">5.4 同步原语: __syncthreads, __syncwarp, 内存屏障</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../reduce_tree_implementation/">6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../scan_stream_compaction/">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../radix_sort_as_stream_compaction/">6.3 基数排序 (Radix Sort) = 逐位流压缩</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
+                  </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">7. LLM 核心算子：推导 + CUDA 实现</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#_1">概述</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#71-kqv-attention">7.1 标准 KQV Attention 数学推导</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_2">数学</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#ai">图形 → AI 映射</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#cuda">CUDA 实现（正确性参考版）</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#72-mha-mqa-gqa">7.2 变种：MHA / MQA / GQA</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#ai_1">图形 → AI 映射</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_3">面试要点</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#73-softmax-online-softmax">7.3 Softmax 与 Online Softmax</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#softmax">标准 Softmax（数值稳定版）</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#online-softmaxflashattention">Online Softmax（FlashAttention 的核心技巧）</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#ai_2">图形 → AI 映射</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_4">面试要点</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#74-rmsnorm-layernorm">7.4 RMSNorm / LayerNorm</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#layernorm">LayerNorm</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#rmsnormllama">RMSNorm（LLaMA 等模型常用）</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#ai_3">图形 → AI 映射</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#cuda_1">CUDA 实现要点</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_5">面试要点</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#75-rope">7.5 RoPE（旋转位置编码）</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_6">推导</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#cuda_2">CUDA 实现</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#ai_4">图形 → AI 映射</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_7">面试要点</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#76-gemmprefill">7.6 GEMM（矩阵乘：Prefill 主导）</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_8">数学</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#shared-memory-tiling-52-bank-conflict">分块 + Shared Memory Tiling（接 5.2 Bank Conflict）</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#ai_5">图形 → AI 映射</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#77-gemv-decode">7.7 GEMV（矩阵-向量：Decode 主导）</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_9">数学与特性</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_10">优化方向</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#ai_6">图形 → AI 映射</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#78-transpose-bank-conflict">7.8 Transpose / 数据重排（与 Bank Conflict 强相关）</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_11">数学</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_12">朴素实现的坑</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#padding-bank-conflict">分块转置 + Padding（经典 Bank Conflict 案例）</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#ai_7">图形 → AI 映射</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_13">本章面试自检</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../nano_vllm_from_scratch/">11.1 Nano-vLLM: 框架架构、技术栈与源码实现</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../paged_attention_dx12_tensorrt/">11.3 PagedAttention: DX12 与 TensorRT 双后端实践</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">A.3 关键知识点自检清单</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GPU 图形与 AI 推理知识手册</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">7. LLM 核心算子：推导 + CUDA 实现</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="7-llm-cuda">7. LLM 核心算子：从推导到 CUDA 实现<a class="headerlink" href="#7-llm-cuda" title="Permanent link">&para;</a></h1>
+<h2 id="_1">概述<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>前面第 6 章你写过 Reduce / Scan / Radix Sort / FlashAttention，已经证明了"图形算法 → AI 算子"的同构。但 LLM 推理有自己一套<strong>高频且面试必考</strong>的算子，它们要么缺数学推导、要么缺手写代码能力：</p>
+<ul>
+<li><strong>Attention 家族</strong>：KQV 标准 Attention、MHA / MQA / GQA 变种——几乎每个 LLM 推理面试题的底层。</li>
+<li><strong>归一化与位置</strong>：Softmax / Online Softmax、RMSNorm、RoPE——Transformer 每一层都在跑。</li>
+<li><strong>矩阵运算</strong>：GEMM（Prefill 主导）、GEMV（Decode 主导）、Transpose（Kernel 间搬运，且与你刚学的 Bank Conflict 强相关）。</li>
+</ul>
+<blockquote>
+<p><strong>本章程式</strong>：每个算子都按"<strong>数学推导 → 图形映射 → CUDA 实现 → 面试要点</strong>"四段走。推导是让你"真懂"，代码是让你"能写"，映射是让你"记得住"。</p>
+</blockquote>
+<hr />
+<h2 id="71-kqv-attention">7.1 标准 KQV Attention 数学推导<a class="headerlink" href="#71-kqv-attention" title="Permanent link">&para;</a></h2>
+<h3 id="_2">数学<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h3>
+<p>给定 Query / Key / Value（序列长度 <code>n</code>，头维度 <code>d_k</code>）：</p>
+<p>$$
+\text{Attention}(Q,K,V) = \text{softmax}!\left(\frac{QK^T}{\sqrt{d_k}}\right) V
+$$</p>
+<p>展开成一步：</p>
+<ol>
+<li><strong>打分</strong>：$S = QK^T \in \mathbb{R}^{n\times n}$，其中 $S_{ij} = q_i \cdot k_j$（query $i$ 与 key $j$ 的相似度）。</li>
+<li><strong>缩放</strong>：除以 $\sqrt{d_k}$ 防止点积过大导致 softmax 梯度消失。</li>
+<li><strong>归一化</strong>：$P = \text{softmax}(S)$（每行和为 1，行内是"对序列所有位置的注意力权重"）。</li>
+<li><strong>加权求和</strong>：$O = P V$，每个输出位置是 Value 的加权和。</li>
+</ol>
+<pre><code class="language-mermaid">flowchart LR
+    X[&quot;输入 X&quot;] --&gt; Q[&quot;Q = XWq&quot;]
+    X --&gt; K[&quot;K = XWk&quot;]
+    X --&gt; V[&quot;V = XWv&quot;]
+    Q --&gt; S[&quot;Scores = QK^T / sqrt(dk)&quot;]
+    K --&gt; S
+    S --&gt; P[&quot;按行 Softmax&quot;]
+    P --&gt; O[&quot;O = PV&quot;]
+    V --&gt; O
+</code></pre>
+<p><strong>Multi-Head Attention（MHA）</strong>：把 <code>d_model</code> 拆成 <code>h</code> 个头，每头维度 $d_k = d_{model}/h$，各头独立算 Attention 再拼接，最后过输出投影 $W_O$：</p>
+<p>$$
+\text{MHA}(X) = \text{Concat}(head_1,\dots,head_h) W_O,\quad head_i = \text{Attention}(XW_{Q_i}, XW_{K_i}, XW_{V_i})
+$$</p>
+<p>计算复杂度 $O(n^2 d)$，<strong>显存 $O(n^2)$</strong>（要存 $P$ 这个 $n\times n$ 注意力矩阵）——这正是 FlashAttention（6.4）要干掉的中间量。</p>
+<h3 id="ai">图形 → AI 映射<a class="headerlink" href="#ai" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Attention 步骤</th>
+<th style="text-align: left;">图形对应</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">$QK^T$（每 query 与所有 key 打分）</td>
+<td style="text-align: left;"><strong>延迟着色 / 多光源着色</strong>：每像素对所有光源做点积算光照贡献</td>
+</tr>
+<tr>
+<td style="text-align: left;">$\text{softmax}$（归一化权重）</td>
+<td style="text-align: left;">对一组光源贡献做<strong>归一化混合权重</strong>（类似加权混合多张 lightmap）</td>
+</tr>
+<tr>
+<td style="text-align: left;">$PV$（加权求和）</td>
+<td style="text-align: left;">按权重把多个光源颜色<strong>累加</strong>到最终像素</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>一句话：<strong>Attention 就是"每个 fragment 向序列里所有其它位置（光源）请求贡献并加权求和"</strong>。你写过的延迟着色就是这个结构，只是光源数 = 序列长度 $n$。</p>
+</blockquote>
+<h3 id="cuda">CUDA 实现（正确性参考版）<a class="headerlink" href="#cuda" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">// 一个 Block 处理一个 Query。动态 Shared Memory 至少为 n * sizeof(float)。
+// 省略 mask、batch、head 和低精度路径，仅用于解释数据流。
+__global__ void naive_attention(
+    const float* Q, const float* K, const float* V,
+    float* O, int n, int d) {
+    int q = blockIdx.x;
+    int tid = threadIdx.x;
+    extern __shared__ float scores[];
+
+    for (int j = tid; j &lt; n; j += blockDim.x) {
+        float s = 0.0f;
+        for (int k = 0; k &lt; d; ++k)
+            s += Q[q*d + k] * K[j*d + k];
+        scores[j] = s * rsqrtf((float)d);
+    }
+    __syncthreads();
+
+    if (tid == 0) {
+        float m = -CUDART_INF_F;
+        for (int j = 0; j &lt; n; ++j) m = fmaxf(m, scores[j]);
+        float sum = 0.0f;
+        for (int j = 0; j &lt; n; ++j) {
+            scores[j] = expf(scores[j] - m);
+            sum += scores[j];
+        }
+        for (int j = 0; j &lt; n; ++j) scores[j] /= sum;
+    }
+    __syncthreads();
+
+    for (int k = tid; k &lt; d; k += blockDim.x) {
+        float acc = 0.0f;
+        for (int j = 0; j &lt; n; ++j) acc += scores[j] * V[j*d + k];
+        O[q*d + k] = acc;
+    }
+}
+</code></pre>
+<blockquote>
+<p><strong>面试要点</strong>：标准三 Kernel 实现若物化整张 $S/P$，会产生 $O(n^2)$ 中间存储。上面的参考 Kernel 只保留一行分数，但 Shared Memory 限制了序列长度，且 Softmax 由单线程执行。生产实现需要分块归约、Mask、向量化读写和 FlashAttention 式在线更新。</p>
+</blockquote>
+<hr />
+<h2 id="72-mha-mqa-gqa">7.2 变种：MHA / MQA / GQA<a class="headerlink" href="#72-mha-mqa-gqa" title="Permanent link">&para;</a></h2>
+<p>Attention 的计算量主要卡在<strong>访存 KV Cache</strong>（Decode 阶段每生成一个 token 都要把所有历史 K/V 从显存读进来）。三种变体本质是在"质量"和"KV 显存/带宽"之间取舍：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">变体</th>
+<th style="text-align: center;">K/V 头数</th>
+<th style="text-align: center;">KV Cache 大小（相对 MHA）</th>
+<th style="text-align: left;">质量</th>
+<th style="text-align: left;">代表模型</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>MHA</strong></td>
+<td style="text-align: center;">= $h$（每头独立）</td>
+<td style="text-align: center;">1×</td>
+<td style="text-align: left;">表达能力基线</td>
+<td style="text-align: left;">原始 Transformer、GPT-3</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>MQA</strong></td>
+<td style="text-align: center;">1（所有 Query 头共享 K/V）</td>
+<td style="text-align: center;">$1/h$</td>
+<td style="text-align: left;">取决于模型与训练</td>
+<td style="text-align: left;">PaLM、Falcon 的部分版本</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>GQA</strong></td>
+<td style="text-align: center;">$g$（每组 Query 头共享 K/V）</td>
+<td style="text-align: center;">$g/h$</td>
+<td style="text-align: left;">常作为质量/带宽折中</td>
+<td style="text-align: left;">LLaMA 2 70B、LLaMA 3、Mistral</td>
+</tr>
+</tbody>
+</table>
+<p><strong>KV Cache 显存公式</strong>（每 token、每层）：</p>
+<p>$$
+\text{MHA：} 2 \times h \times d_h \times 2\ \text{字节（fp16）}
+$$
+$$
+\text{GQA：} 2 \times g \times d_h \times 2\ \text{字节}
+$$</p>
+<p>例：若 $h=32, d_h=128, g=8$，仅按 K/V 元素数计算，GQA Cache 是同形状 MHA 的 $8/32 = 1/4$。端到端带宽和延迟还包含投影、调度与其他算子，不能直接推导为整步快 4 倍。</p>
+<h3 id="ai_1">图形 → AI 映射<a class="headerlink" href="#ai_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">变体</th>
+<th style="text-align: left;">图形直觉</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">MHA</td>
+<td style="text-align: left;">每个像素独立一张 Shadow Map（最准但最占显存）</td>
+</tr>
+<tr>
+<td style="text-align: left;">MQA</td>
+<td style="text-align: left;">所有像素<strong>共享一张</strong> Shadow Map（省显存，但远处精度差）</td>
+</tr>
+<tr>
+<td style="text-align: left;">GQA</td>
+<td style="text-align: left;">把屏幕分成几块（tile），<strong>每块共享一张</strong> Shadow Map（精度/显存折中）</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>GQA 与 Tiled Rendering 都利用“在一组消费者之间共享资源”的直觉，但分组维度不同：GQA 沿 Attention Head 分组，Tiled Rendering 通常沿屏幕空间分块。它们不是同一种算法。</p>
+</blockquote>
+<h3 id="_3">面试要点<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
+<ul>
+<li>能画出三者 K/V 头的形状差异（头维度上"广播"）。</li>
+<li>能说清 <strong>MQA/GQA 省的是 KV 的"访存带宽"不是"算力"</strong>——Decode 是 memory-bound，所以收益巨大。</li>
+<li>GQA 的 <code>num_kv_heads</code> 参数就是 $g$；vLLM 里 <code>tensor_parallel_size</code> 还会再切 $g$。</li>
+</ul>
+<hr />
+<h2 id="73-softmax-online-softmax">7.3 Softmax 与 Online Softmax<a class="headerlink" href="#73-softmax-online-softmax" title="Permanent link">&para;</a></h2>
+<h3 id="softmax">标准 Softmax（数值稳定版）<a class="headerlink" href="#softmax" title="Permanent link">&para;</a></h3>
+<p>$$
+\text{softmax}(x_i) = \frac{e^{x_i - m}}{\sum_j e^{x_j - m}},\quad m = \max_j x_j
+$$</p>
+<p>减 <code>max</code> 是为了防止 <code>exp</code> 溢出——你永远先做 <code>m = max</code>，再减它。</p>
+<h3 id="online-softmaxflashattention">Online Softmax（FlashAttention 的核心技巧）<a class="headerlink" href="#online-softmaxflashattention" title="Permanent link">&para;</a></h3>
+<p>标准做法要先把整行 $S$ 算完才能做 softmax（因为要全局 max 和 sum）。但 FlashAttention 把行切成 tile，<strong>一边读 tile 一边在线更新</strong> max 和 sum，从不物化整行：</p>
+<p>维护运行最大值 $m$ 和运行分母 $\ell$，来一个新 tile（局部 scores $x$，局部 max $m_{local}$，局部 sum $\ell_{local}$）：</p>
+<p>$$
+m_{new} = \max(m_{old},\, m_{local})
+$$
+$$
+\ell_{new} = e^{m_{old}-m_{new}} \cdot \ell_{old} + e^{m_{local}-m_{new}} \cdot \ell_{local}
+$$</p>
+<p>输出累加器同步校正：</p>
+<p>$$
+O_{new} = e^{m_{old}-m_{new}} \cdot O_{old} + e^{m_{local}-m_{new}} \cdot (\text{该 tile 的 } P_{local} \cdot V)
+$$</p>
+<p>最终 $O = O_{final} / \ell_{final}$。</p>
+<h3 id="ai_2">图形 → AI 映射<a class="headerlink" href="#ai_2" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">概念</th>
+<th style="text-align: left;">图形对应</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Online softmax 增量更新</td>
+<td style="text-align: left;"><strong>时间性累积（Temporal Accumulation）</strong>：每帧来一帧新样本，用校正因子把旧平均"拉"到新平均，而不重算全部历史</td>
+</tr>
+<tr>
+<td style="text-align: left;">减 max 防溢出</td>
+<td style="text-align: left;">HDR 色调映射里先做 <code>log</code> / 找最大亮度再归一化，防止高光爆掉</td>
+</tr>
+</tbody>
+</table>
+<h3 id="_4">面试要点<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
+<ul>
+<li>必须能口述 online softmax 的两条更新公式（max 取大、sum 带校正因子）。</li>
+<li>说清<strong>为什么需要它</strong>：让 FlashAttention 不把 $n\times n$ 的 $P$ 写回 HBM，从而降显存、提带宽利用率。</li>
+</ul>
+<hr />
+<h2 id="74-rmsnorm-layernorm">7.4 RMSNorm / LayerNorm<a class="headerlink" href="#74-rmsnorm-layernorm" title="Permanent link">&para;</a></h2>
+<h3 id="layernorm">LayerNorm<a class="headerlink" href="#layernorm" title="Permanent link">&para;</a></h3>
+<p>对特征维（最后一维，长度 <code>d</code>）归一化：</p>
+<p>$$
+\mu = \frac{1}{d}\sum_i x_i,\quad \sigma^2 = \frac{1}{d}\sum_i (x_i-\mu)^2,\quad \hat x_i = \frac{x_i-\mu}{\sqrt{\sigma^2+\varepsilon}}\cdot \gamma_i + \beta_i
+$$</p>
+<h3 id="rmsnormllama">RMSNorm（LLaMA 等模型常用）<a class="headerlink" href="#rmsnormllama" title="Permanent link">&para;</a></h3>
+<p>去掉均值中心化、去掉 $\beta$，只用均方根：</p>
+<p>$$
+\text{RMS}(x) = \sqrt{\frac{1}{d}\sum_i x_i^2 + \varepsilon},\quad \hat x_i = \frac{x_i}{\text{RMS}(x)} \cdot \gamma_i
+$$</p>
+<p>它省去均值中心化和偏置项，计算与数据流更简单。模型质量取决于架构与训练过程，不能概括为对所有模型都“几乎无损”。</p>
+<h3 id="ai_3">图形 → AI 映射<a class="headerlink" href="#ai_3" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">算子</th>
+<th style="text-align: left;">图形对应</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">LayerNorm</td>
+<td style="text-align: left;">对一块 texel 做<strong>亮度归一化</strong>再乘增益（类似 tone-mapping 前的 normalize）</td>
+</tr>
+<tr>
+<td style="text-align: left;">RMSNorm</td>
+<td style="text-align: left;">只算 RMS 不减去均值 = 类似于只对"对比度/幅度"做归一化，不关心整体偏移（像去直流分量的滤波）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="cuda_1">CUDA 实现要点<a class="headerlink" href="#cuda_1" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">// 伪代码：block_reduce_sum 必须返回整个 Block 的平方和。
+__global__ void rmsnorm(const float* x, const float* gamma, float* y, int d) {
+    int row = blockIdx.x;
+    float ss = 0.0f;
+    for (int i = threadIdx.x; i &lt; d; i += blockDim.x)
+        ss += x[row*d + i] * x[row*d + i];
+    float total_ss = block_reduce_sum(ss);  // 见 5.5；结果广播到所有线程
+    float inv_rms = rsqrtf(total_ss / d + 1e-6f);
+    for (int i = threadIdx.x; i &lt; d; i += blockDim.x)
+        y[row*d + i] = x[row*d + i] * inv_rms * gamma[i];
+}
+</code></pre>
+<h3 id="_5">面试要点<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
+<ul>
+<li>能说清 <strong>RMSNorm 比 LayerNorm 少做"减均值"和"加 β"</strong>，所以更快。</li>
+<li>归约用 warp shuffle（5.5）比用 shared memory 更省 bank 冲突——接回你刚学的第 5.2 章。</li>
+</ul>
+<hr />
+<h2 id="75-rope">7.5 RoPE（旋转位置编码）<a class="headerlink" href="#75-rope" title="Permanent link">&para;</a></h2>
+<p>位置编码让模型感知 token 顺序。RoPE（Rotary Position Embedding）把"位置"编码成<strong>旋转</strong>，使 $q\cdot k$ 只依赖相对位置 $m-n$。</p>
+<h3 id="_6">推导<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h3>
+<p>对相邻两维 $(x_{2i}, x_{2i+1})$ 定义频率 $\omega_i = 10000^{-2i/d}$。位置 $m$ 使用角度 $\theta_{m,i}=m\omega_i$：</p>
+<p>$$
+\begin{pmatrix} q'<em 2i_1="2i+1">{2i} \ q'</em>
+=
+\begin{pmatrix} \cos\theta_{m,i} &amp; -\sin\theta_{m,i} \ \sin\theta_{m,i} &amp; \cos\theta_{m,i} \end{pmatrix}
+\begin{pmatrix} q_{2i} \ q_{2i+1} \end{pmatrix}
+$$} \end{pmatrix</p>
+<p>写成旋转矩阵 $R(\theta_i)$，则位置 $m$ 的 query 为 $R(m\theta_i)q$，位置 $n$ 的 key 为 $R(n\theta_i)k$。关键性质：</p>
+<p>$$
+(R(m\theta_i)q)^T (R(n\theta_i)k) = q^T R((n-m)\theta_i)\,k
+$$</p>
+<p>——<strong>内积只与相对位置 $(n-m)$ 有关</strong>，位置信息被"旋"进了向量本身。</p>
+<p>复数视角：把每对维当成复数 $z = x_{2i} + i\,x_{2i+1}$，乘上 $e^{i m\theta_i}$ 即旋转。</p>
+<h3 id="cuda_2">CUDA 实现<a class="headerlink" href="#cuda_2" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">// RoPE：Q 和 K 都要按模型规定的维度布局应用旋转。
+__global__ void rope(float* q, const float* cos_cache, const float* sin_cache,
+                     int pos, int d) {
+    int i = threadIdx.x;                // 第 i 对
+    if (2*i+1 &gt;= d) return;
+    float c = cos_cache[pos * (d/2) + i];
+    float s = sin_cache[pos * (d/2) + i];
+    float a = q[2*i], b = q[2*i+1];
+    q[2*i]   = a*c - b*s;
+    q[2*i+1] = a*s + b*c;
+}
+</code></pre>
+<h3 id="ai_4">图形 → AI 映射<a class="headerlink" href="#ai_4" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">概念</th>
+<th style="text-align: left;">图形对应</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">旋转一对维度</td>
+<td style="text-align: left;"><strong>法线变换</strong>：用旋转矩阵 $R$ 把 TBN 中的法线旋到世界空间</td>
+</tr>
+<tr>
+<td style="text-align: left;">相对位置依赖</td>
+<td style="text-align: left;">像<strong>屏幕空间导数</strong>（$dFdx/dFdy$）只关心相邻像素相对偏移，不关心绝对坐标</td>
+</tr>
+</tbody>
+</table>
+<h3 id="_7">面试要点<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h3>
+<ul>
+<li>能写出旋转矩阵形式，并说明<strong>为什么相对位置被编码进内积</strong>。</li>
+<li>能说 <code>10000</code> 基的来历（不同频率覆盖不同尺度），以及长上下文常做 <strong>NTK-aware / 线性缩放</strong> 外推。</li>
+</ul>
+<hr />
+<h2 id="76-gemmprefill">7.6 GEMM（矩阵乘：Prefill 主导）<a class="headerlink" href="#76-gemmprefill" title="Permanent link">&para;</a></h2>
+<h3 id="_8">数学<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h3>
+<p>$C_{m\times n} = A_{m\times k} \times B_{k\times n}$。LLM Prefill 阶段（一次处理整段 prompt）绝大多数是 GEMM。</p>
+<h3 id="shared-memory-tiling-52-bank-conflict">分块 + Shared Memory Tiling（接 5.2 Bank Conflict）<a class="headerlink" href="#shared-memory-tiling-52-bank-conflict" title="Permanent link">&para;</a></h3>
+<p>标准做法：把 $C$ 切成 <code>TILE×TILE</code> 小块，每个 Block 把对应 $A$、$B$ 的 Tile 搬进 Shared Memory 累加。Padding 或 Swizzle 是否必要取决于 Warp 的实际访问方向；下面这个朴素行主序访问不因 <code>[32][32]</code> 必然产生 Bank Conflict。</p>
+<pre><code class="language-cpp">template&lt;int TILE&gt;
+__global__ void gemm_tiled(const float* A, const float* B, float* C,
+                           int m, int n, int k) {
+    __shared__ float sA[TILE][TILE];
+    __shared__ float sB[TILE][TILE];
+    int row = blockIdx.y*TILE + threadIdx.y;
+    int col = blockIdx.x*TILE + threadIdx.x;
+    float sum = 0.0f;
+    for (int t = 0; t &lt; k; t += TILE) {
+        sA[threadIdx.y][threadIdx.x] =
+            (row &lt; m &amp;&amp; t + threadIdx.x &lt; k) ? A[row*k + t + threadIdx.x] : 0.0f;
+        sB[threadIdx.y][threadIdx.x] =
+            (t + threadIdx.y &lt; k &amp;&amp; col &lt; n) ? B[(t+threadIdx.y)*n + col] : 0.0f;
+        __syncthreads();
+        #pragma unroll
+        for (int i = 0; i &lt; TILE; ++i) sum += sA[threadIdx.y][i]*sB[i][threadIdx.x];
+        __syncthreads();
+    }
+    if (row &lt; m &amp;&amp; col &lt; n) C[row*n + col] = sum;
+}
+</code></pre>
+<p>生产级实现用 <strong>Tensor Core</strong>（见 9.1 / 原 7.1），以 <code>wmma::mma_sync</code> 一次算 <code>16×16×16</code> 的小块，吞吐是 CUDA Core 的数倍。</p>
+<h3 id="ai_5">图形 → AI 映射<a class="headerlink" href="#ai_5" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">概念</th>
+<th style="text-align: left;">图形对应</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Tiling GEMM</td>
+<td style="text-align: left;"><strong>Tiled Deferred Shading / TBDR</strong>：把大计算切成 tile 放进片上内存算</td>
+</tr>
+<tr>
+<td style="text-align: left;">Tensor Core 加速</td>
+<td style="text-align: left;">专用 ALU，类比<strong>固定功能纹理单元</strong>替你做原本要 Shader 手算的事</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="77-gemv-decode">7.7 GEMV（矩阵-向量：Decode 主导）<a class="headerlink" href="#77-gemv-decode" title="Permanent link">&para;</a></h2>
+<h3 id="_9">数学与特性<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h3>
+<p>$y_{m} = W_{m\times k} \cdot x_k$。自回归 Decode 每个序列每步只新增一个 token；当并发批量较小时，线性层接近 GEMV，批量增大后会成为窄 GEMM。</p>
+<p>关键：<strong>GEMV 是 memory-bound</strong>——要把整个权重矩阵 $W$ 从 HBM 读进来，而每读一个元素只做一次乘加。算术强度极低，瓶颈在带宽不在算力。</p>
+<h3 id="_10">优化方向<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h3>
+<ul>
+<li>把 $x$ 搬进 Shared Memory 复用（避免每读一行权重都重读 $x$）。</li>
+<li>相对 FP16，INT8/FP8 的元素宽度通常减半；相对 FP32 则为四分之一。缩放因子、元数据和反量化也有开销。</li>
+<li>多 token 时把 GEMV 聚成小 GEMM（batch GEMM）提升算术强度。</li>
+</ul>
+<h3 id="ai_6">图形 → AI 映射<a class="headerlink" href="#ai_6" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">概念</th>
+<th style="text-align: left;">图形对应</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">GEMV 读整张权重算一个向量</td>
+<td style="text-align: left;">像<strong>对一个像素采样整张纹理图集</strong>——读得多、算得少，瓶颈在"取数带宽"</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="78-transpose-bank-conflict">7.8 Transpose / 数据重排（与 Bank Conflict 强相关）<a class="headerlink" href="#78-transpose-bank-conflict" title="Permanent link">&para;</a></h2>
+<h3 id="_11">数学<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h3>
+<p>$Out[j][i] = In[i][j]$。Kernel 间常需要转置（如 NHWC↔NCHW、或 attention 中 K 的布局调整）。</p>
+<h3 id="_12">朴素实现的坑<a class="headerlink" href="#_12" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">// 输入读取合并，但输出对相邻线程是跨步写；这里没有写入数据竞争。
+out[col*N + row] = in[row*N + col];
+</code></pre>
+<h3 id="padding-bank-conflict">分块转置 + Padding（经典 Bank Conflict 案例）<a class="headerlink" href="#padding-bank-conflict" title="Permanent link">&para;</a></h3>
+<pre><code class="language-cpp">__global__ void transpose(const float* in, float* out, int N) {
+    __shared__ float tile[32][32+1];    // +1 padding 破解 bank conflict
+    int x = blockIdx.x*32 + threadIdx.x;
+    int y = blockIdx.y*32 + threadIdx.y;
+    tile[threadIdx.y][threadIdx.x] = in[y*N + x];
+    __syncthreads();
+    int x2 = blockIdx.y*32 + threadIdx.x;
+    int y2 = blockIdx.x*32 + threadIdx.y;
+    out[y2*N + x2] = tile[threadIdx.x][threadIdx.y];  // 全局写入保持合并
+}
+</code></pre>
+<blockquote>
+<p>这正是第 5.2 章 Bank 理论的最佳练兵：把 <code>tile[ty][tx]</code> 写进去、<code>tile[tx][ty]</code> 读出来，若不加 <code>+1</code> padding，32 线程会全部撞同一个 bank。</p>
+</blockquote>
+<h3 id="ai_7">图形 → AI 映射<a class="headerlink" href="#ai_7" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">概念</th>
+<th style="text-align: left;">图形对应</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Transpose + swizzle</td>
+<td style="text-align: left;"><strong>纹理 swizzle / 像素格式重排</strong>（如 RGBA→BGRA、tile-based 纹理布局），目的同样是让内存访问模式适配硬件缓存行</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="_13">本章面试自检<a class="headerlink" href="#_13" title="Permanent link">&para;</a></h2>
+<ol>
+<li>口述 Attention 公式 + 一句话说清"为什么需要 Online Softmax"。</li>
+<li>画 MHA / MQA / GQA 的 K/V 头形状，并说清 GQA 省的是什么（访存带宽）。</li>
+<li>推导 RoPE 旋转矩阵，证明内积只依赖相对位置。</li>
+<li>写一个 naive GEMM/CUDA kernel 并指出哪里会 Bank Conflict（接 5.2）。</li>
+<li>解释"Decode 是 GEMV 主导、memory-bound；Prefill 是 GEMM 主导、compute-bound"。</li>
+</ol>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../flashattention_case_study/" class="btn btn-neutral float-left" title="6.4 FlashAttention: Online Softmax + Tiling 的经典案例"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../vllm_tuning_multicard/" class="btn btn-neutral float-right" title="8. vLLM 推理调优与多卡系统">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../flashattention_case_study/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../vllm_tuning_multicard/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

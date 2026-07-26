@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="writer-html5" lang="en" >
+<html class="writer-html5" lang="zh_CN" >
 <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
@@ -48,7 +48,7 @@
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 渲染管线与硬件单元 (SM, TMU, ROP)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
                   </li>
@@ -117,11 +117,11 @@
               <ul>
                   <li class="toctree-l1"><a class="reference internal" href="../operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 为何图形做多 Pass，AI 做单 Pass Tiling</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention (类比 DX12 资源池 / 伙伴分配器)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
                   </li>
               </ul>
               <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
@@ -136,6 +136,8 @@
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
                   </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
               </ul>
               <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
               <ul>
@@ -148,33 +150,54 @@
                   <li class="toctree-l1"><a class="reference internal" href="../flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">7. 专用硬件加速单元</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">7.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                <li class="toctree-l1"><a class="reference internal" href="../llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">7.2 RT Core: BVH 遍历专用电路 (压缩解决随机访问，专用电路解决分支分歧)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">7.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">8. GPU 软件栈与驱动开发</span></p>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">8.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">8.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">8.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">8.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
                   </li>
               </ul>
-              <p class="caption"><span class="caption-text">9. 职业发展与工程实践</span></p>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
               <ul>
-                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">9.1 四个核心岗位对比: 算子开发 / 推理框架 / 编译器 / 驱动</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../nano_vllm_from_scratch/">11.1 Nano-vLLM: 框架架构、技术栈与源码实现</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">9.2 简历技能清单 (基于我们对话的认知总结)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
                   </li>
-                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">9.3 关键知识点自检清单 (MkDocs 版)</a>
+                  <li class="toctree-l1"><a class="reference internal" href="../paged_attention_dx12_tensorrt/">11.3 PagedAttention: DX12 与 TensorRT 双后端实践</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../knowledge_checklist/">A.3 关键知识点自检清单</a>
                   </li>
               </ul>
       </div>
@@ -201,12 +224,12 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
             <div class="section" itemprop="articleBody">
               
-                <h1 id="21-cpu-gpu-fence-event">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)</h1>
-<h2 id="_1">概述</h2>
-<p>CPU 和 GPU 是两个独立的执行引擎，它们通过 PCIe 总线连接，各自有独立的内存空间和指令流。高效的 GPU 应用必须让两者像流水线一样并行工作，而不是 CPU 提交任务后空等 GPU 完成。</p>
+                <h1 id="21-cpu-gpu-fence-event">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)<a class="headerlink" href="#21-cpu-gpu-fence-event" title="Permanent link">&para;</a></h1>
+<h2 id="_1">概述<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>CPU 和 GPU 是相互独立调度的执行引擎。离散 GPU 通常通过 PCIe 连接并拥有独立显存；集成 GPU 或 Grace Hopper 等平台可能使用统一或一致性更强的内存系统。无论拓扑如何，高效应用都要减少不必要的主机等待并建立清晰的资源生命周期。</p>
 <p>本章从你最熟悉的同步机制出发，逐步深入到现代图形 API 和 CUDA 中使用的非阻塞异步流水线模式，最终展示这一思想如何从游戏引擎迁移到大模型推理引擎。</p>
-<h2 id="1-vs">1. 两种同步策略：阻塞等待 vs 非阻塞查询</h2>
-<h3 id="11-blocking-wait">1.1 阻塞等待 (Blocking Wait)</h3>
+<h2 id="1-vs">1. 两种同步策略：阻塞等待 vs 非阻塞查询<a class="headerlink" href="#1-vs" title="Permanent link">&para;</a></h2>
+<h3 id="11-blocking-wait">1.1 阻塞等待 (Blocking Wait)<a class="headerlink" href="#11-blocking-wait" title="Permanent link">&para;</a></h3>
 <p>这是最直观的同步方式。CPU 提交任务后调用阻塞 API，线程挂起，直到 GPU 完成指定任务。</p>
 <table>
 <thead>
@@ -218,14 +241,14 @@
 </thead>
 <tbody>
 <tr>
-<td style="text-align: left;">DX12: <code>WaitForSingleObject(fence)</code></td>
-<td style="text-align: left;">CPU 线程阻塞，直到 Fence 被 Signal</td>
-<td style="text-align: left;">简单同步、帧率控制</td>
+<td style="text-align: left;">DX12: <code>SetEventOnCompletion</code> + <code>WaitForSingleObject</code></td>
+<td style="text-align: left;">先把 Fence 值绑定到 Event，再阻塞 CPU 线程</td>
+<td style="text-align: left;">等待某个提交点完成</td>
 </tr>
 <tr>
 <td style="text-align: left;">DX12: <code>SetEventOnCompletion</code></td>
-<td style="text-align: left;">设置回调事件，等待 GPU 到达标记</td>
-<td style="text-align: left;">异步通知</td>
+<td style="text-align: left;">注册 Event，本身不等待</td>
+<td style="text-align: left;">为后续等待或通知做准备</td>
 </tr>
 <tr>
 <td style="text-align: left;">CUDA: <code>cudaDeviceSynchronize()</code></td>
@@ -239,8 +262,8 @@
 </tr>
 </tbody>
 </table>
-<p><strong>缺点</strong>：阻塞期间 CPU 完全空闲，无法做任何有用工作。对于需要高吞吐的渲染引擎或推理服务来说，这是不可接受的浪费。</p>
-<h3 id="12-polling-query">1.2 非阻塞查询 (Polling / Query)</h3>
+<p><strong>代价</strong>：该 CPU 线程不能继续执行当前工作；操作系统可以调度其他线程。等待是否可接受取决于资源复用点、延迟目标和可用的其他 CPU 工作。</p>
+<h3 id="12-polling-query">1.2 非阻塞查询 (Polling / Query)<a class="headerlink" href="#12-polling-query" title="Permanent link">&para;</a></h3>
 <p>这就是你说的"计数的打标记点"——CPU 不阻塞，而是去查一个标记是否被 GPU 翻牌，没完成就先去干别的，过会儿再来问。</p>
 <table>
 <thead>
@@ -273,29 +296,38 @@
 <p><strong>你的原话</strong>："反正就是 CPU 就在一直轮巡这个 fence 的值，这个比 wait for single object，更好的点，是不是渲染那边可以做三重帧缓冲 ring buffer，Next frame 继续 record 以及分配 CPU resource allocation 的更新，以及上传到另一块 gpu buffer 上，以及还有一些杂七杂八的引擎的 CPU 硬核计算。"</p>
 <p><strong>完全正确。</strong> 这就是帧并行 (Frame Parallelism) 的核心。</p>
 </blockquote>
-<h2 id="2">2. 画面撕裂与双/三重缓冲</h2>
-<h3 id="21">2.1 画面撕裂的本质</h3>
+<pre><code class="language-mermaid">sequenceDiagram
+    participant CPU
+    participant Queue as GPU Queue
+    participant Pool as Frame/Batch Resources
+    CPU-&gt;&gt;Queue: Submit N and signal fence N
+    CPU-&gt;&gt;Pool: Prepare independent resources N+1
+    Queue--&gt;&gt;CPU: Fence N completed
+    CPU-&gt;&gt;Pool: Reuse resources from N
+</code></pre>
+<h2 id="2">2. 画面撕裂与双/三重缓冲<a class="headerlink" href="#2" title="Permanent link">&para;</a></h2>
+<h3 id="21">2.1 画面撕裂的本质<a class="headerlink" href="#21" title="Permanent link">&para;</a></h3>
 <p>你提到的一个经典场景——画面撕裂 (Screen Tearing)——完美解释了为什么需要非阻塞同步。</p>
 <p>画面撕裂发生的条件：
 - <strong>生产者</strong>：GPU 渲染管线正在写入帧缓冲区
 - <strong>消费者</strong>：显示控制器 (Display Controller) 正在读取帧缓冲区
 - <strong>速度不匹配</strong>：渲染速度超过回传/扫描速度
 - <strong>后果</strong>：消费者读到了前一半新帧 + 后一半旧帧</p>
-<p>这个问题的本质是 <strong>生产者-消费者速度不匹配</strong>——和 AI 分布式训练中的计算与通信重叠问题完全同构。</p>
-<h3 id="22-v-sync">2.2 垂直同步 (V-Sync)：阻塞方案</h3>
+<p>这个问题可用生产者/消费者模型理解，但它与分布式训练的计算/通信重叠只共享“并发阶段和同步点”的抽象；资源、时序约束和正确性条件不同。</p>
+<h3 id="22-v-sync">2.2 垂直同步 (V-Sync)：阻塞方案<a class="headerlink" href="#22-v-sync" title="Permanent link">&para;</a></h3>
 <p>最简单的解法：让渲染管线等显示控制器读完当前帧，再画下一帧。</p>
 <pre><code>渲染管线 → 等待 V-Sync → 写入 Front Buffer → 显示控制器读取
          ← 卡住，不能画下一帧 ←
 </code></pre>
 <p><strong>代价</strong>：帧率被限制在显示器刷新率（如 60Hz），GPU 利用率下降。</p>
 <p><strong>AI 中的对应</strong>：<code>cudaDeviceSynchronize()</code> 或同步 AllReduce——SM 空转等通信完成。</p>
-<h3 id="23-double-buffering">2.3 双重缓冲 (Double Buffering)：空间换时间</h3>
+<h3 id="23-double-buffering">2.3 双重缓冲 (Double Buffering)：空间换时间<a class="headerlink" href="#23-double-buffering" title="Permanent link">&para;</a></h3>
 <p>准备两个后备缓冲 (Back Buffer)，渲染管线写入其中一个，显示控制器读取另一个。</p>
 <pre><code>Back Buffer 0: [GPU 正在写入]  →  完成 → [显示控制器读取]
 Back Buffer 1: [显示控制器读取] →  完成 → [GPU 正在写入]
 </code></pre>
 <p><strong>仍可能撕裂？</strong> 如果 GPU 写入速度超过 V-Sync 周期，且两者切换时机不对，仍可能出现撕裂。所以典型的双重缓冲仍然配合 V-Sync 使用。</p>
-<h3 id="24-triple-buffering">2.4 三重缓冲 (Triple Buffering)：你熟悉的方案</h3>
+<h3 id="24-triple-buffering">2.4 三重缓冲 (Triple Buffering)：你熟悉的方案<a class="headerlink" href="#24-triple-buffering" title="Permanent link">&para;</a></h3>
 <p>你曾在云渲染中亲手实践过：<strong>准备 3 个 Render Target</strong>。</p>
 <pre><code>Frame N:     GPU 写入 Buffer A
 Frame N+1:   GPU 写入 Buffer B  ← 不等待，直接切到空闲 Buffer
@@ -303,12 +335,12 @@ Frame N+2:   GPU 写入 Buffer C  ← 完全不阻塞
 显示控制器:  读取已完成的 Buffer (比如 A)
 </code></pre>
 <p><strong>效果</strong>：
-- CPU/GPU 永远不会因为等待缓冲区而阻塞
-- 只要三个 Buffer 的车轮转起来，流水线就永不枯竭
+- 相比双缓冲，多一个可用槽位能降低生产者等待消费者的概率
+- 当 GPU、显示或编码端持续跟不上时，三个 Buffer 仍会耗尽，随后必须等待、排队或丢帧
 - 代价：多占用一份显存空间</p>
 <p>这就是你之前在聊天中说的"我设置了多个 Render Target"在云渲染中的实战应用。</p>
-<h2 id="3-frame-parallelism">3. 帧并行 (Frame Parallelism) 工程实现</h2>
-<h3 id="31-dx12-fence">3.1 DX12 三重缓冲 + 轮询 Fence 实战</h3>
+<h2 id="3-frame-parallelism">3. 帧并行 (Frame Parallelism) 工程实现<a class="headerlink" href="#3-frame-parallelism" title="Permanent link">&para;</a></h2>
+<h3 id="31-dx12-fence">3.1 DX12 三重缓冲 + 轮询 Fence 实战<a class="headerlink" href="#31-dx12-fence" title="Permanent link">&para;</a></h3>
 <pre><code class="language-cpp">// 伪代码：三重缓冲帧循环
 const int NUM_FRAMES = 3;
 ID3D12Fence* fences[NUM_FRAMES];
@@ -339,7 +371,7 @@ for (int frame = 0; ; frame++) {
     cmdQueue-&gt;Signal(fences[frameIndex], ++fenceValues[frameIndex]);
 }
 </code></pre>
-<h3 id="32-cuda">3.2 CUDA 中完全相同的模式</h3>
+<h3 id="32-cuda">3.2 CUDA 中完全相同的模式<a class="headerlink" href="#32-cuda" title="Permanent link">&para;</a></h3>
 <pre><code class="language-cpp">// CUDA 三重缓冲 + 轮询 Event
 const int NUM_FRAMES = 3;
 cudaStream_t streams[NUM_FRAMES];
@@ -366,9 +398,9 @@ for (int batch = 0; ; batch++) {
 }
 </code></pre>
 <blockquote>
-<p><strong>关键洞察</strong>：上面这段 CUDA 代码，就是你实现 <strong>动态 Batching (Continuous Batching)</strong> 的核心骨架。<code>cudaEventQuery</code> 让你在 CPU 端知道哪些请求的 Kernel 跑完了，可以动态插入新请求——就像游戏引擎动态更新 Draw Call 一样。</p>
+<p><strong>边界说明</strong>：这段代码展示的是多缓冲资源复用。Continuous Batching 还需要请求级调度、KV Block 管理、Token Budget、采样结果处理和模型执行器；不能只靠 <code>cudaEventQuery</code> 实现。</p>
 </blockquote>
-<h2 id="4-">4. 生产者-消费者溢出与降级策略</h2>
+<h2 id="4-">4. 生产者-消费者溢出与降级策略<a class="headerlink" href="#4-" title="Permanent link">&para;</a></h2>
 <p>你提到了另一个深刻的问题：<strong>"云渲染纹理回传时，GPU 渲染比回传快，导致后面帧重叠"</strong>。</p>
 <p>这是经典的"生产者-消费者溢出"问题。在图形和 AI 中，降级策略完全对应：</p>
 <table>
@@ -387,8 +419,8 @@ for (int batch = 0; ; batch++) {
 </tr>
 <tr>
 <td style="text-align: left;">大模型训练</td>
-<td style="text-align: left;">同步 AllReduce，SM 空转等通信</td>
-<td style="text-align: left;"><strong>梯度累积</strong>：本地算几步，合并后一次通信</td>
+<td style="text-align: left;">同步 AllReduce，部分阶段等待通信</td>
+<td style="text-align: left;">梯度累积可降低通信频率，但会改变有效 Batch 和优化过程，并非“丢帧”等价物</td>
 </tr>
 <tr>
 <td style="text-align: left;">AI 推理</td>
@@ -398,7 +430,7 @@ for (int batch = 0; ; batch++) {
 </tbody>
 </table>
 <p>你的"多 Render Target"实践恰好覆盖了策略 B 的思想——<strong>用空间换时间，用多缓冲掩盖延迟</strong>。</p>
-<h2 id="5-ai">5. 宏观映射：图形引擎 → AI 推理引擎</h2>
+<h2 id="5-ai">5. 宏观映射：图形引擎 → AI 推理引擎<a class="headerlink" href="#5-ai" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -435,10 +467,10 @@ for (int batch = 0; ; batch++) {
 </tr>
 </tbody>
 </table>
-<h2 id="_2">总结</h2>
-<p>你之前学的图形渲染管线中那些"CPU/GPU 解耦"和"资源池"的思维，今天直接无缝迁移到 AI 推理引擎上了。<strong><code>cudaEventQuery</code> + <code>cudaStream</code> 就是你用来实现动态 Batching 的核心工具。</strong> 你在 CPU 端轮询哪些请求的 Kernel 跑完了，然后动态插入新请求——就像引擎动态更新 Draw Call 一样。</p>
+<h2 id="_2">总结<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<p>图形渲染中的 CPU/GPU 解耦和资源池经验可以帮助理解推理运行时，但框架调度还要处理请求级状态、动态形状与 KV Cache 生命周期。<code>cudaEventQuery</code> 和 Stream 是底层进度与顺序工具，不等于调度器本身。</p>
 <blockquote>
-<p><strong>一句话总结</strong>：三重缓冲 + 轮询 Fence = CPU 不空转、GPU 不饿死。这不仅是图形引擎的核心架构思想，也是大模型推理引擎的调度灵魂。</p>
+<p><strong>一句话总结</strong>：多缓冲隔离正在使用的资源，Fence/Event 证明何时可以安全复用；是否真正实现重叠要用时间线验证。</p>
 </blockquote>
               
             </div>
@@ -479,6 +511,9 @@ for (int batch = 0; ; batch++) {
     <script>var base_url = "..";</script>
     <script src="../js/theme_extra.js"></script>
     <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
       <script src="../search/main.js"></script>
     <script>
         jQuery(function () {
