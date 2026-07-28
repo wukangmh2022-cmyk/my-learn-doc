@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="zh_CN" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>11.8 Radix Cache: 从块级前缀复用到 token 级前缀树 - GPU 图形与 AI 推理知识手册</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "11.8 Radix Cache: \u4ece\u5757\u7ea7\u524d\u7f00\u590d\u7528\u5230 token \u7ea7\u524d\u7f00\u6811";
+        var mkdocs_page_input_path = "11.8-radix_cache_prefix_tree.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GPU 图形与 AI 推理知识手册
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">首页</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">1. 图形渲染管线与 GPU 硬件基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.1-graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.2-render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.3-gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.4-graphics_passes_and_sync/">1.4 图形管线中的 Pass 与同步 (RenderPass, Barrier)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">2. GPU 并发模型与系统思维</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.1-cpu_gpu_async_pipeline/">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.2-command_buffer_ring_buffer/">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.3-multithreaded_rendering_and_pools/">2.3 多线程渲染与资源池管理</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.4-graphics_to_ai_first_principles/">2.4 从图形管线到 AI 推理的第一性原理映射</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">3. AI 模型与算子基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.1-model_structures_inference_view/">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.2-operator_taxonomy/">3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.3-convolution_math_implementation/">3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">4. AI 推理优化核心策略</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.1-operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.2-tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.3-async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.4-memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.1-thread_block_grid_mapping/">5.1 线程模型 (Thread, Block, Grid) 与映射</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.2-explicit_memory_shared_vs_cache/">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.3-warp_simd_simt_divergence/">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.4-synchronization_primitives/">5.4 同步原语: __syncthreads, __syncwarp, 内存屏障</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.5-warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.6-atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.1-reduce_tree_implementation/">6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.2-scan_stream_compaction/">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.3-radix_sort_as_stream_compaction/">6.3 基数排序 (Radix Sort) = 逐位流压缩</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.4-flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../7-llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../8-vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.1-tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.2-rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.3-computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.1-umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.2-driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.3-compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.4-graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../11.1-nano_vllm_from_scratch/">11.1 读 Nano-vLLM 源码: 一个推理引擎怎么组装起来</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.2-attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.3-paged_attention_continuous_batching/">11.3 PagedAttention 与 Continuous Batching: 从 PyTorch 到 CUDA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.4-kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.5-inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.6-paged_attention_dx12_tensorrt_backend/">11.6 进阶: 把分页契约搬到 DX12 与 TensorRT 后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.7-mini_decoder_only_transformer/">11.7 手搓 mini decode-only Transformer: 把零件焊成一台机器</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">11.8 Radix Cache: 从块级前缀复用到 token 级前缀树</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#111">11.1 那节留下的坑</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_1">一、块级哈希在哪里不够用</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1">场景 1：分叉点落在块内部</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2">场景 2：多轮对话的树形结构</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3beam-search-tree-of-thought">场景 3：Beam Search / Tree-of-Thought / 并行采样</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#radix-tree">小结：Radix Tree 真正买到了什么</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#radix-tree_1">二、Radix Tree 是什么</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-trie">1. 从 Trie 说起</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2_1">2. 压缩：一条边存一整段</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3">3. 节点里存什么</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_2">三、三个核心操作</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-match_prefix">1. match_prefix：找最长公共前缀</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-_split_node">2. _split_node：节点分裂</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-insert-kv">3. insert：把新算出的 KV 挂上去</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#kv-cache">四、和分页 KV Cache 怎么接</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_3">五、淘汰：为什么必须「叶子优先」</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1_1">1. 一个错误的淘汰会发生什么</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2_2">2. 两条规则</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3_1">3. 淘汰的实现</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4-lru">4. LRU 时间戳该在什么时候更新</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_4">六、算一笔真实的账</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_5">七、几个容易写错的地方</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_6">一定要写的测试</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_7">八、面试自检</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_8">回到全景</a>
+    </li>
+    </ul>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.1-career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.2-resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.3-knowledge_checklist/">A.3 关键知识点自检清单</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GPU 图形与 AI 推理知识手册</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">11. 推理引擎与算子实战</li>
+      <li class="breadcrumb-item active">11.8 Radix Cache: 从块级前缀复用到 token 级前缀树</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="118-radix-cache-token">11.8 Radix Cache：从块级前缀复用到 token 级前缀树<a class="headerlink" href="#118-radix-cache-token" title="Permanent link">&para;</a></h1>
+<h2 id="111">11.1 那节留下的坑<a class="headerlink" href="#111" title="Permanent link">&para;</a></h2>
+<p>在 <a href="../11.1-nano_vllm_from_scratch/">11.1 第五节</a> 里，我们实现了 vLLM 风格的 Prefix Cache：把 KV Cache 按 <code>block_size</code> 切块，每块用链式哈希做内容寻址，命中就共享物理页。</p>
+<p>它工作得很好，但有一个当时被跳过的问题：</p>
+<blockquote>
+<p><strong>哈希表只能告诉你「这个块在不在」，不能告诉你「这些块之间是什么关系」。</strong></p>
+</blockquote>
+<p>这句话在单轮问答场景里无关紧要，但在下面这几个场景里，它会变成一个真实的架构缺陷。</p>
+<p>这一篇讲 SGLang 的 RadixAttention 用什么数据结构解决它，以及<strong>它真正的收益在哪、不在哪</strong>——后面这半句同样重要，因为 Radix Cache 被吹得有点过。</p>
+<blockquote>
+<p><strong>前置</strong>：<a href="../11.1-nano_vllm_from_scratch/">11.1 第五节</a>（块级 Prefix Cache）、<a href="../11.3-paged_attention_continuous_batching/">11.3</a>（分页 KV Cache）。这一篇假设你已经理解「物理页 + 引用计数 + 延迟回收」这套东西。</p>
+</blockquote>
+<hr />
+<h2 id="_1">一、块级哈希在哪里不够用<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>先说清楚：<strong>块级哈希不是不能做前缀复用，它做得挺好。</strong> 链式哈希逐块往下匹配，能正确找到最长的公共块前缀。所以下面这三个问题不是「完全做不到」，而是「做得别扭或者做不好」。</p>
+<h3 id="1">场景 1：分叉点落在块内部<a class="headerlink" href="#1" title="Permanent link">&para;</a></h3>
+<p>块大小 16，两条请求：</p>
+<pre><code class="language-text">S0: [... 前 512 个 token 完全相同 ...][t512, t513, t514, A, ...]
+S1: [... 前 512 个 token 完全相同 ...][t512, t513, t514, B, ...]
+                                                        ↑ 第 515 个 token 开始不同
+</code></pre>
+<p>块级哈希能命中前 32 个整块（512 个 token），第 33 块因为内容不同而失配。<strong>但那一块里其实还有 3 个 token（t512、t513、t514）是相同的</strong>，它们的 K/V 被白算了。</p>
+<p>平均而言，<strong>每次分叉会浪费 <span class="arithmatex">\(\frac{B-1}{2}\)</span> 个 token 的重复计算</strong>。<span class="arithmatex">\(B=16\)</span> 时是 7.5 个。</p>
+<p>单看这个数字，说实话——<strong>不大</strong>。前缀 512 个 token 里浪费 7.5 个，1.5%。所以如果有人告诉你「Radix Cache 比块级 Prefix Cache 快很多，因为粒度更细」，这个理由<strong>站不住</strong>。</p>
+<p>真正的问题在下面两个。</p>
+<h3 id="2">场景 2：多轮对话的树形结构<a class="headerlink" href="#2" title="Permanent link">&para;</a></h3>
+<p>一个 Agent 或者聊天应用，对话是这样长的：</p>
+<pre><code class="language-text">系统提示词 (2000 token)
+    ├── 用户问 A ── 助手答 A ── 用户追问 A1 ── ...
+    ├── 用户问 B ── 助手答 B ── 用户追问 B1 ── ...
+    └── 用户问 C ── ...
+</code></pre>
+<p><strong>这天然就是一棵树。</strong> 所有会话共享系统提示词，同一个会话的不同轮次共享历史。</p>
+<p>用哈希表存这个结构，你会遇到一个具体的麻烦：<strong>显存不够要淘汰的时候，你不知道该淘汰谁。</strong></p>
+<p>哈希表里躺着一万个块，每个块只知道自己的 hash 和 token 内容。你想淘汰最久没用的那个——但如果它是「系统提示词的第 3 块」，淘汰它意味着<strong>所有以它为前缀的后续块全部失效</strong>（因为链式哈希的 parent_hash 断了）。你砍掉了树根，整棵子树跟着废掉。</p>
+<p>而哈希表<strong>没有任何办法让你知道这件事</strong>，除非你额外维护父子关系——那你其实就是在实现一棵树了。</p>
+<h3 id="3beam-search-tree-of-thought">场景 3：Beam Search / Tree-of-Thought / 并行采样<a class="headerlink" href="#3beam-search-tree-of-thought" title="Permanent link">&para;</a></h3>
+<pre><code class="language-text">prompt ──┬── 候选分支 1
+         ├── 候选分支 2
+         └── 候选分支 3
+</code></pre>
+<p>这些场景里「共享前缀 + 多路分叉」不是偶然，是<strong>算法本身的结构</strong>。用树来表示，插入和淘汰都是自然操作；用哈希表表示，每次分支都要重新走一遍链式哈希查找。</p>
+<h3 id="radix-tree">小结：Radix Tree 真正买到了什么<a class="headerlink" href="#radix-tree" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;"></th>
+<th style="text-align: left;">块级哈希（vLLM）</th>
+<th style="text-align: left;">Radix Tree（SGLang）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">匹配粒度</td>
+<td style="text-align: left;"><code>block_size</code></td>
+<td style="text-align: left;"><strong>1 个 token</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">匹配方式</td>
+<td style="text-align: left;"><span class="arithmatex">\(N\)</span> 次哈希查找 + <span class="arithmatex">\(N\)</span> 次 token 比较</td>
+<td style="text-align: left;"><strong>一次树遍历</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">知道谁是谁的前缀</td>
+<td style="text-align: left;">❌ 不知道</td>
+<td style="text-align: left;">✅ <strong>父子关系显式存在</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">淘汰能否保证正确</td>
+<td style="text-align: left;">需要额外机制</td>
+<td style="text-align: left;">✅ <strong>叶子优先天然正确</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">实现复杂度</td>
+<td style="text-align: left;">低</td>
+<td style="text-align: left;">中（要处理节点分裂）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>一句话：Radix Tree 的核心价值不是「粒度更细」，是「共享结构被显式表达出来了」，所以淘汰策略能做对。</strong></p>
+<hr />
+<h2 id="radix-tree_1">二、Radix Tree 是什么<a class="headerlink" href="#radix-tree_1" title="Permanent link">&para;</a></h2>
+<h3 id="1-trie">1. 从 Trie 说起<a class="headerlink" href="#1-trie" title="Permanent link">&para;</a></h3>
+<p>最朴素的前缀树（Trie）每条边存<strong>一个</strong> token：</p>
+<pre><code class="language-text">        root
+       /    \
+    [你]    [今]
+      |       |
+    [好]    [天]
+      |       |
+    [世]    [天]
+</code></pre>
+<p>问题很明显：一个 2000 token 的系统提示词会变成 2000 个节点，每个节点只存一个 token。<strong>指针的开销比数据还大。</strong></p>
+<h3 id="2_1">2. 压缩：一条边存一整段<a class="headerlink" href="#2_1" title="Permanent link">&para;</a></h3>
+<p>Radix Tree（也叫 PATRICIA Trie、压缩前缀树）的改进是：<strong>把「只有一个孩子」的链路压成一条边</strong>。</p>
+<pre><code class="language-text">        root
+       /     \
+[你好世界...]  [今天天气...]      ← 一条边存几百上千个 token
+      |
+   [分叉后的内容]
+</code></pre>
+<p>于是：</p>
+<ul>
+<li><strong>没有分叉的地方，一个节点搞定</strong>（系统提示词 2000 个 token = 1 个节点）；</li>
+<li><strong>分叉的地方才产生新节点</strong>，节点数正比于「有多少个不同的对话分支」，而不是 token 总数。</li>
+</ul>
+<p>这个结构和 Linux 内核的路由表（IP 前缀匹配）、Redis 的 <code>rax</code>、文件系统的路径树是同一个东西。</p>
+<h3 id="3">3. 节点里存什么<a class="headerlink" href="#3" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">class TreeNode:
+    def __init__(self):
+        self.children: dict[int, &quot;TreeNode&quot;] = {}   # key = 该分支的第一个 token
+        self.parent: &quot;TreeNode | None&quot; = None
+
+        self.key: list[int] = []          # 这条边上的 token 序列
+        self.value: torch.Tensor = None   # 对应的 KV Cache 槽位索引，和 key 等长
+
+        self.lock_ref = 0                 # 有多少个正在跑的请求锁着这条路径
+        self.last_access = 0.0            # LRU 时间戳
+</code></pre>
+<p>两个关键设计：</p>
+<p><strong><code>children</code> 用「第一个 token」做 key。</strong> 因为 Radix Tree 的任意两个孩子，它们边上的第一个 token 一定不同（否则就该合并成一条边）。所以用第一个 token 就能 <span class="arithmatex">\(O(1)\)</span> 定位该走哪个分支。</p>
+<p><strong><code>value</code> 和 <code>key</code> 一一对应。</strong> <code>key[i]</code> 这个 token 的 K/V 存在 <code>value[i]</code> 这个槽位。这是树结构和显存的接缝——树管「谁和谁共享」，<code>value</code> 管「数据在哪」。</p>
+<hr />
+<h2 id="_2">三、三个核心操作<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<h3 id="1-match_prefix">1. <code>match_prefix</code>：找最长公共前缀<a class="headerlink" href="#1-match_prefix" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">def match_prefix(self, token_ids: list[int]) -&gt; tuple[torch.Tensor, TreeNode]:
+    &quot;&quot;&quot;返回：命中的 KV 槽位索引 + 最后一个命中的节点&quot;&quot;&quot;
+    matched_values = []
+    node = self.root
+    pos = 0
+
+    while pos &lt; len(token_ids):
+        first = token_ids[pos]
+        child = node.children.get(first)
+        if child is None:
+            break                                    # 没有这个分支，到头了
+
+        # 比较这条边上能匹配多少个 token
+        n = _common_prefix_len(child.key, token_ids[pos:])
+
+        if n &lt; len(child.key):
+            # 部分匹配：必须把这条边劈开
+            child = self._split_node(child, n)
+            matched_values.append(child.value)
+            node = child
+            pos += n
+            break                                    # 劈开后必然到头
+
+        matched_values.append(child.value)
+        node = child
+        pos += n
+
+    node.last_access = time.monotonic()
+    matched = torch.cat(matched_values) if matched_values else torch.empty(0, dtype=torch.int64)
+    return matched, node
+
+
+def _common_prefix_len(a, b) -&gt; int:
+    n = min(len(a), len(b))
+    for i in range(n):
+        if a[i] != b[i]:
+            return i
+    return n
+</code></pre>
+<p><strong>返回值里那个 <code>node</code> 很重要</strong>：调用方要拿它去加引用锁（第五节讲），也要拿它当插入的起点。</p>
+<h3 id="2-_split_node">2. <code>_split_node</code>：节点分裂<a class="headerlink" href="#2-_split_node" title="Permanent link">&para;</a></h3>
+<p>这是 Radix Tree 唯一比 Trie 复杂的地方，但逻辑很直白。</p>
+<p>场景：已有一条边 <code>[A, B, C, D]</code>，来了个新请求前缀是 <code>[A, B, X]</code>。公共部分是 <code>[A, B]</code>，需要把原来那条边从第 2 个位置劈开：</p>
+<pre><code class="language-text">分裂前：              分裂后：
+  parent                parent
+    |                     |
+ [A,B,C,D]             [A,B]            ← 新的父节点，承载公共部分
+    |                  /     \
+  (孩子们)          [C,D]    [X...]      ← 原节点降级成孩子；新分支挂上来
+                      |
+                   (孩子们)
+</code></pre>
+<pre><code class="language-python">def _split_node(self, node: TreeNode, split_at: int) -&gt; TreeNode:
+    &quot;&quot;&quot;把 node 从 split_at 处劈开，返回上半截（新的公共父节点）&quot;&quot;&quot;
+    parent = node.parent
+
+    new_node = TreeNode()
+    new_node.parent = parent
+    new_node.key = node.key[:split_at]
+    new_node.value = node.value[:split_at]
+    new_node.lock_ref = node.lock_ref              # 锁要继承！
+    new_node.last_access = node.last_access
+
+    # 原节点降级成下半截
+    node.parent = new_node
+    node.key = node.key[split_at:]
+    node.value = node.value[split_at:]
+
+    new_node.children[node.key[0]] = node
+    parent.children[new_node.key[0]] = new_node
+    return new_node
+</code></pre>
+<p><strong><code>lock_ref</code> 必须继承</strong>，这是分裂里最容易写错的一行。如果有请求正锁着原节点（因为它正在用这段 KV），劈开之后上半截也在被那个请求使用，锁必须跟着上去。漏了这一行，上半截会被误判成「没人用」而被淘汰掉——<strong>而下半截还指着它，整条路径就断了。</strong></p>
+<p><strong>注意分裂不移动任何显存数据</strong>，只是切了一下 <code>value</code> 张量（切片是 view，零拷贝）。树是纯粹的索引结构。</p>
+<h3 id="3-insert-kv">3. <code>insert</code>：把新算出的 KV 挂上去<a class="headerlink" href="#3-insert-kv" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">def insert(self, token_ids: list[int], kv_indices: torch.Tensor) -&gt; int:
+    &quot;&quot;&quot;返回已经存在（不需要新占显存）的 token 数&quot;&quot;&quot;
+    node = self.root
+    pos = 0
+
+    while pos &lt; len(token_ids):
+        first = token_ids[pos]
+        child = node.children.get(first)
+
+        if child is None:
+            # 剩下的全是新的，挂一个新节点
+            leaf = TreeNode()
+            leaf.parent = node
+            leaf.key = token_ids[pos:]
+            leaf.value = kv_indices[pos:]
+            leaf.last_access = time.monotonic()
+            node.children[first] = leaf
+            return pos
+
+        n = _common_prefix_len(child.key, token_ids[pos:])
+        if n &lt; len(child.key):
+            child = self._split_node(child, n)
+
+        node = child
+        node.last_access = time.monotonic()
+        pos += n
+
+    return pos      # 全部命中，一个新槽位都不用占
+</code></pre>
+<p>返回值那个 <code>pos</code> 有实际用途：<strong>它等于「这次插入有多少 token 是重复的」</strong>，调用方可以据此把重复那部分的物理页还回去（因为已经有一份了，不需要留两份）。</p>
+<hr />
+<h2 id="kv-cache">四、和分页 KV Cache 怎么接<a class="headerlink" href="#kv-cache" title="Permanent link">&para;</a></h2>
+<p>Radix Tree 只管索引，真正的 K/V 还在那块分页显存里。接口就是节点里的 <code>value</code>——一串槽位下标。</p>
+<pre><code class="language-python">class RadixCache:
+    def __init__(self, block_manager):
+        self.root = TreeNode()
+        self.block_manager = block_manager
+        self.evictable_tokens = 0      # 当前可被淘汰的 token 总数
+
+    def before_prefill(self, seq) -&gt; int:
+        &quot;&quot;&quot;返回可以跳过的 token 数&quot;&quot;&quot;
+        matched, node = self.match_prefix(seq.token_ids)
+        if len(matched) == 0:
+            seq.cache_node = self.root
+            return 0
+
+        self._inc_lock(node)           # 锁住整条路径，防止被淘汰
+        seq.cache_node = node
+        seq.prefix_slots = matched
+        return len(matched)            # 这么多 token 不用重算
+
+    def after_prefill(self, seq, new_slots: torch.Tensor):
+        all_slots = torch.cat([seq.prefix_slots, new_slots])
+        duplicated = self.insert(seq.token_ids, all_slots)
+        # 插入时发现重复的那部分，物理页可以还回去
+        if duplicated &gt; len(seq.prefix_slots):
+            extra = all_slots[len(seq.prefix_slots):duplicated]
+            self.block_manager.free_slots(extra)
+
+    def after_finish(self, seq):
+        self._dec_lock(seq.cache_node)  # 请求结束，解锁，这条路径变成可淘汰
+</code></pre>
+<p>对照 11.1 第五节的块级实现，差别就三点：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;"></th>
+<th style="text-align: left;">块级 Prefix Cache</th>
+<th style="text-align: left;">Radix Cache</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">索引结构</td>
+<td style="text-align: left;"><code>dict[hash] → block_id</code></td>
+<td style="text-align: left;">树，节点存 token 段 + 槽位段</td>
+</tr>
+<tr>
+<td style="text-align: left;">复用单位</td>
+<td style="text-align: left;">一个 block（16 或 32 个 token）</td>
+<td style="text-align: left;"><strong>任意长度的 token 段</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">生命周期</td>
+<td style="text-align: left;">block 上的 <code>ref_count</code></td>
+<td style="text-align: left;">节点上的 <code>lock_ref</code> + 树位置</td>
+</tr>
+</tbody>
+</table>
+<p><strong>注意最后一行的区别，它是下一节的全部内容。</strong></p>
+<hr />
+<h2 id="_3">五、淘汰：为什么必须「叶子优先」<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<p>显存满了要腾地方。这是 Radix Cache 真正比哈希表强的地方，也是最容易写出隐蔽 bug 的地方。</p>
+<h3 id="1_1">1. 一个错误的淘汰会发生什么<a class="headerlink" href="#1_1" title="Permanent link">&para;</a></h3>
+<p>假设你按纯 LRU 淘汰，最久没访问的是「系统提示词」那个节点（因为它是很久以前插入的，之后大家都是命中它，如果你只在插入时更新时间戳，它的时间戳就一直很老）：</p>
+<pre><code class="language-text">        root
+          |
+   [系统提示词 2000 token]     ← 淘汰它，释放 2000 个槽位
+       /        \
+   [会话 A]    [会话 B]         ← 这两个还在被使用！
+</code></pre>
+<p>释放了父节点的物理页，但两个子节点还指着「以它为前缀」的逻辑。下次匹配走到子节点时，<strong>前面 2000 个 token 的 K/V 已经是垃圾数据了</strong>。</p>
+<p><strong>又是一个「不崩溃、不报错、只是输出错」的 bug。</strong></p>
+<h3 id="2_2">2. 两条规则<a class="headerlink" href="#2_2" title="Permanent link">&para;</a></h3>
+<p><strong>规则一：只能从叶子淘汰。</strong></p>
+<p>一个节点只要还有孩子，就说明有别的路径以它为前缀，它的数据还被依赖着。<strong>叶子节点是唯一「没有下游依赖」的节点。</strong></p>
+<p>淘汰一个叶子之后，它的父节点可能变成新的叶子，可以在下一轮被考虑。所以淘汰是<strong>自底向上逐层剥的</strong>。</p>
+<p><strong>规则二：<code>lock_ref &gt; 0</code> 的节点不能碰。</strong></p>
+<p>正在运行的请求会锁住它匹配到的整条路径。哪怕这个节点是叶子，只要还有请求在用它的 KV，就不能释放。</p>
+<pre><code class="language-python">def _inc_lock(self, node: TreeNode):
+    while node is not self.root:
+        if node.lock_ref == 0:
+            self.evictable_tokens -= len(node.value)   # 从「可淘汰」里移出
+        node.lock_ref += 1
+        node = node.parent
+
+def _dec_lock(self, node: TreeNode):
+    while node is not self.root:
+        node.lock_ref -= 1
+        if node.lock_ref == 0:
+            self.evictable_tokens += len(node.value)   # 变回可淘汰
+        node = node.parent
+</code></pre>
+<p><strong>注意锁是沿着 parent 链一路往上加的</strong>，不是只锁匹配到的那个节点。因为整条路径上的 KV 这个请求都要读。</p>
+<h3 id="3_1">3. 淘汰的实现<a class="headerlink" href="#3_1" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">import heapq
+
+def evict(self, num_tokens_needed: int):
+    # 收集所有 lock_ref == 0 的叶子，按最后访问时间做小顶堆
+    leaves = [n for n in self._collect_leaves() if n.lock_ref == 0]
+    heap = [(n.last_access, id(n), n) for n in leaves]
+    heapq.heapify(heap)
+
+    freed = 0
+    while freed &lt; num_tokens_needed and heap:
+        _, _, node = heapq.heappop(heap)
+        if node is self.root:
+            break
+
+        self.block_manager.free_slots(node.value)      # 归还物理页
+        freed += len(node.value)
+        self.evictable_tokens -= len(node.value)
+
+        parent = node.parent
+        del parent.children[node.key[0]]
+
+        # 父节点可能刚刚变成叶子，把它放进候选
+        if not parent.children and parent.lock_ref == 0 and parent is not self.root:
+            heapq.heappush(heap, (parent.last_access, id(parent), parent))
+</code></pre>
+<p><code>id(n)</code> 那一项是给堆做 tie-breaker 的——时间戳相同时 <code>heapq</code> 会去比较第三个元素 <code>TreeNode</code>，而它没定义 <code>&lt;</code>，会抛 <code>TypeError</code>。这是个很常见的小坑。</p>
+<h3 id="4-lru">4. LRU 时间戳该在什么时候更新<a class="headerlink" href="#4-lru" title="Permanent link">&para;</a></h3>
+<p><strong>匹配时也要更新，不能只在插入时更新。</strong></p>
+<p>系统提示词这类节点只在第一次被插入，之后全是「被命中」。如果只在插入时打时间戳，它会永远是最老的，然后被优先淘汰——<strong>恰好淘汰掉了最有价值的那个节点。</strong></p>
+<p>所以 <code>match_prefix</code> 里那句 <code>node.last_access = time.monotonic()</code> 不是可有可无的。更严格的做法是沿着命中路径整条更新，代价是每次匹配多走一遍 parent 链。</p>
+<blockquote>
+<p><strong>这条规则可以总结成一句</strong>：LRU 里的 "Used" 必须包含「被读」，不能只算「被写」。听起来是废话，但在树结构里很容易写漏。</p>
+</blockquote>
+<hr />
+<h2 id="_4">六、算一笔真实的账<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<p>拿一个 Agent 场景估算收益。设定：</p>
+<pre><code class="language-text">系统提示词 + 工具定义：3000 token
+每轮用户输入：          100 token
+每轮模型输出：          300 token
+一次会话 5 轮
+并发 50 个会话
+</code></pre>
+<p>第 <span class="arithmatex">\(k\)</span> 轮的输入长度是 <span class="arithmatex">\(3000 + (k-1)\times 400 + 100\)</span>。</p>
+<p><strong>没有任何前缀缓存</strong>，每轮都要 Prefill 全部历史：</p>
+<div class="arithmatex">\[
+\sum_{k=1}^{5}\left[3000+(k-1)\cdot 400+100\right]=3100+3500+3900+4300+4700=19500\ \text{token}
+\]</div>
+<p><strong>有前缀缓存</strong>，每轮只需要 Prefill 新增的部分（上一轮的输出 300 + 本轮输入 100）：</p>
+<div class="arithmatex">\[
+3100+400\times 4=4700\ \text{token}
+\]</div>
+<p><strong>Prefill 计算量降到 24%。</strong> 而且这还只算了单个会话内部的复用；50 个会话共享同一份 3000 token 的系统提示词，跨会话又省掉 <span class="arithmatex">\(49\times 3000 = 147000\)</span> token 的重复计算。</p>
+<p><strong>但注意：这个收益块级 Prefix Cache 也能拿到绝大部分。</strong> 3000 token 的系统提示词按 <code>block_size=16</code> 切成 187 个整块，块级哈希能全部命中，只在最后一个不满的块上损失几个 token。</p>
+<p><strong>Radix Cache 在这里的增量价值是：</strong> 当 50 个会话 + 5 轮历史把显存塞满，需要淘汰时，它能<strong>正确地</strong>先淘汰叶子（某个会话的最新一轮），而保住树根（系统提示词）。块级哈希做这件事需要额外维护依赖关系。</p>
+<p><strong>结论要说得诚实</strong>：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">场景</th>
+<th style="text-align: left;">块级 Prefix Cache</th>
+<th style="text-align: left;">Radix Cache</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">单轮问答，前缀不共享</td>
+<td style="text-align: left;">都没收益</td>
+<td style="text-align: left;">都没收益，<strong>还多了树维护开销</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">固定 system prompt + 大量单轮</td>
+<td style="text-align: left;">✅ 收益已经很大</td>
+<td style="text-align: left;">增量很小</td>
+</tr>
+<tr>
+<td style="text-align: left;">多轮对话 / Agent，显存不吃紧</td>
+<td style="text-align: left;">✅ 够用</td>
+<td style="text-align: left;">增量小</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>多轮 + 显存紧张 + 需要淘汰</strong></td>
+<td style="text-align: left;">⚠️ 淘汰策略难做对</td>
+<td style="text-align: left;">✅ <strong>这才是它的主场</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Beam Search / 树搜索</strong></td>
+<td style="text-align: left;">⚠️ 结构不匹配</td>
+<td style="text-align: left;">✅ 结构天然对应</td>
+</tr>
+</tbody>
+</table>
+<p><strong>别因为「SGLang 用了 Radix 所以它更先进」就上。</strong> 先看你的流量形态里有没有上面那两个 ✅ 场景。</p>
+<hr />
+<h2 id="_5">七、几个容易写错的地方<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">症状</th>
+<th style="text-align: left;">原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">淘汰后偶发输出错乱</td>
+<td style="text-align: left;">淘汰了非叶子节点，或者漏了 <code>lock_ref</code> 检查</td>
+</tr>
+<tr>
+<td style="text-align: left;">分裂后某段 KV 变垃圾</td>
+<td style="text-align: left;"><code>_split_node</code> 里 <code>lock_ref</code> 没继承</td>
+</tr>
+<tr>
+<td style="text-align: left;">命中率随时间暴跌</td>
+<td style="text-align: left;">LRU 时间戳只在 insert 时更新，树根被优先淘汰</td>
+</tr>
+<tr>
+<td style="text-align: left;">显存缓慢泄漏</td>
+<td style="text-align: left;">请求异常退出没走 <code>_dec_lock</code>，节点永远锁死</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>heapq</code> 抛 TypeError</td>
+<td style="text-align: left;">时间戳相同时去比较 TreeNode，缺 tie-breaker</td>
+</tr>
+<tr>
+<td style="text-align: left;">树越来越深、匹配变慢</td>
+<td style="text-align: left;">分裂后没有合并「只有一个孩子」的节点</td>
+</tr>
+</tbody>
+</table>
+<p>最后一条补充一句：严格的 Radix Tree 在删除节点后应该把「只剩一个孩子」的父节点合并回去。SGLang 的实现里没做这个合并（因为淘汰总是从叶子开始，退化情况有限），<strong>但如果你自己实现并且支持任意删除，就得考虑它</strong>。</p>
+<h3 id="_6">一定要写的测试<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">def test_split_preserves_lock():
+    &quot;&quot;&quot;分裂时锁必须继承，否则上半截会被误淘汰&quot;&quot;&quot;
+
+def test_evict_never_touches_internal_node():
+    &quot;&quot;&quot;构造一个有子节点的老节点，evict 必须跳过它&quot;&quot;&quot;
+
+def test_match_updates_lru():
+    &quot;&quot;&quot;反复命中同一前缀后，它不能是最老的&quot;&quot;&quot;
+
+def test_prefix_reuse_gives_identical_output():
+    &quot;&quot;&quot;开/关 Radix Cache，Greedy 输出必须完全一致&quot;&quot;&quot;
+</code></pre>
+<p><strong>最后一条是最重要的。</strong> 和 <a href="../11.1-nano_vllm_from_scratch/">11.1 第十四节</a> 说的一样：Radix Cache 是纯粹的性能优化，<strong>不应该改变任何输出</strong>。开关它做 A/B，token 序列必须逐个相同。不一致就是有 bug，没有「误差范围内」这一说。</p>
+<hr />
+<h2 id="_7">八、面试自检<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h2>
+<ol>
+<li>块级 Prefix Cache 和 Radix Cache 的核心差别是什么？（提示：不是粒度，是<strong>结构</strong>）</li>
+<li>Radix Tree 相对普通 Trie 压缩了什么？为什么这对 LLM 场景特别重要？</li>
+<li>节点分裂在什么时候发生？分裂时哪些状态必须继承？</li>
+<li>为什么淘汰只能从叶子开始？淘汰内部节点会发生什么？</li>
+<li><code>lock_ref</code> 为什么要沿 parent 链一路加，而不是只加匹配到的那个节点？</li>
+<li>LRU 时间戳为什么必须在 match 时也更新？只在 insert 时更新会怎样？</li>
+<li>什么场景下 Radix Cache 相对块级哈希<strong>没有</strong>明显收益？</li>
+<li>Radix Cache 和 PagedAttention 是什么关系？（提示：一个管索引，一个管显存）</li>
+</ol>
+<hr />
+<h2 id="_8">回到全景<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h2>
+<p>现在第 11 章的缓存演化线是完整的：</p>
+<pre><code class="language-text">[11.7] 连续 KV Cache          按 max_len 预留，不能共享
+   ↓
+[11.3] 分页 KV Cache          按需分配，物理页可被多条序列指向
+   ↓
+[11.1 §5] 块级 Prefix Cache   链式哈希 + 引用计数，整块复用
+   ↓
+[11.8] Radix Cache            token 级复用，共享结构显式化，淘汰可控
+</code></pre>
+<p>每一步都在解决上一步暴露出来的具体问题。<strong>这条线比任何一个单点知识都值钱</strong>——面试里被问到任何一环，你都能说清它从哪来、要往哪去。</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../11.7-mini_decoder_only_transformer/" class="btn btn-neutral float-left" title="11.7 手搓 mini decode-only Transformer: 把零件焊成一台机器"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../A.1-career_paths_comparison/" class="btn btn-neutral float-right" title="A.1 四个核心岗位对比">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../11.7-mini_decoder_only_transformer/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../A.1-career_paths_comparison/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

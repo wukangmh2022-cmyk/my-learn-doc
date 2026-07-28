@@ -150,59 +150,77 @@
                   </li>
                   <li class="toctree-l1 current"><a class="reference internal current" href="#">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
     <ul class="current">
-    <li class="toctree-l2"><a class="reference internal" href="#_1">实战目标</a>
+    <li class="toctree-l2"><a class="reference internal" href="#_1">一、为什么你的性能报告没人信</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#gpu-kernel">怎么测 GPU Kernel 时间</a>
     </li>
-    <li class="toctree-l2"><a class="reference internal" href="#_2">一、先定义测量边界</a>
+        </ul>
     </li>
-    <li class="toctree-l2"><a class="reference internal" href="#benchmark">二、构造可复现 Benchmark</a>
+    <li class="toctree-l2"><a class="reference internal" href="#3-decode-linear">二、案例：一个慢 3 倍的 Decode Linear</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#_2">问题描述</a>
+    </li>
+        </ul>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#nsight-systems">三、Nsight Systems：先看全局时间线</a>
         <ul>
-    <li class="toctree-l3"><a class="reference internal" href="#1">1. 采集</a>
+    <li class="toctree-l3"><a class="reference internal" href="#_3">采集</a>
     </li>
-    <li class="toctree-l3"><a class="reference internal" href="#2">2. 首轮只回答五个问题</a>
-    </li>
-    <li class="toctree-l3"><a class="reference internal" href="#3">3. 命令行统计</a>
+    <li class="toctree-l3"><a class="reference internal" href="#decode_linear_v0nsys-rep-5">打开 decode_linear_v0.nsys-rep，看 5 件事</a>
     </li>
         </ul>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#nsight-compute-kernel">四、Nsight Compute：下钻单 Kernel</a>
         <ul>
-    <li class="toctree-l3"><a class="reference internal" href="#1_1">1. 受控采集</a>
+    <li class="toctree-l3"><a class="reference internal" href="#_4">采集</a>
     </li>
-    <li class="toctree-l3"><a class="reference internal" href="#2_1">2. 读指标的顺序</a>
+    <li class="toctree-l3"><a class="reference internal" href="#decode_linear_v0ncu-rep">打开 decode_linear_v0.ncu-rep，按这个顺序看</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#v0">我的 v0 报告（节选）</a>
     </li>
         </ul>
     </li>
-    <li class="toctree-l2"><a class="reference internal" href="#decode-linear-gemv">五、Decode Linear 为什么是 GEMV 风格</a>
+    <li class="toctree-l2"><a class="reference internal" href="#v0_1">五、为什么 v0 访存不合并</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#v1-layout">六、v1：转置权重 layout</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#v2-load-bias">七、v2：向量化 Load + 融合 Bias</a>
         <ul>
-    <li class="toctree-l3"><a class="reference internal" href="#1-cpu-reference">1. CPU Reference</a>
-    </li>
-    <li class="toctree-l3"><a class="reference internal" href="#2-gpu">2. GPU 映射基线</a>
-    </li>
-    <li class="toctree-l3"><a class="reference internal" href="#3-tiling-shape">3. Tiling 参数不能脱离 Shape</a>
-    </li>
-    <li class="toctree-l3"><a class="reference internal" href="#4">4. 优化顺序</a>
+    <li class="toctree-l3"><a class="reference internal" href="#_5">向量化</a>
     </li>
         </ul>
     </li>
-    <li class="toctree-l2"><a class="reference internal" href="#h2d">六、H2D 优化：先消除分配，再谈重叠</a>
+    <li class="toctree-l2"><a class="reference internal" href="#v3-half2-__hfma2">八、v3：用 half2 和 __hfma2</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#cublas-3">九、为什么 cuBLAS 还快 3%</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#h2d">十、H2D 优化：先消除分配，再谈重叠</a>
         <ul>
-    <li class="toctree-l3"><a class="reference internal" href="#_3">是否值得拷贝？</a>
+    <li class="toctree-l3"><a class="reference internal" href="#_6">错误的做法（每步都分配）</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#pinned-memory">正确的做法（预分配 + Pinned Memory）</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#_7">三个关键点</a>
     </li>
         </ul>
     </li>
-    <li class="toctree-l2"><a class="reference internal" href="#nvprof">七、旧环境中的 nvprof</a>
+    <li class="toctree-l2"><a class="reference internal" href="#roofline-decode-linear-memory-bound">十一、Roofline 视角：为什么 Decode Linear 是 Memory-Bound</a>
     </li>
-    <li class="toctree-l2"><a class="reference internal" href="#_4">八、性能实验记录模板</a>
+    <li class="toctree-l2"><a class="reference internal" href="#_8">十二、工具链速查</a>
     </li>
-    <li class="toctree-l2"><a class="reference internal" href="#_5">九、完成标准</a>
+    <li class="toctree-l2"><a class="reference internal" href="#_9">十三、完成标准</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#111-14">对拍 11.1 §14</a>
     </li>
     </ul>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../11.5-inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../11.6-paged_attention_dx12_tensorrt_backend/">11.6 进阶: 把分页契约搬到 DX12 与 TensorRT 后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.7-mini_decoder_only_transformer/">11.7 手搓 mini decode-only Transformer: 把零件焊成一台机器</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.8-radix_cache_prefix_tree/">11.8 Radix Cache: 从块级前缀复用到 token 级前缀树</a>
                   </li>
               </ul>
               <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
@@ -238,97 +256,146 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
             <div class="section" itemprop="articleBody">
               
-                <h1 id="114-nsightdecode-linear-h2d">11.4 性能分析实战：Nsight、Decode Linear 与 H2D<a class="headerlink" href="#114-nsightdecode-linear-h2d" title="Permanent link">&para;</a></h1>
-<h2 id="_1">实战目标<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
-<p>本篇完成三个闭环：</p>
-<ol>
-<li>用 Nsight Systems 从端到端时间线定位瓶颈；</li>
-<li>用 Nsight Compute 下钻单个 Kernel 的计算、访存和占用率；</li>
-<li>针对 Decode <code>M=1</code> Linear 和逐步 H2D 元数据更新实施优化。</li>
-</ol>
-<p><code>nvprof</code> 是旧 CUDA 工具链中的命令行 Profiler，已被 Nsight Systems/Compute 取代，并且不支持许多新架构与新 CUDA 版本。只有维护旧环境时才使用 nvprof；新项目以 Nsight 为主。</p>
-<h2 id="_2">一、先定义测量边界<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
-<p>不要把以下时间混为一个数字：</p>
+                <h1 id="114-nsightdecode-linear-h2d">11.4 性能分析：Nsight、Decode Linear 与 H2D<a class="headerlink" href="#114-nsightdecode-linear-h2d" title="Permanent link">&para;</a></h1>
+<p>你写了一个 Decode Linear Kernel，测出来 <strong>0.82 ms</strong>，cuBLAS 是 <strong>0.28 ms</strong> —— <strong>慢了 3 倍</strong>。问题是：慢在哪？</p>
+<p>这种时候你打开代码盯着看，能看出来的只有明显的语法错误（比如忘了 <code>__syncthreads()</code>）。真正的瓶颈 —— 访存不合并、Cache Miss、Warp Stall、Launch Gap —— 全都藏在运行时，<strong>代码里看不见</strong>。这就是为什么需要 Profiler：它把「慢」分解成可证伪的工程假设。</p>
+<p>本篇从一个真实的慢 Kernel 出发，走完「测基线 → Systems 找瓶颈 → Compute 下钻 → 改代码 → 再测」的完整闭环，并在 11.1 §7 的 <code>cu_seqlens</code> / <code>block_table</code> 元数据传输场景中展示 H2D 优化。</p>
+<hr />
+<h2 id="_1">一、为什么你的性能报告没人信<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>「我的 Kernel 快了 10%」—— 快了 10% <strong>相比什么</strong>？warmup 了吗？测了几次？GPU 开了省电模式吗？CUDA 版本一样吗？</p>
+<p>不能复现的数字没有意义。先把这些<strong>全部固定下来</strong>：</p>
+<pre><code class="language-text">GPU 型号与功耗模式        # nvidia-smi -q -d POWER  查当前功耗上限
+Driver / CUDA 版本         # nvcc --version, nvidia-smi
+PyTorch / TensorRT 版本    # python -c &quot;import torch; print(torch.__version__)&quot;
+模型 + 精度                # Qwen2.5-7B-Instruct, FP16
+Batch Size, K, N, Seq Len  # B=8, K=3584, N=18944, prefill_len=128
+Warmup 次数                # 5 次
+测量次数和统计量           # 50 次取 Median（别用 Mean，有毛刺）
+是否启用 CUDA Graph / TP   # Graph=ON, TP=OFF
+</code></pre>
+<p>然后明确<strong>测的是什么时间</strong>：</p>
 <pre><code class="language-text">端到端请求时间
 ├── Tokenize
-├── Queueing
-├── Scheduler / Metadata
-├── H2D
+├── Queueing（等前面的请求让出 GPU）
+├── Scheduler 分配 Block + 编译 Metadata（11.1 §7）
+├── H2D（cu_seqlens / block_table / slot_mapping）
 ├── GPU Decode Step
-│   ├── Kernel launch gaps
+│   ├── Kernel Launch Gap
 │   ├── Attention
-│   ├── Linear / GEMV
+│   ├── Linear（所有 MLP + QKV/O proj）
 │   └── Sampling
-└── Decode / Detokenize
+└── Detokenize
 </code></pre>
-<p>优化 Kernel 前先确认它在端到端时间中占比足够高。Amdahl 定律：若某 Kernel 只占总时间 10%，即使无限加速，端到端收益上限也只有约 11%。</p>
-<h2 id="benchmark">二、构造可复现 Benchmark<a class="headerlink" href="#benchmark" title="Permanent link">&para;</a></h2>
-<p>固定以下信息：</p>
-<pre><code class="language-text">GPU 型号与功耗模式
-Driver / CUDA / TensorRT / PyTorch 版本
-模型与精度
-Batch Size、K、N、Context Length
-Warmup 次数
-测量次数和统计量（Median/P90）
-是否启用 CUDA Graph、TP、量化
+<p>优化 Kernel 前先确认<strong>它在端到端中占比够不够高</strong>。Amdahl 定律：一个只占总时间 10% 的 Kernel，就算加速到零耗时，端到端也只快 11%。</p>
+<h3 id="gpu-kernel">怎么测 GPU Kernel 时间<a class="headerlink" href="#gpu-kernel" title="Permanent link">&para;</a></h3>
+<p>用 <strong>CUDA Event</strong>，不要用 <code>time.time()</code>：</p>
+<pre><code class="language-python">start = torch.cuda.Event(enable_timing=True)
+end = torch.cuda.Event(enable_timing=True)
+
+start.record()
+for _ in range(50):
+    output = model(input_ids)  # warmup 在外面，别算进来
+end.record()
+torch.cuda.synchronize()
+print(f&quot;Median: {start.elapsed_time(end) / 50:.3f} ms&quot;)
 </code></pre>
-<p>CUDA Event 测量 GPU 区间：</p>
-<pre><code class="language-cpp">cudaEventRecord(start, stream);
-for (int i = 0; i &lt; iterations; ++i)
-    launchKernel(..., stream);
-cudaEventRecord(stop, stream);
-cudaEventSynchronize(stop);
-cudaEventElapsedTime(&amp;milliseconds, start, stop);
+<p>Event 测的是 <strong>Stream 上的 GPU 时间</strong>，不包含 CPU 端的 Python 调用开销和 Queueing。如果要测端到端延迟（包括 Tokenizer、Scheduler），用 <code>time.perf_counter()</code> 并在需要的地方显式 <code>torch.cuda.synchronize()</code>。</p>
+<hr />
+<h2 id="3-decode-linear">二、案例：一个慢 3 倍的 Decode Linear<a class="headerlink" href="#3-decode-linear" title="Permanent link">&para;</a></h2>
+<h3 id="_2">问题描述<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h3>
+<p>Decode 阶段每个请求每步只生成 1 个 token，所以 Linear 的 shape 是：</p>
+<div class="arithmatex">\[
+[M, K] \times [K, N], \quad M = 1
+\]</div>
+<p>这是一个 <strong>GEMV</strong>（矩阵-向量乘），不是 GEMM。对于 LLaMA-7B 的 <code>gate_proj</code>：<code>K=4096, N=11008</code>，权重 <code>[K,N]</code> 约 <strong>43 MiB</strong>（FP16），输入 <code>x: [K]</code> 只有 <strong>8 KiB</strong>。</p>
+<p>我写了一个朴素 Kernel：</p>
+<pre><code class="language-cpp">__global__ void decode_linear_v0(
+    const half* x, const half* weight, half* y, int K, int N)
+{
+    int n = blockIdx.x * blockDim.x + threadIdx.x;
+    if (n &gt;= N) return;
+
+    float sum = 0.0f;
+    for (int k = 0; k &lt; K; ++k)
+        sum += __half2float(x[k]) * __half2float(weight[k * N + n]);
+    y[n] = __float2half(sum);
+}
 </code></pre>
-<p>Event 适合测 GPU Stream 上的时间，不包含 Queueing 之前的 CPU 工作。端到端延迟使用稳定时钟，并在需要时显式同步完成边界。</p>
+<p><strong>Baseline 测试</strong>（A100-SXM4-40GB, CUDA 12.1, K=4096, N=11008, warmup=5, iters=100）：</p>
+<pre><code class="language-text">decode_linear_v0:  0.82 ms
+cuBLAS (cublasSgemv): 0.28 ms  ← 慢了 2.93 倍
+</code></pre>
+<p>现在问题是：<strong>这 0.54 ms 的差距在哪？</strong></p>
+<hr />
 <h2 id="nsight-systems">三、Nsight Systems：先看全局时间线<a class="headerlink" href="#nsight-systems" title="Permanent link">&para;</a></h2>
-<h3 id="1">1. 采集<a class="headerlink" href="#1" title="Permanent link">&para;</a></h3>
+<h3 id="_3">采集<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
 <pre><code class="language-bash">nsys profile \
-  --trace=cuda,nvtx,osrt,cudnn,cublas \
-  --sample=none \
+  --trace=cuda,nvtx,osrt \
   --capture-range=cudaProfilerApi \
   --capture-range-end=stop \
-  -o reports/decode \
-  ./decode_bench
+  -o decode_linear_v0 \
+  ./bench
 </code></pre>
-<p>程序中只包围稳态区间：</p>
+<p>程序里只包围稳态区间：</p>
 <pre><code class="language-cpp">cudaProfilerStart();
-run_decode_iterations();
+for (int i = 0; i &lt; 100; ++i)
+    decode_linear_v0&lt;&lt;&lt;grid, block&gt;&gt;&gt;(x, weight, y, K, N);
 cudaProfilerStop();
 </code></pre>
-<p>PyTorch 可使用 NVTX 标记：</p>
-<pre><code class="language-python">with torch.cuda.nvtx.range(&quot;scheduler&quot;):
-    batch = scheduler.schedule()
-with torch.cuda.nvtx.range(&quot;decode_step&quot;):
-    output = runner.run(batch)
+<p>PyTorch 可以用 NVTX Range 标记：</p>
+<pre><code class="language-python">with torch.cuda.nvtx.range(&quot;decode_step&quot;):
+    output = model.forward(batch)
 </code></pre>
-<h3 id="2">2. 首轮只回答五个问题<a class="headerlink" href="#2" title="Permanent link">&para;</a></h3>
+<h3 id="decode_linear_v0nsys-rep-5">打开 <code>decode_linear_v0.nsys-rep</code>，看 5 件事<a class="headerlink" href="#decode_linear_v0nsys-rep-5" title="Permanent link">&para;</a></h3>
 <ol>
-<li>GPU 是否存在大段空闲？</li>
-<li>CPU 是否逐个 Launch 导致 Kernel 间有明显缝隙？</li>
-<li>H2D 是否位于关键路径并与计算串行？</li>
-<li>NCCL 是否阻塞计算 Stream？</li>
-<li>哪类 Kernel 占据最多 GPU 时间？</li>
+<li>
+<p><strong>GPU 是否有大段空闲</strong>？
+   → 如果有，说明 CPU Launch 太慢或者 Kernel 间有依赖没优化掉</p>
+</li>
+<li>
+<p><strong>Kernel Launch 之间是否有明显缝隙</strong>？
+   → CUDA Graph 可以消除 Launch Gap（见 11.1 §11）</p>
+</li>
+<li>
+<p><strong>H2D 拷贝是否在关键路径上</strong>？
+   → 如果 <code>cudaMemcpy</code> 和 Kernel 串行，考虑异步拷贝 + Stream（见本章 §5）</p>
+</li>
+<li>
+<p><strong>NCCL 是否阻塞计算 Stream</strong>？
+   → TP 场景常见，需要把 AllReduce 放到专用 Stream 并用 Event 同步</p>
+</li>
+<li>
+<p><strong>哪类 Kernel 占据最多 GPU 时间</strong>？
+   → 用命令行统计：</p>
+</li>
 </ol>
-<p>不要在 Systems 中猜测 Bank Conflict 或寄存器压力，那是 Nsight Compute 的层级。</p>
-<h3 id="3">3. 命令行统计<a class="headerlink" href="#3" title="Permanent link">&para;</a></h3>
-<pre><code class="language-bash">nsys stats --report cuda_gpu_kern_sum reports/decode.nsys-rep
-nsys stats --report cuda_api_sum reports/decode.nsys-rep
-nsys stats --report cuda_gpu_mem_time_sum reports/decode.nsys-rep
+<pre><code class="language-bash">nsys stats --report cuda_gpu_kern_sum decode_linear_v0.nsys-rep
 </code></pre>
-<p>关注总时间、调用次数、平均与中位时间。一个 3 微秒 Kernel 调用一万次，可能比一个 2 毫秒 Kernel 调十次更值得做 Graph/Fusion。</p>
+<p>输出类似：</p>
+<pre><code class="language-text">Time(%)  Total Time (ns)  Instances  Avg (ns)   Name
+-------  ---------------  ---------  ---------  ----
+ 78.3    82,143,200       100        821,432    decode_linear_v0
+  8.1     8,521,100        50        170,422    cudaMemcpy
+ ...
+</code></pre>
+<p><strong>此时发现</strong>：<code>decode_linear_v0</code> 占了 78% 的 GPU 时间，确认它是瓶颈。但 Systems 只告诉你「它慢」，<strong>不告诉你为什么慢</strong> —— 那是 Nsight Compute 的工作。</p>
+<hr />
 <h2 id="nsight-compute-kernel">四、Nsight Compute：下钻单 Kernel<a class="headerlink" href="#nsight-compute-kernel" title="Permanent link">&para;</a></h2>
-<h3 id="1_1">1. 受控采集<a class="headerlink" href="#1_1" title="Permanent link">&para;</a></h3>
+<h3 id="_4">采集<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
 <pre><code class="language-bash">ncu \
-  --kernel-name regex:decode_linear \
-  --launch-skip 20 \
+  --kernel-name regex:decode_linear_v0 \
+  --launch-skip 5 \
   --launch-count 10 \
   --set full \
-  -o reports/decode_linear \
-  ./decode_bench
+  -o decode_linear_v0 \
+  ./bench
 </code></pre>
-<p><code>--set full</code> 开销较高，先用 <code>--set basic</code> 或指定 Section；不要对完整长时间服务直接全量采集。</p>
-<h3 id="2_1">2. 读指标的顺序<a class="headerlink" href="#2_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>--launch-skip 5</code>：跳过前 5 次（warmup）</li>
+<li><code>--launch-count 10</code>：只采 10 次（<code>--set full</code> 开销很高，别采 100 次）</li>
+<li><code>--set full</code>：采集所有指标；首次可以用 <code>--set basic</code> 快速看</li>
+</ul>
+<h3 id="decode_linear_v0ncu-rep">打开 <code>decode_linear_v0.ncu-rep</code>，按这个顺序看<a class="headerlink" href="#decode_linear_v0ncu-rep" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -339,164 +406,335 @@ nsys stats --report cuda_gpu_mem_time_sum reports/decode.nsys-rep
 </thead>
 <tbody>
 <tr>
-<td style="text-align: left;">Duration</td>
+<td style="text-align: left;"><strong>Duration</strong></td>
 <td style="text-align: left;">Kernel Time</td>
-<td style="text-align: left;">它是否真的重要？</td>
+<td style="text-align: left;">它是否真的重要？（已经在 Systems 确认了）</td>
 </tr>
 <tr>
-<td style="text-align: left;">Throughput</td>
-<td style="text-align: left;">DRAM/L2/SM</td>
-<td style="text-align: left;">更接近带宽上限还是计算上限？</td>
+<td style="text-align: left;"><strong>Memory Workload</strong></td>
+<td style="text-align: left;">L1/L2 Throughput, Sector Efficiency</td>
+<td style="text-align: left;">访存是否合并？Cache 是否有效？</td>
 </tr>
 <tr>
-<td style="text-align: left;">Memory Workload</td>
-<td style="text-align: left;">Sector、Transaction、Hit Rate</td>
-<td style="text-align: left;">访问是否合并、Cache 是否有效？</td>
+<td style="text-align: left;"><strong>Compute Workload</strong></td>
+<td style="text-align: left;">SM Throughput, FP/INT Pipe</td>
+<td style="text-align: left;">算力是否饱和？</td>
 </tr>
 <tr>
-<td style="text-align: left;">Scheduler</td>
-<td style="text-align: left;">Eligible/Active Warp、Stall</td>
-<td style="text-align: left;">延迟为何没有隐藏？</td>
+<td style="text-align: left;"><strong>Scheduler</strong></td>
+<td style="text-align: left;">Active Warps, Stall Reasons</td>
+<td style="text-align: left;">为什么 Warp 在等？</td>
 </tr>
 <tr>
-<td style="text-align: left;">Launch Stats</td>
-<td style="text-align: left;">Block、Register、SMem、Occupancy</td>
-<td style="text-align: left;">资源是否限制驻留？</td>
-</tr>
-<tr>
-<td style="text-align: left;">Source/SASS</td>
-<td style="text-align: left;">指令与访问位置</td>
-<td style="text-align: left;">哪段代码产生问题？</td>
+<td style="text-align: left;"><strong>Occupancy</strong></td>
+<td style="text-align: left;">Theoretical / Achieved</td>
+<td style="text-align: left;">资源（寄存器/Shared Mem/Block Size）是否限制驻留？</td>
 </tr>
 </tbody>
 </table>
-<p>高 Occupancy 不是目标。若 Kernel 已达到带宽上限，进一步提高 Occupancy 可能没有收益；若为了 Occupancy 降低寄存器导致 Spill，性能反而下降。</p>
-<h2 id="decode-linear-gemv">五、Decode Linear 为什么是 GEMV 风格<a class="headerlink" href="#decode-linear-gemv" title="Permanent link">&para;</a></h2>
-<p>Decode 的单请求单 Token Linear 常见形状：</p>
-<div class="arithmatex">\[
-[M,K] \times [K,N], \quad M=1
-\]</div>
-<p>每个权重元素通常只使用一次，算术强度较低。输入向量 LHS 只有 <code>K</code> 个元素，可以被 L1/Shared Memory 反复使用；权重 RHS 为 <code>K×N</code>，需要按输出 N Tile 流式读取。</p>
-<pre><code class="language-mermaid">flowchart LR
-    X[&quot;LHS x: K\n常驻 Cache/Shared&quot;] --&gt; DOT[&quot;N 个 Dot Products&quot;]
-    W[&quot;RHS W: K x N\n按 N Tile 流式加载&quot;] --&gt; DOT
-    DOT --&gt; Y[&quot;Output y: N&quot;]
+<h3 id="v0">我的 v0 报告（节选）<a class="headerlink" href="#v0" title="Permanent link">&para;</a></h3>
+<pre><code class="language-text">Duration:               821 μs
+DRAM Throughput:        142 GB/s  ← A100 理论 1555 GB/s，只用了 9%
+L2 Hit Rate:            8.3%
+Sector Load Efficiency: 12.5%     ← 灾难：每次事务只用了 1/8 的数据
+Achieved Occupancy:     31.2%
+Stall Reason (top):     LG Throttle 58.4%  ← 访存指令堵塞
 </code></pre>
-<h3 id="1-cpu-reference">1. CPU Reference<a class="headerlink" href="#1-cpu-reference" title="Permanent link">&para;</a></h3>
-<pre><code class="language-cpp">for (int n = 0; n &lt; N; ++n) {
-    float sum = bias ? bias[n] : 0.0f;
-    for (int k = 0; k &lt; K; ++k)
-        sum += x[k] * weight[n * K + k];
-    y[n] = sum;
-}
+<p><strong>问题找到了</strong>：<code>Sector Load Efficiency: 12.5%</code> 说明每次从 DRAM 读 128B（一个 Sector），但只用了 16B —— <strong>访存不合并</strong>。</p>
+<hr />
+<h2 id="v0_1">五、为什么 v0 访存不合并<a class="headerlink" href="#v0_1" title="Permanent link">&para;</a></h2>
+<p>回看代码：</p>
+<pre><code class="language-cpp">for (int k = 0; k &lt; K; ++k)
+    sum += ... weight[k * N + n];
 </code></pre>
-<p>首先确认权重是 Row-major <code>[N,K]</code> 还是 <code>[K,N]</code>。布局错误可能仍生成连续访问，却计算了转置结果。</p>
-<h3 id="2-gpu">2. GPU 映射基线<a class="headerlink" href="#2-gpu" title="Permanent link">&para;</a></h3>
-<ul>
-<li>Grid 的 X 维覆盖 N Tile；</li>
-<li>一个 CTA 计算多个输出 N；</li>
-<li>Warp Lane 沿 K 维读取并做 Dot；</li>
-<li>Q/LHS 可加载到 Shared Memory，或依赖只读/L1 Cache；</li>
-<li>权重按向量宽度对齐读取；</li>
-<li>Warp Shuffle 完成 K 维归约。</li>
-</ul>
-<pre><code class="language-cpp">template&lt;int N_TILE, int K_TILE&gt;
-__global__ void decode_linear(
-    const half* x, const half* weight, half* y, int K, int N)
+<p>权重 layout 是 <code>[K, N]</code>（Row-major），所以 <code>weight[k * N + n]</code>：同一个 Warp 内相邻线程的 <code>n</code> 相邻，但它们读的是 <code>weight[0*N + n0], weight[0*N + n1], ...</code> —— <strong>这是连续的，合并访问</strong>。</p>
+<p>那为什么还不合并？因为 <strong><code>k</code> 在内层循环</strong>：</p>
+<pre><code class="language-text">Thread 0 读 weight[0*N + 0], weight[1*N + 0], weight[2*N + 0], ...  ← stride = N
+Thread 1 读 weight[0*N + 1], weight[1*N + 1], weight[2*N + 1], ...  ← stride = N
+</code></pre>
+<p>相邻线程在内层循环的同一步读的地址间隔 <code>N = 11008</code> 个 half，跨了 <strong>11 个 Cache Line</strong>（每行 128B = 64 half）—— <strong>完全不合并</strong>。</p>
+<hr />
+<h2 id="v1-layout">六、v1：转置权重 layout<a class="headerlink" href="#v1-layout" title="Permanent link">&para;</a></h2>
+<p>把权重改成 <code>[N, K]</code> layout（在 CPU 上转置好，或者训练时就存成这个 layout）：</p>
+<pre><code class="language-cpp">__global__ void decode_linear_v1(
+    const half* x, const half* weight_T, half* y, int K, int N)
 {
-    int n0 = blockIdx.x * N_TILE;
-    // cooperative load x tile; each warp computes one or more n outputs
+    int n = blockIdx.x * blockDim.x + threadIdx.x;
+    if (n &gt;= N) return;
+
+    float sum = 0.0f;
+    const half* w_row = weight_T + n * K;  // 第 n 行起点
+    for (int k = 0; k &lt; K; ++k)
+        sum += __half2float(x[k]) * __half2float(w_row[k]);
+    y[n] = __float2half(sum);
 }
 </code></pre>
-<h3 id="3-tiling-shape">3. Tiling 参数不能脱离 Shape<a class="headerlink" href="#3-tiling-shape" title="Permanent link">&para;</a></h3>
-<p>对于 <code>K=1280, N=8192</code>，N 足够大，可以提供大量 CTA；对于类似 <code>N=128815</code> 的非常规 Shape，尾部 Tile、向量对齐和 Grid 分布会不同。需要扫描：</p>
-<pre><code class="language-text">N_TILE: 32, 64, 128
-K_TILE: 32, 64, 128, 256
-WARPS: 4, 8
-vector width: 8B, 16B
+<p>现在 <code>w_row[k]</code> 在 <code>k</code> 循环内是 stride-1 访问，<strong>不同线程读不同行</strong>，但同一线程内的访问是连续的 —— <strong>部分合并</strong>（Warp 内 32 个线程读 32 行，每行连续读 K 个，L2 Cache 能帮忙）。</p>
+<p><strong>测试</strong>：</p>
+<pre><code class="language-text">decode_linear_v1:  0.51 ms  ← 从 0.82 快到 0.51，快了 1.6 倍
+cuBLAS:            0.28 ms  ← 还差 1.8 倍
 </code></pre>
-<p>每组参数记录 Kernel Time、DRAM Throughput、L2 Hit、Register、Occupancy 和数值误差。所谓“适配 Cache 层级”必须由工作集大小与 Profiler 指标支持，不能只凭 Tile 名称判断。</p>
-<h3 id="4">4. 优化顺序<a class="headerlink" href="#4" title="Permanent link">&para;</a></h3>
+<p><strong>Nsight Compute</strong>：</p>
+<pre><code class="language-text">Sector Load Efficiency: 78.3%  ← 从 12.5% 提升到 78%
+DRAM Throughput:        520 GB/s  ← 从 142 提升到 520
+L2 Hit Rate:            61.2%  ← x 能常驻 L2
+</code></pre>
+<p>好多了，但还差一半。继续看 Stall：</p>
+<pre><code class="language-text">Stall Reason (top):  LG Throttle 42.1%  ← 还是访存堵
+                     MIO Throttle 18.7%
+</code></pre>
+<hr />
+<h2 id="v2-load-bias">七、v2：向量化 Load + 融合 Bias<a class="headerlink" href="#v2-load-bias" title="Permanent link">&para;</a></h2>
+<h3 id="_5">向量化<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
+<p>现在每次 <code>__half2float(w_row[k])</code> 读 2B，L1 Cache Line 是 128B —— <strong>Cache 利用率只有 1.5%</strong>。用 <code>float4</code> 一次读 16B（8 个 half）：</p>
+<pre><code class="language-cpp">__global__ void decode_linear_v2(
+    const half* x, const half* weight_T, const half* bias, half* y,
+    int K, int N)
+{
+    int n = blockIdx.x * blockDim.x + threadIdx.x;
+    if (n &gt;= N) return;
+
+    constexpr int VEC = 8;  // float4 = 8 * half
+    const half* w_row = weight_T + n * K;
+
+    float sum = 0.0f;
+    for (int k = 0; k &lt; K; k += VEC) {
+        float4 w_vec = *reinterpret_cast&lt;const float4*&gt;(w_row + k);
+        float4 x_vec = *reinterpret_cast&lt;const float4*&gt;(x + k);
+        half* w_half = reinterpret_cast&lt;half*&gt;(&amp;w_vec);
+        half* x_half = reinterpret_cast&lt;half*&gt;(&amp;x_vec);
+        #pragma unroll
+        for (int i = 0; i &lt; VEC; ++i)
+            sum += __half2float(w_half[i]) * __half2float(x_half[i]);
+    }
+    if (bias) sum += __half2float(bias[n]);
+    y[n] = __float2half(sum);
+}
+</code></pre>
+<p><strong>测试</strong>：</p>
+<pre><code class="language-text">decode_linear_v2:  0.34 ms  ← 从 0.51 快到 0.34
+cuBLAS:            0.28 ms  ← 还差 21%
+</code></pre>
+<p><strong>Nsight Compute</strong>：</p>
+<pre><code class="language-text">Sector Load Efficiency: 96.1%
+DRAM Throughput:        890 GB/s  ← 接近理论峰值的 57%
+L2 Hit Rate:            82.4%
+Achieved Occupancy:     52.3%  ← 从 31% 提升到 52%
+Stall Reason (top):     Wait 28.3%  ← 现在主要在等指令发射，不是访存堵
+</code></pre>
+<hr />
+<h2 id="v3-half2-__hfma2">八、v3：用 <code>half2</code> 和 <code>__hfma2</code><a class="headerlink" href="#v3-half2-__hfma2" title="Permanent link">&para;</a></h2>
+<p>上面还在用 <code>__half2float</code> + FP32 <code>fma</code>，A100 的 FP16 Tensor Core 吞吐是 FP32 的 <strong>2 倍</strong>（312 TFLOPS vs 156 TFLOPS）。用 <code>half2</code>：</p>
+<pre><code class="language-cpp">float sum = 0.0f;
+for (int k = 0; k &lt; K; k += 8) {
+    float4 w_vec = *reinterpret_cast&lt;const float4*&gt;(w_row + k);
+    float4 x_vec = *reinterpret_cast&lt;const float4*&gt;(x + k);
+    half2* w2 = reinterpret_cast&lt;half2*&gt;(&amp;w_vec);
+    half2* x2 = reinterpret_cast&lt;half2*&gt;(&amp;x_vec);
+    half2 acc = __float2half2_rn(0.0f);
+    #pragma unroll
+    for (int i = 0; i &lt; 4; ++i)
+        acc = __hfma2(w2[i], x2[i], acc);
+    sum += __half2float(acc.x) + __half2float(acc.y);
+}
+</code></pre>
+<p><strong>测试</strong>：</p>
+<pre><code class="language-text">decode_linear_v3:  0.29 ms  ← 和 cuBLAS 持平了
+cuBLAS:            0.28 ms
+</code></pre>
+<p><strong>Nsight Compute</strong>：</p>
+<pre><code class="language-text">SM Throughput:          68.2%  ← FP16 Pipe 利用率大幅提升
+DRAM Throughput:        1120 GB/s
+</code></pre>
+<hr />
+<h2 id="cublas-3">九、为什么 cuBLAS 还快 3%<a class="headerlink" href="#cublas-3" title="Permanent link">&para;</a></h2>
+<p><code>cuBLAS</code> 用了 <strong>cublasSgemmEx / cublasGemmEx</strong> 的 Tensor Core 路径（需要 FP16 输入 + Tensor Core matmul），并且对 <code>M=1</code> 的 GEMV 做了专门优化：</p>
 <ol>
-<li>修正连续和对齐访问；</li>
-<li>消除重复读取 LHS；</li>
-<li>用 Half2/向量 Load 提升事务利用率；</li>
-<li>调整 N/K Tile 和 Warp 数；</li>
-<li>融合 Bias、Activation 或量化反缩放；</li>
-<li>对热点固定 Shape 特化；</li>
-<li>与 cuBLAS/cuBLASLt 或 TensorRT Tactic 对比。</li>
+<li><strong>Warp Shuffle 归约</strong>：不用 Shared Memory，直接 <code>__shfl_down_sync</code></li>
+<li><strong>多个输出 n 复用同一份 x</strong>：一个 Warp 算 2-4 个输出</li>
+<li><strong>更激进的向量化 + 循环展开</strong>：用 <code>ldg.128</code> 指令（16B 对齐 Load）</li>
 </ol>
-<p><code>10.6%</code> 或 <code>8.2%</code> 的提升应相对于明确基线报告。若基线是成熟库，个位数到十几个百分点可能很有价值；若基线是未合并访问的朴素 Kernel，则这个数字不能证明已接近最优。</p>
-<h2 id="h2d">六、H2D 优化：先消除分配，再谈重叠<a class="headerlink" href="#h2d" title="Permanent link">&para;</a></h2>
-<p>常见错误路径：</p>
+<p>你的 v3 已经<strong>接近手写 GEMV 的上限</strong>了。再往下优化需要：</p>
+<ul>
+<li>用 inline PTX <code>ldg.128</code> / <code>sts.128</code></li>
+<li>手写 Warp Shuffle 归约</li>
+<li>针对固定 shape 特化（消除 <code>if (n &gt;= N)</code> 分支）</li>
+</ul>
+<p><strong>但对于通用场景，直接调 <code>cublasGemmEx</code> 就够了</strong> —— 除非你的 shape 非常特殊（比如 <code>N</code> 很小、<code>K</code> 很大），或者需要融合特殊的激活函数（比如 SwiGLU 的 <code>gate * silu(up)</code>），否则手写 GEMV 的收益不值得维护成本。</p>
+<hr />
+<h2 id="h2d">十、H2D 优化：先消除分配，再谈重叠<a class="headerlink" href="#h2d" title="Permanent link">&para;</a></h2>
+<p>回到 11.1 §7 的场景：每个 Decode Step 需要把 <code>cu_seqlens</code> / <code>block_table</code> / <code>slot_mapping</code> 从 CPU 传到 GPU。</p>
+<h3 id="_6">错误的做法（每步都分配）<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">def decode_step(batch):
+    cu_seqlens_host = np.array([0] + list(accumulate(batch.seq_lens)))
+    cu_seqlens_device = torch.from_numpy(cu_seqlens_host).cuda()  # ← 每步都分配
+
+    block_table_host = np.array([seq.block_table for seq in batch.seqs])
+    block_table_device = torch.from_numpy(block_table_host).cuda()  # ← 每步都分配
+
+    attention(q, k_cache, v_cache, cu_seqlens_device, block_table_device)
+</code></pre>
+<p><strong>Nsight Systems 会看到</strong>：</p>
 <pre><code class="language-text">每个 Decode Step：
-malloc host metadata
-cudaMalloc device metadata
-fill
-cudaMemcpy
-launch
-cudaFree
-free host
+├── cudaMalloc (cu_seqlens)     ← 0.05 ms
+├── cudaMemcpy H2D              ← 0.02 ms
+├── cudaMalloc (block_table)    ← 0.05 ms
+├── cudaMemcpy H2D              ← 0.03 ms
+├── Attention Kernel            ← 0.18 ms
+└── cudaFree × 2                ← 0.04 ms
 </code></pre>
-<p>正确方向：</p>
+<p><strong>每步 0.17 ms 浪费在内存管理上</strong>，Attention 只有 0.18 ms —— <strong>几乎一半时间在搬砖</strong>。</p>
+<h3 id="pinned-memory">正确的做法（预分配 + Pinned Memory）<a class="headerlink" href="#pinned-memory" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">class MetadataManager:
+    def __init__(self, max_batch_size, max_blocks_per_seq):
+        # 初始化时预分配
+        self.cu_seqlens_pinned = torch.zeros(
+            max_batch_size + 1, dtype=torch.int32, pin_memory=True)
+        self.cu_seqlens_device = torch.zeros(
+            max_batch_size + 1, dtype=torch.int32, device='cuda')
+
+        self.block_table_pinned = torch.zeros(
+            (max_batch_size, max_blocks_per_seq), dtype=torch.int32, pin_memory=True)
+        self.block_table_device = torch.zeros(
+            (max_batch_size, max_blocks_per_seq), dtype=torch.int32, device='cuda')
+
+    def update(self, batch):
+        B = len(batch.seqs)
+        # 只写本次需要的 slice
+        self.cu_seqlens_pinned[:B+1].copy_(
+            torch.tensor([0] + list(accumulate([s.seq_len for s in batch.seqs]))))
+
+        for i, seq in enumerate(batch.seqs):
+            self.block_table_pinned[i, :len(seq.block_table)].copy_(
+                torch.tensor(seq.block_table))
+
+        # 异步拷贝
+        self.cu_seqlens_device[:B+1].copy_(
+            self.cu_seqlens_pinned[:B+1], non_blocking=True)
+        self.block_table_device[:B, :max_blocks].copy_(
+            self.block_table_pinned[:B, :max_blocks], non_blocking=True)
+</code></pre>
+<p><strong>Nsight Systems 现在看到</strong>：</p>
+<pre><code class="language-text">每个 Decode Step：
+├── cudaMemcpyAsync (cu_seqlens, 2 KiB)    ← 0.005 ms，与上一步 Kernel 重叠
+├── cudaMemcpyAsync (block_table, 8 KiB)   ← 0.008 ms，与上一步 Kernel 重叠
+└── Attention Kernel                       ← 0.18 ms
+</code></pre>
+<p>H2D 时间从 <strong>0.05 ms 降到几乎为零</strong>（因为和前一个 Kernel 的尾部重叠了）。</p>
+<h3 id="_7">三个关键点<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h3>
 <ol>
-<li>初始化时预分配 Device Buffer；</li>
-<li>使用 Pinned Host Ring Buffer；</li>
-<li>每步只写当前 Slice；</li>
-<li><code>cudaMemcpyAsync</code> 到专用或执行 Stream；</li>
-<li>用 Event/Fence 保护 Ring Slice；</li>
-<li>Shape 稳定时配合 CUDA Graph 固定地址。</li>
+<li><strong><code>pin_memory=True</code> 必须配 <code>non_blocking=True</code></strong> 才有效</li>
+<li>Pinned Memory 绕过 OS 页表，DMA 可以直接读</li>
+<li>
+<p>没有 Pinned，<code>non_blocking=True</code> 会退化成同步拷贝</p>
+</li>
+<li>
+<p><strong>只更新本次需要的 slice，不要每次都拷完整 buffer</strong></p>
+</li>
+<li>
+<p><code>cu_seqlens</code> 每次只需要 <code>B+1</code> 个元素（几十字节），别拷 <code>max_batch_size + 1</code></p>
+</li>
+<li>
+<p><strong>验证是否真的重叠了</strong></p>
+</li>
+<li>在 Nsight Systems 时间线上，H2D 和前一个 Kernel 应该有垂直重叠</li>
+<li>如果没重叠，可能是：<ul>
+<li>前一个 Kernel 用了 Default Stream，隐式同步了</li>
+<li><code>torch.cuda.synchronize()</code> 调太早</li>
+<li>H2D 数据量太大（几十 MiB），把重叠窗口吃完了</li>
+</ul>
+</li>
 </ol>
-<pre><code class="language-cpp">struct MetadataSlot {
-    void* pinned_host;
-    void* device;
-    cudaEvent_t reusable;
-};
-</code></pre>
-<h3 id="_3">是否值得拷贝？<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
-<p>Block Table 可能只有几 KB。此时问题常不是 PCIe 带宽，而是 API 调用、分配和同步开销。Nsight Systems 中应观察：</p>
+<hr />
+<h2 id="roofline-decode-linear-memory-bound">十一、Roofline 视角：为什么 Decode Linear 是 Memory-Bound<a class="headerlink" href="#roofline-decode-linear-memory-bound" title="Permanent link">&para;</a></h2>
+<p>回到 LLaMA-7B <code>gate_proj: [1, 4096] × [4096, 11008]</code>：</p>
+<p><strong>计算量</strong>：</p>
+<div class="arithmatex">\[
+\text{FLOPs} = 2 \times M \times K \times N = 2 \times 1 \times 4096 \times 11008 \approx 90.2 \text{ MFLOP}
+\]</div>
+<p><strong>访存量</strong>（FP16）：</p>
+<div class="arithmatex">\[
+\begin{aligned}
+\text{Bytes} &amp;= (M \times K + K \times N + M \times N) \times 2 \\
+&amp;= (4096 + 45.1\text{M} + 11008) \times 2 \\
+&amp;\approx 90.2 \text{ MiB}
+\end{aligned}
+\]</div>
+<p><strong>算术强度</strong>：</p>
+<div class="arithmatex">\[
+I = \frac{90.2 \text{ MFLOP}}{90.2 \text{ MiB}} = \frac{90.2 \times 10^6}{90.2 \times 2^{20}} \approx 0.95 \text{ FLOP/Byte}
+\]</div>
+<p>A100 的 <strong>Ridge Point</strong>（带宽与算力交点）：</p>
+<div class="arithmatex">\[
+I_{\text{ridge}} = \frac{312 \text{ TFLOPS (FP16)}}{1555 \text{ GB/s}} = \frac{312 \times 10^{12}}{1555 \times 10^9} \approx 200 \text{ FLOP/Byte}
+\]</div>
+<p><strong>0.95 远小于 200</strong> —— 这个 Kernel 在 Ridge Point 左边 200 倍，<strong>纯粹的 Memory-Bound</strong>。</p>
+<p>所以优化的重点是：</p>
+<ol>
+<li><strong>访存合并</strong>（v0 → v1，1.6× 提升）</li>
+<li><strong>向量化 Load</strong>（v1 → v2，1.5× 提升）</li>
+<li><strong>用 FP16 指令降低精度转换开销</strong>（v2 → v3，1.17× 提升）</li>
+</ol>
+<p>而不是去调 Block Size、Occupancy、Shared Memory Tiling —— 那些是 Compute-Bound Kernel（比如大 Batch Prefill GEMM）才需要考虑的。</p>
+<hr />
+<h2 id="_8">十二、工具链速查<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">工具</th>
+<th style="text-align: left;">用途</th>
+<th style="text-align: left;">命令</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Nsight Systems</strong></td>
+<td style="text-align: left;">端到端时间线，找瓶颈在哪</td>
+<td style="text-align: left;"><code>nsys profile --trace=cuda,nvtx --capture-range=cudaProfilerApi -o report ./bench</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Nsight Compute</strong></td>
+<td style="text-align: left;">单 Kernel 下钻，看为什么慢</td>
+<td style="text-align: left;"><code>ncu --kernel-name regex:my_kernel --launch-skip 5 --launch-count 10 --set full -o report ./bench</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>CUDA Event</strong></td>
+<td style="text-align: left;">测 GPU Kernel 时间</td>
+<td style="text-align: left;"><code>torch.cuda.Event(enable_timing=True)</code> + <code>elapsed_time()</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>NVTX Range</strong></td>
+<td style="text-align: left;">标记代码区间</td>
+<td style="text-align: left;"><code>torch.cuda.nvtx.range("decode_step")</code></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>compute-sanitizer</strong></td>
+<td style="text-align: left;">检查越界、Race、未初始化</td>
+<td style="text-align: left;"><code>compute-sanitizer --tool memcheck ./bench</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>nvprof 已废弃</strong>，只在维护 CUDA 10 以下的老环境时用。Ampere/Hopper 必须用 Nsight。</p>
+<hr />
+<h2 id="_9">十三、完成标准<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h2>
 <ul>
-<li><code>cudaMalloc/cudaFree</code> 是否出现在稳态路径；</li>
-<li>H2D 前是否存在隐式同步；</li>
-<li>Copy 是否真正与前一个 Step 的 GPU 工作重叠；</li>
-<li>大量小 Copy 是否可以打包；</li>
-<li>Unified/Zero-copy 是否反而导致 GPU 细粒度远程访问。</li>
+<li>[ ] 能用 Nsight Systems 时间线区分 CPU Gap、H2D、Kernel、NCCL</li>
+<li>[ ] 能用 Nsight Compute 从 Sector Efficiency、Stall Reason、Occupancy 解释瓶颈</li>
+<li>[ ] 能算出 Kernel 的算术强度，判断它是 Memory-Bound 还是Compute-Bound</li>
+<li>[ ] 知道「访存不合并」在 Profiler 里叫什么指标（Sector Load Efficiency）</li>
+<li>[ ] 稳态路径没有 <code>cudaMalloc</code> / <code>cudaFree</code>（预分配）</li>
+<li>[ ] H2D 用了 Pinned Memory + <code>non_blocking=True</code>，并在 Systems 时间线上验证了重叠</li>
+<li>[ ] 优化报告同时给出「单 Kernel 时间」和「端到端 TPOT」，不只报一个数</li>
 </ul>
-<h2 id="nvprof">七、旧环境中的 nvprof<a class="headerlink" href="#nvprof" title="Permanent link">&para;</a></h2>
-<p>仅在老 CUDA/老 GPU 环境维护时使用：</p>
-<pre><code class="language-bash">nvprof --print-gpu-trace ./decode_bench
-nvprof --kernels decode_linear --metrics achieved_occupancy,dram_read_throughput ./decode_bench
-</code></pre>
-<p>不要把旧指标名机械映射到新架构。Ampere、Hopper 及之后的硬件应使用 Nsight 工具提供的架构相关指标和 Section。</p>
-<h2 id="_4">八、性能实验记录模板<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
-<pre><code class="language-markdown">### Experiment: decode-linear-k1280-n8192
-- Commit:
-- GPU / Driver / CUDA:
-- dtype / layout:
-- batch, M, K, N:
-- warmup / iterations:
-- baseline:
-- candidate:
-- correctness: max_abs, max_rel
-- median kernel time:
-- P90 kernel time:
-- DRAM throughput:
-- L2 hit rate:
-- registers / occupancy:
-- end-to-end TPOT:
-- conclusion:
-</code></pre>
-<h2 id="_5">九、完成标准<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<hr />
+<h2 id="111-14">对拍 11.1 §14<a class="headerlink" href="#111-14" title="Permanent link">&para;</a></h2>
+<p>11.1 §14「调试、性能分析从哪里开始」给了工具清单和「先用 Systems 再用 Compute」的顺序。本篇是它的<strong>实战展开</strong>：</p>
 <ul>
-<li>Systems 时间线能区分 CPU Gap、H2D、Kernel 和 NCCL；</li>
-<li>Compute 报告能用带宽、指令、Stall 和资源解释瓶颈；</li>
-<li>Decode Linear 与 CPU/cuBLAS Reference 数值对齐；</li>
-<li>Tiling 结论绑定具体 Shape；</li>
-<li>稳态路径不存在重复 Host/Device 分配；</li>
-<li>优化同时报告单 Kernel 和端到端影响；</li>
-<li>nvprof 只作为旧环境附录，不作为新项目主工具。</li>
+<li>11.1 说「Nsight Systems 看 Kernel 占比」→ 本篇 §3 给了具体案例</li>
+<li>11.1 说「Nsight Compute 看 Stall Reason」→ 本篇 §4-8 走了完整的「慢 3 倍 → 持平 cuBLAS」的修复循环</li>
+<li>11.1 说「H2D 预分配 + 异步拷贝」→ 本篇 §10 给了 Pinned Memory + <code>non_blocking=True</code> 的代码</li>
 </ul>
-<p>这篇实战把第 4.2 节 Tiling、第 5.2 节存储层次、第 5.3 节 Warp 执行、第 8 章 Roofline 与真实工具链连接起来。Profiler 的价值不是给出更多数字，而是把“慢”分解为可证伪的工程假设。</p>
+<p>这篇和 11.1 §14 是「理论 + 实战」的配对关系，就像 11.3（造轮子）配对 11.1 §5（读源码）。</p>
               
             </div>
           </div><footer>

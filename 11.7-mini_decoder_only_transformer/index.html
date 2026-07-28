@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="zh_CN" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>11.7 手搓 mini decode-only Transformer: 把零件焊成一台机器 - GPU 图形与 AI 推理知识手册</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../extra.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "11.7 \u624b\u6413 mini decode-only Transformer: \u628a\u96f6\u4ef6\u710a\u6210\u4e00\u53f0\u673a\u5668";
+        var mkdocs_page_input_path = "11.7-mini_decoder_only_transformer.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> GPU 图形与 AI 推理知识手册
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">首页</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">1. 图形渲染管线与 GPU 硬件基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.1-graphics_api_execution_model/">1.1 现代图形API (Vulkan/DX12) 执行模型</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.2-render_pipeline_hardware/">1.2 GPU 硬件层级: SM、执行管线与图形固定功能单元</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.3-gpu_memory_hierarchy/">1.3 GPU 存储层次: HBM → L2 → Shared Memory → Register</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../1.4-graphics_passes_and_sync/">1.4 图形管线中的 Pass 与同步 (RenderPass, Barrier)</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">2. GPU 并发模型与系统思维</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.1-cpu_gpu_async_pipeline/">2.1 CPU-GPU 异步流水线 (Fence, Event, 三重缓冲)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.2-command_buffer_ring_buffer/">2.2 命令缓冲录制与提交 (Command Buffer, Ring Buffer)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.3-multithreaded_rendering_and_pools/">2.3 多线程渲染与资源池管理</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../2.4-graphics_to_ai_first_principles/">2.4 从图形管线到 AI 推理的第一性原理映射</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">3. AI 模型与算子基础</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.1-model_structures_inference_view/">3.1 模型结构速览 (YOLOv8, Transformer 的推理视角)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.2-operator_taxonomy/">3.2 算子分类法: Elementwise, Reduce, Scan, Gather/Scatter, Stencil, MatMul</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../3.3-convolution_math_implementation/">3.3 卷积 (Conv2d) 数学与实现: 多通道 vs 图形模糊</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">4. AI 推理优化核心策略</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.1-operator_fusion/">4.1 算子融合 (Conv+BN+ReLU, FlashAttention 的思想)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.2-tiling_locality_analysis/">4.2 分块 (Tiling) 与局部性: 从访问模式推导 Tile</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.3-async_pipeline_communication_behind_compute/">4.3 异步流水线: Communication behind compute (双缓冲 / DMA 重叠)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../4.4-memory_management_pagedattention/">4.4 显存管理: PagedAttention 与 KV Cache 分块</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">5. CUDA 编程与硬件执行模型</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.1-thread_block_grid_mapping/">5.1 线程模型 (Thread, Block, Grid) 与映射</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.2-explicit_memory_shared_vs_cache/">5.2 内存层级与显式管理: Shared Memory (__shared__) vs L1/L2 缓存</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.3-warp_simd_simt_divergence/">5.3 执行模型: Warp, SIMD, SIMT, 分支分歧</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.4-synchronization_primitives/">5.4 同步原语: __syncthreads, __syncwarp, 内存屏障</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.5-warp_shuffle/">5.5 通信加速: Warp Shuffle (寄存器级数据交换)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../5.6-atomic_operations/">5.6 原子操作与竞争控制</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">6. 高性能算子实现模式</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.1-reduce_tree_implementation/">6.1 归约 (Reduce) 的树形实现 (类比 Hi-Z / Bloom 下采样)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.2-scan_stream_compaction/">6.2 扫描 (Scan / Prefix Sum) 与流压缩 (Stream Compaction)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.3-radix_sort_as_stream_compaction/">6.3 基数排序 (Radix Sort) = 逐位流压缩</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../6.4-flashattention_case_study/">6.4 FlashAttention: Online Softmax + Tiling 的经典案例</a>
+                  </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../7-llm_core_operators/">7. LLM 核心算子：推导 + CUDA 实现</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../8-vllm_tuning_multicard/">8. vLLM 推理调优与多卡系统</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">9. 专用硬件加速单元</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.1-tensor_core_vs_cuda_core/">9.1 Tensor Core: 专用矩阵乘单元 vs CUDA Core</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.2-rt_core_bvh_traversal/">9.2 RT Core: BVH 遍历与求交专用硬件</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../9.3-computing_in_memory_future/">9.3 存算一体 (Computing-in-Memory) 的未来: NOR Flash, 算子支持现状</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">10. GPU 软件栈与驱动开发</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.1-umd_kmd_driver_stack/">10.1 驱动分层: UMD (用户态) vs KMD (内核态), 类比编译器前后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.2-driver_development_patterns/">10.2 驱动开发模式: 芯片前(仿真/FPGA) vs 芯片后(持续优化)</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.3-compiler_ptx_sass/">10.3 编译器抽象: PTX / SASS, 寄存器分配, 指令调度</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../10.4-graphics_vs_compute_driver/">10.4 图形驱动 vs 通用计算驱动: 差异与交集</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">11. 推理引擎与算子实战</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../11.1-nano_vllm_from_scratch/">11.1 读 Nano-vLLM 源码: 一个推理引擎怎么组装起来</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.2-attention_kernel_gqa_practice/">11.2 Attention Kernel: QK、Softmax、PV 与 GQA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.3-paged_attention_continuous_batching/">11.3 PagedAttention 与 Continuous Batching: 从 PyTorch 到 CUDA</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.4-kernel_profiling_linear_h2d/">11.4 性能分析: Nsight、Decode Linear 与 H2D</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.5-inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.6-paged_attention_dx12_tensorrt_backend/">11.6 进阶: 把分页契约搬到 DX12 与 TensorRT 后端</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">11.7 手搓 mini decode-only Transformer: 把零件焊成一台机器</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#_1">为什么必须自己攒一台</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#block">一、先算账：一个 Block 的参数都花在哪</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#rmsnorm-llm-layernorm">二、RMSNorm：为什么 LLM 集体抛弃了 LayerNorm</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1">1. 两个公式的差别</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-gpu">2. 从 GPU 的角度看，省掉的是什么</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-float">3. 那个 .float() 不能省</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4-pre-normnorm">4. Pre-Norm：Norm 放在哪比它本身更重要</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#rope">三、RoPE：把位置编码变成旋转</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1_1">1. 它想要什么性质</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-d2">2. 高维怎么办：拆成 D/2 个二维平面</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3">3. 两个坑</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4-q-k-v">4. 为什么只转 Q 和 K，不转 V</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#attention-kv-cache">四、Attention + KV Cache：从每步重算到增量更新</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-kv-cache">1. 没有 KV Cache 的话有多蠢</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-gqarepeat_kv">2. GQA：repeat_kv 到底发生在哪</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-attention">3. 完整的 Attention 模块</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4-if-t-1">4. if T &gt; 1 这一行值得单独讲</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#5-kv-cache">5. KV Cache 的最简实现</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#swiglu-ffntransformer">五、SwiGLU FFN：Transformer 里最胖的那块</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1_2">1. 从两个矩阵到三个矩阵</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-d_ff-frac83d">2. 面试必问：为什么 \(d_{ff}\) 是 \(\frac{8}{3}d\)</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-silu-gelu">3. SiLU 和 GELU 差在哪</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4-gate-up">4. 为什么 gate 和 up 要融合成一个矩阵</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#5-ffn-elementwise-gemm">5. FFN 是 elementwise 和 GEMM 的分界线</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_2">六、把一层拼起来</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#embeddinglm-head">七、模型骨架：Embedding、层堆叠、LM Head</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#generate">八、generate()：两条路径</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#sampling-argmax-top-p">九、Sampling：从 argmax 到 top-p</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#1-greedy">1. Greedy</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-temperature">2. Temperature</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-top-k">3. Top-k</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#4-top-pnucleus-gpu">4. Top-p（Nucleus）：为什么它在 GPU 上不好写</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#5">5. 组合起来</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_3">十、对拍：怎么确认自己写对了</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#0">第 0 层：形状和数值范围</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#1-vs-pytorch">第 1 层：单算子 vs PyTorch 内置</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#2-kv-cache">第 2 层：KV Cache 的等价性</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#3-huggingface">第 3 层：和 HuggingFace 逐层对齐</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_4">十一、跑起来：加载真实权重</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_5">十二、你现在应该能回答这些</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_6">下一步往哪走</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.8-radix_cache_prefix_tree/">11.8 Radix Cache: 从块级前缀复用到 token 级前缀树</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.1-career_paths_comparison/">A.1 四个核心岗位对比</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.2-resume_knowledge_summary/">A.2 简历技能清单</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../A.3-knowledge_checklist/">A.3 关键知识点自检清单</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">GPU 图形与 AI 推理知识手册</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">11. 推理引擎与算子实战</li>
+      <li class="breadcrumb-item active">11.7 手搓 mini decode-only Transformer: 把零件焊成一台机器</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="117-mini-decode-only-transformer">11.7 手搓 mini decode-only Transformer：把零件焊成一台会说话的机器<a class="headerlink" href="#117-mini-decode-only-transformer" title="Permanent link">&para;</a></h1>
+<h2 id="_1">为什么必须自己攒一台<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>到这里，第 7 章讲了每个算子的数学和 CUDA 骨架，11.1~11.3 讲了引擎怎么调度、怎么管显存。但有一件事一直没做：<strong>把它们焊到一起，让它真的吐出字来。</strong></p>
+<p>这件事的价值不是「学会写 Transformer」——网上一抓一大把。价值在于<strong>它会逼你回答一批只有动手才会遇到的问题</strong>：</p>
+<ul>
+<li>RoPE 在 Prefill 时是给 0..n-1 每个位置都转一次，Decode 时只转一个位置——这两条路径的代码怎么统一？</li>
+<li>KV Cache 拼接之后，<code>q</code> 的长度是 1、<code>k</code> 的长度是 n，注意力矩阵是 <code>[1, n]</code>——<strong>这时候还需要 causal mask 吗？</strong></li>
+<li>GQA 的 KV Head 比 Q Head 少，<code>repeat_kv</code> 到底是在哪一步展开的？展开会不会真的多占显存？</li>
+<li>SwiGLU 有三个矩阵而不是两个，那 <code>hidden_dim</code> 该设多大才「公平」？</li>
+</ul>
+<p>这些问题在面试里的出现频率极高，而且<strong>光看代码是记不住的，写错一次才会真正记住</strong>。</p>
+<p>这一篇的产出是一个约 300 行的 <code>mini_llm.py</code>：</p>
+<pre><code class="language-text">RMSNorm  →  RoPE  →  GQA Attention + KV Cache  →  SwiGLU FFN
+                            ↓
+                     Pre-Norm 残差流 × N 层
+                            ↓
+                  LM Head  →  Sampling  →  generate()
+</code></pre>
+<p>跑起来之后，它能加载真实的 Qwen3/TinyLlama 权重，和 HuggingFace 输出<strong>完全一致</strong>。</p>
+<blockquote>
+<p><strong>和相邻章节的分工</strong></p>
+<ul>
+<li><strong><a href="../7-llm_core_operators/">第 7 章</a></strong>：每个算子的数学推导和 CUDA 实现要点。<strong>公式在那边，这里不重推。</strong></li>
+<li><strong>本篇</strong>：把算子组装成能跑的模型，重点是<strong>接口、数据流和那些「只有拼起来才会暴露」的坑</strong>。</li>
+<li><strong><a href="../11.2-attention_kernel_gqa_practice/">11.2</a></strong>：Attention 的 CUDA Kernel 怎么写快。</li>
+<li><strong><a href="../11.3-paged_attention_continuous_batching/">11.3</a></strong>：KV Cache 怎么分页、批次怎么动态组。</li>
+</ul>
+</blockquote>
+<hr />
+<h2 id="block">一、先算账：一个 Block 的参数都花在哪<a class="headerlink" href="#block" title="Permanent link">&para;</a></h2>
+<p>动手之前先做一件事——搞清楚你要写的东西，<strong>哪一部分才是大头</strong>。这个账不算，你会把 80% 的精力花在 20% 的开销上。</p>
+<p>记 <span class="arithmatex">\(d\)</span> = hidden size，一个标准的 Decoder Block 有两大块：</p>
+<p><strong>Attention（MHA，<span class="arithmatex">\(H_q = H_{kv}\)</span>）</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">矩阵</th>
+<th style="text-align: left;">形状</th>
+<th style="text-align: right;">参数量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><span class="arithmatex">\(W_Q\)</span></td>
+<td style="text-align: left;"><span class="arithmatex">\([d, d]\)</span></td>
+<td style="text-align: right;"><span class="arithmatex">\(d^2\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;"><span class="arithmatex">\(W_K\)</span></td>
+<td style="text-align: left;"><span class="arithmatex">\([d, d]\)</span></td>
+<td style="text-align: right;"><span class="arithmatex">\(d^2\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;"><span class="arithmatex">\(W_V\)</span></td>
+<td style="text-align: left;"><span class="arithmatex">\([d, d]\)</span></td>
+<td style="text-align: right;"><span class="arithmatex">\(d^2\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;"><span class="arithmatex">\(W_O\)</span></td>
+<td style="text-align: left;"><span class="arithmatex">\([d, d]\)</span></td>
+<td style="text-align: right;"><span class="arithmatex">\(d^2\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>合计</strong></td>
+<td style="text-align: left;"></td>
+<td style="text-align: right;"><span class="arithmatex">\(\mathbf{4d^2}\)</span></td>
+</tr>
+</tbody>
+</table>
+<p><strong>FFN（原始 Transformer，两个矩阵，<span class="arithmatex">\(d_{ff}=4d\)</span>）</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">矩阵</th>
+<th style="text-align: left;">形状</th>
+<th style="text-align: right;">参数量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><span class="arithmatex">\(W_1\)</span></td>
+<td style="text-align: left;"><span class="arithmatex">\([d, 4d]\)</span></td>
+<td style="text-align: right;"><span class="arithmatex">\(4d^2\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;"><span class="arithmatex">\(W_2\)</span></td>
+<td style="text-align: left;"><span class="arithmatex">\([4d, d]\)</span></td>
+<td style="text-align: right;"><span class="arithmatex">\(4d^2\)</span></td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>合计</strong></td>
+<td style="text-align: left;"></td>
+<td style="text-align: right;"><span class="arithmatex">\(\mathbf{8d^2}\)</span></td>
+</tr>
+</tbody>
+</table>
+<div class="arithmatex">\[
+\frac{\text{FFN}}{\text{Attention}} = \frac{8d^2}{4d^2} = 2
+\]</div>
+<p><strong>FFN 占了一个 Block 三分之二的参数和三分之二的 FLOP。</strong></p>
+<p>而如果用了 GQA（比如 <span class="arithmatex">\(H_q=32,\ H_{kv}=8\)</span>），<span class="arithmatex">\(W_K\)</span> 和 <span class="arithmatex">\(W_V\)</span> 缩到原来的 1/4，Attention 只剩 <span class="arithmatex">\(d^2 + d^2 + 0.25d^2 + 0.25d^2 = 2.5d^2\)</span>，<strong>FFN 的占比进一步升到 76%</strong>。</p>
+<blockquote>
+<p><strong>这就是为什么「FFN 是什么」是必问题。</strong> 很多人把全部注意力放在 Attention 上（因为它「有意思」），但真实的算力和显存带宽，三分之二以上是被那个「没什么技术含量」的两层 MLP 吃掉的。做推理优化时，<strong>FFN 的 GEMM 才是第一优化目标</strong>。</p>
+</blockquote>
+<p>带上这个认识往下走。</p>
+<hr />
+<h2 id="rmsnorm-llm-layernorm">二、RMSNorm：为什么 LLM 集体抛弃了 LayerNorm<a class="headerlink" href="#rmsnorm-llm-layernorm" title="Permanent link">&para;</a></h2>
+<h3 id="1">1. 两个公式的差别<a class="headerlink" href="#1" title="Permanent link">&para;</a></h3>
+<p>LayerNorm：</p>
+<div class="arithmatex">\[
+\mu=\frac{1}{d}\sum_i x_i,\qquad
+\sigma^2=\frac{1}{d}\sum_i(x_i-\mu)^2,\qquad
+y_i=\frac{x_i-\mu}{\sqrt{\sigma^2+\varepsilon}}\gamma_i+\beta_i
+\]</div>
+<p>RMSNorm：</p>
+<div class="arithmatex">\[
+y_i=\frac{x_i}{\sqrt{\frac{1}{d}\sum_j x_j^2+\varepsilon}}\cdot\gamma_i
+\]</div>
+<p>去掉了两样东西：<strong>减均值</strong>和<strong>加偏置 <span class="arithmatex">\(\beta\)</span></strong>。</p>
+<h3 id="2-gpu">2. 从 GPU 的角度看，省掉的是什么<a class="headerlink" href="#2-gpu" title="Permanent link">&para;</a></h3>
+<p>这才是关键。LayerNorm 需要两个统计量（<span class="arithmatex">\(\mu\)</span> 和 <span class="arithmatex">\(\sigma^2\)</span>），RMSNorm 只需要一个（平方和）。</p>
+<p>朴素实现下 LayerNorm 要<strong>扫两遍数据</strong>：第一遍算 <span class="arithmatex">\(\mu\)</span>，第二遍才能算 <span class="arithmatex">\(\sigma^2\)</span>。而 Norm 是纯访存受限的算子（每个元素只做几次浮点运算），<strong>扫两遍就意味着 HBM 流量翻倍</strong>。</p>
+<p>工程上当然可以用「同时累加 <span class="arithmatex">\(\sum x\)</span> 和 <span class="arithmatex">\(\sum x^2\)</span>」把它压成一遍（<span class="arithmatex">\(\sigma^2 = \overline{x^2}-\bar x^2\)</span>），但这个式子在 FP16 下会有<strong>灾难性抵消</strong>——两个相近的大数相减，有效位数全丢。所以稳妥的做法要么用 Welford 算法（更复杂），要么老实扫两遍。</p>
+<p>RMSNorm 直接绕开了整个问题：<strong>一次归约，一遍读取，没有数值陷阱。</strong></p>
+<pre><code class="language-python">class RMSNorm(nn.Module):
+    def __init__(self, dim: int, eps: float = 1e-6):
+        super().__init__()
+        self.weight = nn.Parameter(torch.ones(dim))
+        self.eps = eps
+
+    def forward(self, x: torch.Tensor) -&gt; torch.Tensor:
+        dtype = x.dtype
+        x = x.float()                                    # ← 关键
+        rms = torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
+        return (x * rms).to(dtype) * self.weight
+</code></pre>
+<h3 id="3-float">3. 那个 <code>.float()</code> 不能省<a class="headerlink" href="#3-float" title="Permanent link">&para;</a></h3>
+<p>归约在 FP16 下累加几千个平方值，<strong>误差会随着加法次数线性累积</strong>。<span class="arithmatex">\(d=4096\)</span> 时，FP16 的尾数只有 10 位，累加到后面小的项直接被吃掉。</p>
+<p>而且这不是「精度差一点」的问题：Norm 的输出会乘进残差流，误差被后面每一层放大。<strong>逐层对拍时发现「误差随层数指数增长」，第一个要查的就是 Norm 有没有升精度。</strong></p>
+<p>注意上面代码里 <code>.to(dtype)</code> 的位置——先转回半精度再乘 <code>weight</code>，这是为了和 HuggingFace 的实现<strong>逐位对齐</strong>。顺序换一下数值会有细微差别，对拍时会很困惑。</p>
+<h3 id="4-pre-normnorm">4. Pre-Norm：Norm 放在哪比它本身更重要<a class="headerlink" href="#4-pre-normnorm" title="Permanent link">&para;</a></h3>
+<p>原始 Transformer 是 Post-Norm：</p>
+<pre><code class="language-text">x → Attention → +x → Norm → FFN → + → Norm
+</code></pre>
+<p>现代 LLM 全是 Pre-Norm：</p>
+<pre><code class="language-text">x → Norm → Attention → +x  →  Norm → FFN → +
+    └────────────────────┘
+        残差是一条干净的加法主干道
+</code></pre>
+<p>差别在于：<strong>Pre-Norm 里残差路径上没有任何 Norm</strong>，从第一层到最后一层是一条纯加法的通路。梯度可以无衰减地传回去，所以能堆到几十上百层还稳定训练。Post-Norm 的残差每层都要过一次 Norm，深了就难训。</p>
+<p>推理时这个区别体现为一个实用结论：<strong>残差流（residual stream）是整个模型的主干</strong>，每一层只是往上面「加一点东西」。这也是为什么最后还要补一个 <code>final_norm</code> —— 残差流累加了几十层，量级已经很大，进 LM Head 前必须再归一化一次。</p>
+<hr />
+<h2 id="rope">三、RoPE：把位置编码变成旋转<a class="headerlink" href="#rope" title="Permanent link">&para;</a></h2>
+<h3 id="1_1">1. 它想要什么性质<a class="headerlink" href="#1_1" title="Permanent link">&para;</a></h3>
+<p>位置编码的核心诉求是：<strong>注意力分数应该只依赖两个 token 的相对距离，不依赖它们的绝对位置。</strong></p>
+<p>「第 5 个词看第 3 个词」和「第 105 个词看第 103 个词」，距离都是 2，模型应该用同一套逻辑处理。</p>
+<p>RoPE 的做法是给 <span class="arithmatex">\(q\)</span> 和 <span class="arithmatex">\(k\)</span> <strong>各自旋转一个正比于自身位置的角度</strong>。取二维情况看，把 <span class="arithmatex">\(q\)</span> 在位置 <span class="arithmatex">\(m\)</span> 旋转 <span class="arithmatex">\(m\theta\)</span>：</p>
+<div class="arithmatex">\[
+R_m=\begin{pmatrix}\cos m\theta &amp; -\sin m\theta\\ \sin m\theta &amp; \cos m\theta\end{pmatrix}
+\]</div>
+<p>那么内积变成：</p>
+<div class="arithmatex">\[
+\langle R_m q,\ R_n k\rangle = q^{\top}R_m^{\top}R_n k = q^{\top}R_{n-m}k
+\]</div>
+<p>（用到旋转矩阵的性质 <span class="arithmatex">\(R_m^{\top}R_n = R_{n-m}\)</span>。）</p>
+<p><strong>绝对位置 <span class="arithmatex">\(m\)</span>、<span class="arithmatex">\(n\)</span> 消失了，只剩下 <span class="arithmatex">\(n-m\)</span>。</strong> 这就是全部的魔法：不需要把位置加到向量里，只需要旋转，相对性由旋转群的结构自动保证。</p>
+<h3 id="2-d2">2. 高维怎么办：拆成 D/2 个二维平面<a class="headerlink" href="#2-d2" title="Permanent link">&para;</a></h3>
+<p>Head Dim <span class="arithmatex">\(D\)</span> 维向量拆成 <span class="arithmatex">\(D/2\)</span> 组，每组两个分量当成一个复平面，第 <span class="arithmatex">\(i\)</span> 组用不同的转速：</p>
+<div class="arithmatex">\[
+\theta_i = \text{base}^{-2i/D},\qquad i=0,1,\dots,\tfrac{D}{2}-1
+\]</div>
+<p><span class="arithmatex">\(\text{base}\)</span> 通常取 10000。<strong>低维转得快（捕捉近距离关系），高维转得慢（捕捉远距离关系）</strong>——这和正弦位置编码的多尺度思想一样。</p>
+<pre><code class="language-python">def build_rope_cache(head_dim: int, max_seq_len: int, base: float = 10000.0,
+                     device=&quot;cuda&quot;):
+    inv_freq = 1.0 / (base ** (torch.arange(0, head_dim, 2, device=device).float() / head_dim))
+    t = torch.arange(max_seq_len, device=device).float()
+    freqs = torch.outer(t, inv_freq)                 # [max_seq_len, head_dim/2]
+    return freqs.cos(), freqs.sin()                  # 预先算好，一次算完到处用
+
+
+def apply_rope(x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor):
+    &quot;&quot;&quot;x: [B, T, H, D]   cos/sin: [T, D/2]&quot;&quot;&quot;
+    x1, x2 = x.chunk(2, dim=-1)                      # 前半 / 后半配对
+    cos = cos[None, :, None, :]                      # 广播到 [1, T, 1, D/2]
+    sin = sin[None, :, None, :]
+    return torch.cat([x1 * cos - x2 * sin,
+                      x1 * sin + x2 * cos], dim=-1)
+</code></pre>
+<h3 id="3">3. 两个坑<a class="headerlink" href="#3" title="Permanent link">&para;</a></h3>
+<p><strong>坑一：配对方式有两种，选错了输出全乱。</strong></p>
+<p>上面用的是 <code>[x1, x2] = chunk(2)</code>，也就是「前半配后半」（<span class="arithmatex">\(x_0\)</span> 配 <span class="arithmatex">\(x_{D/2}\)</span>）——<strong>这是 HuggingFace LLaMA/Qwen 的做法</strong>。而原论文和一些实现用的是「相邻配对」（<span class="arithmatex">\(x_0\)</span> 配 <span class="arithmatex">\(x_1\)</span>）。</p>
+<p>两种方式数学上等价（只是维度置换），但<strong>权重是按某一种训练出来的，用错另一种，输出就是彻底的乱码</strong>。对拍时如果发现「第一层 hidden 就对不上，但 shape 全对」，八成是这里。</p>
+<p><strong>坑二：Decode 时位置是绝对的，不是 0。</strong></p>
+<pre><code class="language-python"># Prefill：位置是 0, 1, ..., n-1
+cos_p, sin_p = cos_cache[:n], sin_cache[:n]
+
+# Decode：位置是 n，不是 0！
+cos_d, sin_d = cos_cache[n:n+1], sin_cache[n:n+1]
+</code></pre>
+<p>这也是为什么 11.1 第四节里 <code>positions</code> 要从 <code>cached_tokens</code> 开始算，而不是从 0 开始。<strong>RoPE 是唯一一个「知道 token 在全局哪个位置」的模块，位置传错了不会崩，只会让模型觉得所有词都堆在开头。</strong></p>
+<h3 id="4-q-k-v">4. 为什么只转 Q 和 K，不转 V<a class="headerlink" href="#4-q-k-v" title="Permanent link">&para;</a></h3>
+<p>因为位置信息只需要影响「谁该看谁」（注意力权重），不需要影响「看到了什么内容」（值本身）。<span class="arithmatex">\(V\)</span> 承载的是内容，转了反而破坏它。</p>
+<p>这个问题面试出现频率不低，答案就这一句。</p>
+<hr />
+<h2 id="attention-kv-cache">四、Attention + KV Cache：从每步重算到增量更新<a class="headerlink" href="#attention-kv-cache" title="Permanent link">&para;</a></h2>
+<h3 id="1-kv-cache">1. 没有 KV Cache 的话有多蠢<a class="headerlink" href="#1-kv-cache" title="Permanent link">&para;</a></h3>
+<p>生成第 <span class="arithmatex">\(n\)</span> 个 token 时，如果老老实实把前 <span class="arithmatex">\(n-1\)</span> 个 token 重新过一遍模型：</p>
+<div class="arithmatex">\[
+\text{总计算量}\propto\sum_{n=1}^{N}n^2=O(N^3)
+\]</div>
+<p>而每一步里，前 <span class="arithmatex">\(n-1\)</span> 个 token 的 K/V <strong>和上一步算出来的一模一样</strong>——因为 causal mask 保证了它们看不到后面的东西，所以它们的表示永远不会变。</p>
+<p><strong>这就是 KV Cache 的全部依据：因果性 ⟹ 历史 K/V 不变 ⟹ 可以缓存。</strong> 复杂度从 <span class="arithmatex">\(O(N^3)\)</span> 降到 <span class="arithmatex">\(O(N^2)\)</span>。</p>
+<p>（这个「因果性」很关键。如果是双向的 encoder，加一个 token 会改变所有 token 的表示，KV Cache 根本不成立。）</p>
+<h3 id="2-gqarepeat_kv">2. GQA：<code>repeat_kv</code> 到底发生在哪<a class="headerlink" href="#2-gqarepeat_kv" title="Permanent link">&para;</a></h3>
+<p>GQA 让多个 Query Head 共享一组 KV Head。<span class="arithmatex">\(H_q=8,\ H_{kv}=2\)</span> 时：</p>
+<pre><code class="language-text">Q head 0,1,2,3  →  KV head 0
+Q head 4,5,6,7  →  KV head 1
+</code></pre>
+<p>PyTorch 里最直白的写法是把 KV「展开」到和 Q 一样多：</p>
+<pre><code class="language-python">def repeat_kv(x: torch.Tensor, n_rep: int) -&gt; torch.Tensor:
+    &quot;&quot;&quot;x: [B, T, H_kv, D] -&gt; [B, T, H_kv * n_rep, D]&quot;&quot;&quot;
+    if n_rep == 1:
+        return x
+    B, T, H, D = x.shape
+    return x[:, :, :, None, :].expand(B, T, H, n_rep, D).reshape(B, T, H * n_rep, D)
+</code></pre>
+<p><strong>这里有个重要的认知点</strong>：<code>expand</code> 不复制数据，只是造一个 stride 为 0 的 view；但后面的 <code>reshape</code> 因为内存不连续，<strong>会真的分配一块 <code>n_rep</code> 倍大的显存并拷贝</strong>。</p>
+<p>所以：</p>
+<ul>
+<li><strong>缓存里存的是没展开的 KV</strong>（<span class="arithmatex">\(H_{kv}\)</span> 份），显存收益是真的；</li>
+<li><strong>计算时展开成 <span class="arithmatex">\(H_q\)</span> 份</strong>，这是为了能直接调 <code>torch.matmul</code>。</li>
+</ul>
+<p>真正的 CUDA Kernel（11.2 讲的那个）<strong>根本不展开</strong>——它让同一组的 Q Head 直接读同一份 KV，省掉这次拷贝，还顺带提高了 L2 命中率。<strong>PyTorch 版的 <code>repeat_kv</code> 是一个「为了写得出来」的妥协，不是最优实现。</strong> 面试问到 GQA 的实现收益时，这是个能体现深度的点。</p>
+<h3 id="3-attention">3. 完整的 Attention 模块<a class="headerlink" href="#3-attention" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">class Attention(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+        self.n_heads = cfg.n_heads
+        self.n_kv_heads = cfg.n_kv_heads
+        self.head_dim = cfg.head_dim
+        self.n_rep = self.n_heads // self.n_kv_heads
+        self.scale = self.head_dim ** -0.5
+
+        self.q_proj = nn.Linear(cfg.dim, self.n_heads * self.head_dim, bias=False)
+        self.k_proj = nn.Linear(cfg.dim, self.n_kv_heads * self.head_dim, bias=False)
+        self.v_proj = nn.Linear(cfg.dim, self.n_kv_heads * self.head_dim, bias=False)
+        self.o_proj = nn.Linear(self.n_heads * self.head_dim, cfg.dim, bias=False)
+
+    def forward(self, x, cos, sin, kv_cache=None):
+        B, T, _ = x.shape
+
+        q = self.q_proj(x).view(B, T, self.n_heads, self.head_dim)
+        k = self.k_proj(x).view(B, T, self.n_kv_heads, self.head_dim)
+        v = self.v_proj(x).view(B, T, self.n_kv_heads, self.head_dim)
+
+        q = apply_rope(q, cos, sin)
+        k = apply_rope(k, cos, sin)          # 注意：V 不转
+
+        if kv_cache is not None:
+            k, v = kv_cache.update(k, v)      # 拼上历史，返回完整的 K/V
+
+        k = repeat_kv(k, self.n_rep)
+        v = repeat_kv(v, self.n_rep)
+
+        q = q.transpose(1, 2)                 # [B, H, T_q, D]
+        k = k.transpose(1, 2)                 # [B, H, T_kv, D]
+        v = v.transpose(1, 2)
+
+        scores = (q @ k.transpose(-2, -1)) * self.scale     # [B, H, T_q, T_kv]
+
+        if T &gt; 1:                             # ← 只有 Prefill 才需要 mask
+            T_kv = k.shape[2]
+            mask = torch.full((T, T_kv), float(&quot;-inf&quot;), device=x.device)
+            mask = torch.triu(mask, diagonal=T_kv - T + 1)
+            scores = scores + mask
+
+        attn = torch.softmax(scores.float(), dim=-1).to(q.dtype)
+        out = (attn @ v).transpose(1, 2).reshape(B, T, -1)
+        return self.o_proj(out)
+</code></pre>
+<h3 id="4-if-t-1">4. <code>if T &gt; 1</code> 这一行值得单独讲<a class="headerlink" href="#4-if-t-1" title="Permanent link">&para;</a></h3>
+<p><strong>Decode 时为什么不需要 causal mask？</strong></p>
+<p>因为这一步只有<strong>一个</strong> Query（就是刚生成的那个 token），而缓存里的每一个历史 K/V 都排在它前面。<strong>「不能看未来」这个约束自动满足了——根本没有未来可看。</strong></p>
+<p><code>scores</code> 的形状是 <code>[B, H, 1, T_kv]</code>，一行全都是合法的。加 mask 是纯浪费。</p>
+<p><strong>Prefill 时的 mask 也不是标准的下三角。</strong> 注意 <code>diagonal=T_kv - T + 1</code> 这个偏移：如果有 Prefix Cache 命中或者 Chunked Prefill，<code>T_kv &gt; T</code>（Key 比 Query 长），mask 必须右移，让每个 Query 能看到它前面所有的 Key。写成 <code>torch.triu(mask, diagonal=1)</code> 在没有缓存时是对的，一旦有历史就全错。</p>
+<p><strong>这是从「玩具实现」走向「能接进引擎」的关键一步</strong>，也正好对应 11.1 第七节讲的 <code>cu_seqlens_k &gt; cu_seqlens_q</code>。</p>
+<h3 id="5-kv-cache">5. KV Cache 的最简实现<a class="headerlink" href="#5-kv-cache" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">class KVCache:
+    &quot;&quot;&quot;教学版：连续预分配。生产版见 11.3 的分页实现。&quot;&quot;&quot;
+    def __init__(self, B, max_len, n_kv_heads, head_dim, dtype, device):
+        shape = (B, max_len, n_kv_heads, head_dim)
+        self.k = torch.zeros(shape, dtype=dtype, device=device)
+        self.v = torch.zeros(shape, dtype=dtype, device=device)
+        self.length = 0
+
+    def update(self, k_new, v_new):
+        T = k_new.shape[1]
+        self.k[:, self.length:self.length + T] = k_new
+        self.v[:, self.length:self.length + T] = v_new
+        self.length += T
+        return self.k[:, :self.length], self.v[:, :self.length]
+</code></pre>
+<p><strong>这个实现的问题正是 11.3 存在的理由</strong>：<code>max_len</code> 必须按最坏情况预留，短请求也占满，多请求之间没法共享。把这几行换成分页版，就是 PagedAttention。</p>
+<p>现在你能看清整条演化路径了：</p>
+<pre><code class="language-text">每步重算 (O(N³))
+  → 连续 KV Cache (O(N²)，但按 max_len 预留)      ← 本篇
+  → 分页 KV Cache (按需分配、可共享)               ← 11.3
+  → Prefix Cache (整块复用)                        ← 11.1 §5
+  → Radix Cache (token 级复用)                     ← 11.8
+</code></pre>
+<hr />
+<h2 id="swiglu-ffntransformer">五、SwiGLU FFN：Transformer 里最胖的那块<a class="headerlink" href="#swiglu-ffntransformer" title="Permanent link">&para;</a></h2>
+<p>第一节算过，FFN 吃掉了三分之二以上的参数和算力。但它的结构反而是全模型最简单的。</p>
+<h3 id="1_2">1. 从两个矩阵到三个矩阵<a class="headerlink" href="#1_2" title="Permanent link">&para;</a></h3>
+<p>原始 Transformer 的 FFN：</p>
+<div class="arithmatex">\[
+\text{FFN}(x) = W_2\ \sigma(W_1 x)
+\]</div>
+<p>SwiGLU 版本多了一路：</p>
+<div class="arithmatex">\[
+\text{FFN}(x) = W_{down}\Big(\underbrace{\text{SiLU}(W_{gate}\,x)}_{\text{门}}\ \odot\ \underbrace{W_{up}\,x}_{\text{值}}\Big)
+\]</div>
+<p>多出来的那一路叫<strong>门控（gating）</strong>：一路算「内容」，另一路算「每个通道该放行多少」，逐元素相乘。</p>
+<p>直觉上，<span class="arithmatex">\(\text{SiLU}\)</span> 的输出接近 0 时对应通道被抑制，接近 1 时放行。<strong>它给了网络一个「按输入内容动态选择激活哪些通道」的能力</strong>，而普通 FFN 的激活模式是固定的。这个改动在同等参数量下能稳定提升效果，所以 LLaMA 之后基本成了标配。</p>
+<h3 id="2-d_ff-frac83d">2. 面试必问：为什么 <span class="arithmatex">\(d_{ff}\)</span> 是 <span class="arithmatex">\(\frac{8}{3}d\)</span><a class="headerlink" href="#2-d_ff-frac83d" title="Permanent link">&para;</a></h3>
+<p>这题问的是「你有没有真的想过参数量」。</p>
+<p>原始 FFN 两个矩阵，<span class="arithmatex">\(d_{ff}=4d\)</span>：</p>
+<div class="arithmatex">\[
+P_{\text{原始}} = d\cdot 4d + 4d\cdot d = 8d^2
+\]</div>
+<p>SwiGLU 有<strong>三个</strong>矩阵（gate、up、down）。要保持参数量不变：</p>
+<div class="arithmatex">\[
+3\cdot d\cdot d_{ff} = 8d^2\quad\Longrightarrow\quad d_{ff} = \frac{8}{3}d \approx 2.667\,d
+\]</div>
+<p><strong>所以 <span class="arithmatex">\(\frac{8}{3}\)</span> 不是什么玄学，就是「三个矩阵要和原来两个矩阵一样重」解出来的。</strong></p>
+<p>实际模型还会把它对齐到 256 的倍数（为了 Tensor Core 的 tile 对齐和 TP 切分能整除）：</p>
+<pre><code class="language-python">hidden_dim = int(8 * dim / 3)
+hidden_dim = multiple_of * ((hidden_dim + multiple_of - 1) // multiple_of)
+</code></pre>
+<p>LLaMA-7B：<span class="arithmatex">\(d=4096\)</span>，<span class="arithmatex">\(\frac{8}{3}\times 4096 = 10922.7\)</span>，对齐到 256 的倍数 → <strong>11008</strong>。这个数字如果你在模型配置里见过又不知道哪来的，现在知道了。</p>
+<h3 id="3-silu-gelu">3. SiLU 和 GELU 差在哪<a class="headerlink" href="#3-silu-gelu" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[
+\text{SiLU}(x) = x\cdot\sigma(x) = \frac{x}{1+e^{-x}}
+\]</div>
+<div class="arithmatex">\[
+\text{GELU}(x) = x\cdot\Phi(x)\approx 0.5x\left(1+\tanh\left[\sqrt{\tfrac{2}{\pi}}(x+0.044715x^3)\right]\right)
+\]</div>
+<p>两条曲线<strong>几乎重合</strong>（SiLU 也叫 Swish-1）。区别在实现成本：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;"></th>
+<th style="text-align: left;">运算</th>
+<th style="text-align: left;">GPU 成本</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">SiLU</td>
+<td style="text-align: left;">一次 <code>exp</code> + 一次除法</td>
+<td style="text-align: left;">低，可用 <code>__expf</code> 快速路径</td>
+</tr>
+<tr>
+<td style="text-align: left;">GELU（精确）</td>
+<td style="text-align: left;"><code>erf</code></td>
+<td style="text-align: left;">高</td>
+</tr>
+<tr>
+<td style="text-align: left;">GELU（tanh 近似）</td>
+<td style="text-align: left;"><code>tanh</code> + 三次多项式</td>
+<td style="text-align: left;">中</td>
+</tr>
+</tbody>
+</table>
+<p><strong>效果几乎一样，SiLU 更便宜，所以选 SiLU。</strong> 就这么简单，没有更深的理由。</p>
+<h3 id="4-gate-up">4. 为什么 gate 和 up 要融合成一个矩阵<a class="headerlink" href="#4-gate-up" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">class FFN(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+        self.gate_proj = nn.Linear(cfg.dim, cfg.hidden_dim, bias=False)
+        self.up_proj   = nn.Linear(cfg.dim, cfg.hidden_dim, bias=False)
+        self.down_proj = nn.Linear(cfg.hidden_dim, cfg.dim, bias=False)
+
+    def forward(self, x):
+        return self.down_proj(F.silu(self.gate_proj(x)) * self.up_proj(x))
+</code></pre>
+<p>这是<strong>教学写法</strong>。推理引擎会把前两个合成一个：</p>
+<pre><code class="language-python"># 引擎里的写法
+gate_up = self.gate_up_proj(x)              # [.., 2 * hidden_dim]
+gate, up = gate_up.chunk(2, dim=-1)
+return self.down_proj(F.silu(gate) * up)
+</code></pre>
+<p>原因在 11.1 第九节讲过：<strong>gate 和 up 吃的是同一个 <span class="arithmatex">\(x\)</span>。</strong> 分开做两次 GEMM，<span class="arithmatex">\(x\)</span> 要从 HBM 读两遍；合成一个 <span class="arithmatex">\([d, 2d_{ff}]\)</span> 的大矩阵只读一遍，而且 GEMM 更大更容易打满 Tensor Core。</p>
+<p>同理，<span class="arithmatex">\(W_Q/W_K/W_V\)</span> 也吃同一个输入，所以引擎里合成 <code>qkv_proj</code>。</p>
+<p><strong>判断能不能融合的规则就一条：输入是不是同一个张量。</strong> <code>down_proj</code> 的输入是乘完之后的结果，所以它不能被融进去。</p>
+<h3 id="5-ffn-elementwise-gemm">5. FFN 是 elementwise 和 GEMM 的分界线<a class="headerlink" href="#5-ffn-elementwise-gemm" title="Permanent link">&para;</a></h3>
+<p>从算子分类看，FFN 里有：</p>
+<ul>
+<li>三个 <strong>GEMM</strong>（算力受限，Prefill 时是绝对主力）；</li>
+<li>一个 <strong>SiLU + 乘法</strong>（elementwise，纯访存受限）。</li>
+</ul>
+<p>中间那个 elementwise 会产生一个 <span class="arithmatex">\([B, T, d_{ff}]\)</span> 的中间张量。<span class="arithmatex">\(d_{ff}\)</span> 比 <span class="arithmatex">\(d\)</span> 大 2.67 倍，<strong>这是整个 Block 里最大的中间激活</strong>，也是 Prefill 时显存峰值的主要贡献者（回想 11.1 第八节为什么要 Warmup 测峰值）。</p>
+<p>所以 <code>SiLU(gate) * up</code> 是算子融合的<strong>头号目标</strong>：融合之后中间结果留在寄存器/共享内存里，省掉一次 <span class="arithmatex">\([B,T,d_{ff}]\)</span> 的写和两次读。这正是 <a href="../4.1-operator_fusion/">4.1 算子融合</a> 里那个例子的真实出处。</p>
+<hr />
+<h2 id="_2">六、把一层拼起来<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<pre><code class="language-python">class Block(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+        self.attn_norm = RMSNorm(cfg.dim, cfg.norm_eps)
+        self.attn = Attention(cfg)
+        self.ffn_norm = RMSNorm(cfg.dim, cfg.norm_eps)
+        self.ffn = FFN(cfg)
+
+    def forward(self, x, cos, sin, kv_cache=None):
+        x = x + self.attn(self.attn_norm(x), cos, sin, kv_cache)   # Pre-Norm
+        x = x + self.ffn(self.ffn_norm(x))
+        return x
+</code></pre>
+<p><strong>四行，就是一个 Transformer Block 的全部。</strong></p>
+<p>盯着这两行看一会儿，会发现一个重要的结构：</p>
+<pre><code class="language-text">x ──────────────────────────────┬──→ + ──────────────────┬──→ +  ──→
+   └→ Norm → Attention ─────────┘     └→ Norm → FFN ─────┘
+
+   ↑ 这条主干道（残差流）上没有任何非线性、没有任何 Norm
+</code></pre>
+<p><strong>残差流是一条纯加法的传送带</strong>，每个 Block 只是往上面「读一点、加一点」。这个视角很有用：</p>
+<ul>
+<li><strong>它解释了为什么模型能堆到 100 层</strong>：加法不会让梯度衰减；</li>
+<li><strong>它解释了为什么 Norm 必须在分支里</strong>：主干道要保持干净；</li>
+<li><strong>它解释了为什么最后要 <code>final_norm</code></strong>：几十层累加下来，残差流的数值量级已经很大，直接进 LM Head 会溢出或者让 softmax 饱和。</li>
+</ul>
+<hr />
+<h2 id="embeddinglm-head">七、模型骨架：Embedding、层堆叠、LM Head<a class="headerlink" href="#embeddinglm-head" title="Permanent link">&para;</a></h2>
+<pre><code class="language-python">@dataclass
+class Config:
+    vocab_size: int = 32000
+    dim: int = 512
+    n_layers: int = 8
+    n_heads: int = 8
+    n_kv_heads: int = 2          # GQA：4 个 Q Head 共享 1 个 KV Head
+    head_dim: int = 64
+    hidden_dim: int = 1376       # ≈ 8/3 * 512，对齐到 32 的倍数
+    norm_eps: float = 1e-6
+    rope_base: float = 10000.0
+    max_seq_len: int = 2048
+    tie_embeddings: bool = True
+
+
+class MiniLLM(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.embed = nn.Embedding(cfg.vocab_size, cfg.dim)
+        self.layers = nn.ModuleList([Block(cfg) for _ in range(cfg.n_layers)])
+        self.final_norm = RMSNorm(cfg.dim, cfg.norm_eps)
+        self.lm_head = nn.Linear(cfg.dim, cfg.vocab_size, bias=False)
+
+        if cfg.tie_embeddings:
+            self.lm_head.weight = self.embed.weight     # 共享同一块显存
+
+        cos, sin = build_rope_cache(cfg.head_dim, cfg.max_seq_len, cfg.rope_base)
+        self.register_buffer(&quot;cos_cache&quot;, cos, persistent=False)
+        self.register_buffer(&quot;sin_cache&quot;, sin, persistent=False)
+
+    def forward(self, input_ids, start_pos=0, kv_caches=None):
+        B, T = input_ids.shape
+        x = self.embed(input_ids)
+
+        cos = self.cos_cache[start_pos:start_pos + T]    # ← 绝对位置切片
+        sin = self.sin_cache[start_pos:start_pos + T]
+
+        for i, layer in enumerate(self.layers):
+            x = layer(x, cos, sin, kv_caches[i] if kv_caches else None)
+
+        x = self.final_norm(x)
+        return self.lm_head(x)
+</code></pre>
+<p>三个细节：</p>
+<p><strong><code>start_pos</code> 是整个 KV Cache 机制的位置锚点。</strong> Prefill 时是 0，Decode 时是「已经生成了多少个 token」。传错了模型不会报错，只会输出语义漂移的文本——这是最难查的一类 bug，因为它看起来「像是模型能力不行」。</p>
+<p><strong><code>tie_embeddings</code></strong> 让 LM Head 和 Embedding 共享权重。小模型上这能省掉 <code>vocab_size × dim</code> 的参数（32000×512 = 1600 万，对一个几千万参数的模型是很大一块）。大模型通常不共享，因为词表相对小了、而且解绑效果更好。<strong>加载权重时这是个高频坑</strong>：共享的话 checkpoint 里可能只有一份，你按两个名字去找就会「漏载」。</p>
+<p><strong><code>persistent=False</code></strong> 让 RoPE 缓存不进 <code>state_dict</code>。它是纯粹算出来的，存进去只会让 checkpoint 变大，还会在改 <code>max_seq_len</code> 时报 shape 不匹配。</p>
+<hr />
+<h2 id="generate">八、<code>generate()</code>：两条路径<a class="headerlink" href="#generate" title="Permanent link">&para;</a></h2>
+<p>现在把模型跑起来。<strong>注意这里的结构和 11.1 讲的引擎是同构的</strong>，只是没有调度器：</p>
+<pre><code class="language-python">@torch.inference_mode()
+def generate(model, input_ids, max_new_tokens, sampler):
+    cfg = model.cfg
+    B = input_ids.shape[0]
+
+    kv_caches = [
+        KVCache(B, cfg.max_seq_len, cfg.n_kv_heads, cfg.head_dim,
+                dtype=model.embed.weight.dtype, device=input_ids.device)
+        for _ in range(cfg.n_layers)
+    ]
+
+    # ---- Prefill：一次吃完整个 prompt ----
+    logits = model(input_ids, start_pos=0, kv_caches=kv_caches)
+    next_token = sampler(logits[:, -1, :])            # ← 只要最后一个位置
+    out = [next_token]
+
+    # ---- Decode：每次一个 token ----
+    for _ in range(max_new_tokens - 1):
+        pos = kv_caches[0].length
+        logits = model(next_token.unsqueeze(1), start_pos=pos, kv_caches=kv_caches)
+        next_token = sampler(logits[:, -1, :])
+        out.append(next_token)
+
+    return torch.stack(out, dim=1)
+</code></pre>
+<p>对照一下就会发现，<strong>11.1 讲的那一堆机制，全都是从这十几行长出来的</strong>：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">这里的写法</th>
+<th style="text-align: left;">引擎里变成了什么</th>
+<th style="text-align: left;">为什么要变</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>logits[:, -1, :]</code></td>
+<td style="text-align: left;"><code>cu_seqlens_q[1:] - 1</code> 的 Gather</td>
+<td style="text-align: left;">变长 batch 里没有统一的「最后一个」</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>KVCache</code> 连续预分配</td>
+<td style="text-align: left;">Paged KV Cache</td>
+<td style="text-align: left;">省显存、能共享</td>
+</tr>
+<tr>
+<td style="text-align: left;">固定的 <code>B</code></td>
+<td style="text-align: left;">Continuous Batching</td>
+<td style="text-align: left;">请求随时进出</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>start_pos</code></td>
+<td style="text-align: left;"><code>Sequence.cached_tokens</code></td>
+<td style="text-align: left;">每条序列的进度不同</td>
+</tr>
+<tr>
+<td style="text-align: left;">Python for 循环</td>
+<td style="text-align: left;"><code>engine.step()</code></td>
+<td style="text-align: left;">要能插入调度、抢占、流式输出</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Prefill 那一步的 <code>logits[:, -1, :]</code> 尤其值得注意</strong>：模型其实为 prompt 的每个位置都算了 logits，但我们只用最后一个。11.1 第十节算过这笔账——2048 长的 prompt，全算是 2.5 TFLOP，只算最后一个是 1.2 GFLOP，<strong>2048 倍</strong>。所以引擎会在 LM Head <strong>之前</strong>就把 hidden state 切出来。</p>
+<p>在这个 mini 版本里可以先不管，但你要知道这个浪费在哪。</p>
+<hr />
+<h2 id="sampling-argmax-top-p">九、Sampling：从 argmax 到 top-p<a class="headerlink" href="#sampling-argmax-top-p" title="Permanent link">&para;</a></h2>
+<h3 id="1-greedy">1. Greedy<a class="headerlink" href="#1-greedy" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">def greedy(logits):
+    return logits.argmax(dim=-1)
+</code></pre>
+<p><strong>调试时永远用它。</strong> 只有 Greedy 才能做「输出必须完全一致」的对拍，任何随机性都会让你分不清是 bug 还是采样噪声。</p>
+<h3 id="2-temperature">2. Temperature<a class="headerlink" href="#2-temperature" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">probs = torch.softmax(logits.float() / temperature, dim=-1)
+</code></pre>
+<p><span class="arithmatex">\(T&lt;1\)</span> 把分布拉尖（更确定），<span class="arithmatex">\(T&gt;1\)</span> 压平（更随机）。<span class="arithmatex">\(T\to 0\)</span> 退化成 Greedy。</p>
+<p><code>.float()</code> 不能省——词表 151936 那么宽，FP16 的 softmax 在小 temperature 下会有一堆 0。</p>
+<h3 id="3-top-k">3. Top-k<a class="headerlink" href="#3-top-k" title="Permanent link">&para;</a></h3>
+<p>只在概率最高的 <span class="arithmatex">\(k\)</span> 个里采样：</p>
+<pre><code class="language-python">def top_k_filter(logits, k):
+    if k &lt;= 0:
+        return logits
+    kth = logits.topk(k, dim=-1).values[:, -1:]      # 第 k 大的值
+    return logits.masked_fill(logits &lt; kth, float(&quot;-inf&quot;))
+</code></pre>
+<h3 id="4-top-pnucleus-gpu">4. Top-p（Nucleus）：为什么它在 GPU 上不好写<a class="headerlink" href="#4-top-pnucleus-gpu" title="Permanent link">&para;</a></h3>
+<p>Top-p 取「累积概率刚好超过 <span class="arithmatex">\(p\)</span> 的最小集合」。它比 top-k 更合理——分布尖锐时自动收窄，平坦时自动放宽。</p>
+<p>但看它的实现：</p>
+<pre><code class="language-python">def top_p_filter(logits, p):
+    sorted_logits, sorted_idx = logits.sort(dim=-1, descending=True)   # ← 问题在这
+    cum_probs = sorted_logits.softmax(-1).cumsum(-1)
+
+    # 保留累积概率首次超过 p 的那个位置及其之前
+    remove = cum_probs - sorted_logits.softmax(-1) &gt; p
+    sorted_logits = sorted_logits.masked_fill(remove, float(&quot;-inf&quot;))
+
+    return sorted_logits.scatter(1, sorted_idx.argsort(-1), sorted_logits)
+</code></pre>
+<p><strong>那个 <code>sort</code> 是对 151936 个元素排序，每条序列都要排一次。</strong> 这是整个采样流程里最贵的操作，甚至可能比一层 Transformer 还慢。</p>
+<p>工程上的解法是<strong>先 top-k 截断再排序</strong>：</p>
+<pre><code class="language-python">K = 1024                                     # 经验值，远大于任何实际的 nucleus 大小
+top_logits, top_idx = logits.topk(K, dim=-1)  # topk 比全排序快得多
+# 之后所有 top-p 逻辑都在这 K 个上做
+</code></pre>
+<p>理由是：如果 nucleus 真的需要超过 1024 个 token，说明分布已经平到接近均匀，此时截断的影响可以忽略。vLLM、TensorRT-LLM 都是这么做的。</p>
+<blockquote>
+<p><strong>「top-p 怎么在 GPU 上高效实现」是推理岗的经典题</strong>，考的就是你有没有意识到那个全词表排序。答案的关键词：<strong>topk 预截断 + 桶内 cumsum</strong>。</p>
+</blockquote>
+<h3 id="5">5. 组合起来<a class="headerlink" href="#5" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">def make_sampler(temperature=1.0, top_k=0, top_p=1.0):
+    def sampler(logits):
+        if temperature == 0:
+            return logits.argmax(dim=-1)
+        logits = logits.float() / temperature
+        if top_k &gt; 0:
+            logits = top_k_filter(logits, top_k)
+        if top_p &lt; 1.0:
+            logits = top_p_filter(logits, top_p)
+        probs = logits.softmax(dim=-1)
+        return torch.multinomial(probs, num_samples=1).squeeze(-1)
+    return sampler
+</code></pre>
+<p>生产实现会把 <code>multinomial</code> 换成 Gumbel-max（11.1 第十节讲过），因为 <code>multinomial</code> 内部要做前缀和 + 二分查找，对宽词表不友好。</p>
+<p><strong>顺序也是有讲究的</strong>：temperature → top-k → top-p。先缩放再截断，因为 temperature 会改变分布形状，进而改变 nucleus 的大小。反过来做结果不一样。</p>
+<hr />
+<h2 id="_3">十、对拍：怎么确认自己写对了<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<p>写完不验证等于没写。<strong>分层对拍是唯一靠谱的方法</strong>，从下往上：</p>
+<h3 id="0">第 0 层：形状和数值范围<a class="headerlink" href="#0" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">x = torch.randn(2, 16, cfg.dim, device=&quot;cuda&quot;, dtype=torch.float16)
+assert model(torch.randint(0, cfg.vocab_size, (2, 16)).cuda()).shape == (2, 16, cfg.vocab_size)
+</code></pre>
+<h3 id="1-vs-pytorch">第 1 层：单算子 vs PyTorch 内置<a class="headerlink" href="#1-vs-pytorch" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python"># RMSNorm
+ref = torch.nn.functional.rms_norm(x.float(), (cfg.dim,), norm.weight.float(), eps=1e-6)
+torch.testing.assert_close(norm(x).float(), ref, rtol=1e-3, atol=1e-3)
+
+# RoPE：验证它的定义性质——内积只依赖相对位置
+q = torch.randn(1, 1, 1, cfg.head_dim)
+k = torch.randn(1, 1, 1, cfg.head_dim)
+for (m, n) in [(0, 3), (5, 8), (100, 103)]:          # 相对距离都是 3
+    qm = apply_rope(q, cos[m:m+1], sin[m:m+1])
+    kn = apply_rope(k, cos[n:n+1], sin[n:n+1])
+    print((qm * kn).sum())                            # ← 这三个数必须相等
+</code></pre>
+<p><strong>RoPE 那个测试特别值得写</strong>：它不是和某个参考实现比，而是<strong>直接验证「相对位置不变性」这条定义性质</strong>。配对方式写错的话，这三个数立刻就不相等了。这种「验证性质而非验证数值」的测试，比对拍更能定位问题。</p>
+<h3 id="2-kv-cache">第 2 层：KV Cache 的等价性<a class="headerlink" href="#2-kv-cache" title="Permanent link">&para;</a></h3>
+<p>这是最关键的一条测试：</p>
+<pre><code class="language-python">ids = torch.randint(0, cfg.vocab_size, (1, 10)).cuda()
+
+# 路径 A：一次性全部前向，不用 cache
+logits_full = model(ids, start_pos=0, kv_caches=None)
+
+# 路径 B：先 prefill 前 5 个，再逐个 decode 后 5 个
+caches = [KVCache(...) for _ in range(cfg.n_layers)]
+model(ids[:, :5], start_pos=0, kv_caches=caches)
+outs = []
+for t in range(5, 10):
+    outs.append(model(ids[:, t:t+1], start_pos=t, kv_caches=caches))
+
+torch.testing.assert_close(logits_full[:, 5:], torch.cat(outs, dim=1),
+                           rtol=2e-2, atol=2e-2)
+</code></pre>
+<p><strong>「带 cache 逐步走」和「不带 cache 一次走完」必须得到相同的 logits。</strong> 这一条覆盖了 KV Cache、<code>start_pos</code>、RoPE 位置、mask 偏移的全部逻辑。它挂了，上面四个里必有一个错。</p>
+<h3 id="3-huggingface">第 3 层：和 HuggingFace 逐层对齐<a class="headerlink" href="#3-huggingface" title="Permanent link">&para;</a></h3>
+<pre><code class="language-python">from transformers import AutoModelForCausalLM
+hf = AutoModelForCausalLM.from_pretrained(path, torch_dtype=torch.float16).cuda()
+mine = load_hf_weights(MiniLLM(cfg), hf)
+
+hidden_hf, hidden_mine = {}, {}
+hf.model.layers[0].register_forward_hook(lambda m, i, o: hidden_hf.setdefault(0, o[0]))
+mine.layers[0].register_forward_hook(lambda m, i, o: hidden_mine.setdefault(0, o))
+# ... 逐层比较，找第一个偏离的层
+</code></pre>
+<p><strong>从第一层开始比，不要只比最后的输出。</strong> 误差是逐层累积的，只看最后一层你只知道「错了」，不知道「哪错了」。找到第一个偏差超过阈值的层，问题就在那一层里。</p>
+<p>常见的偏离点，按出现频率排：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">现象</th>
+<th style="text-align: left;">大概率原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">第 1 层就完全对不上</td>
+<td style="text-align: left;"><strong>RoPE 配对方式</strong>（前半后半 vs 相邻）</td>
+</tr>
+<tr>
+<td style="text-align: left;">误差随层数指数增长</td>
+<td style="text-align: left;">Norm 没升到 FP32</td>
+</tr>
+<tr>
+<td style="text-align: left;">只有长序列错</td>
+<td style="text-align: left;">mask 的 <code>diagonal</code> 偏移</td>
+</tr>
+<tr>
+<td style="text-align: left;">输出通顺但内容离谱</td>
+<td style="text-align: left;">权重漏载（某个矩阵还是随机初始化）</td>
+</tr>
+<tr>
+<td style="text-align: left;">Prefill 对、Decode 错</td>
+<td style="text-align: left;"><code>start_pos</code> 传错</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="_4">十一、跑起来：加载真实权重<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<p>自己训一个模型不现实，但可以加载现成的权重来验证。以 HF 格式的 LLaMA 系模型为例：</p>
+<pre><code class="language-python">def load_hf_weights(model: MiniLLM, hf_state: dict):
+    m = {}
+    m[&quot;embed.weight&quot;] = hf_state[&quot;model.embed_tokens.weight&quot;]
+    m[&quot;final_norm.weight&quot;] = hf_state[&quot;model.norm.weight&quot;]
+    if &quot;lm_head.weight&quot; in hf_state:                       # 可能因为 tie 而不存在
+        m[&quot;lm_head.weight&quot;] = hf_state[&quot;lm_head.weight&quot;]
+
+    for i in range(model.cfg.n_layers):
+        p, q = f&quot;layers.{i}&quot;, f&quot;model.layers.{i}&quot;
+        m[f&quot;{p}.attn_norm.weight&quot;] = hf_state[f&quot;{q}.input_layernorm.weight&quot;]
+        m[f&quot;{p}.attn.q_proj.weight&quot;] = hf_state[f&quot;{q}.self_attn.q_proj.weight&quot;]
+        m[f&quot;{p}.attn.k_proj.weight&quot;] = hf_state[f&quot;{q}.self_attn.k_proj.weight&quot;]
+        m[f&quot;{p}.attn.v_proj.weight&quot;] = hf_state[f&quot;{q}.self_attn.v_proj.weight&quot;]
+        m[f&quot;{p}.attn.o_proj.weight&quot;] = hf_state[f&quot;{q}.self_attn.o_proj.weight&quot;]
+        m[f&quot;{p}.ffn_norm.weight&quot;] = hf_state[f&quot;{q}.post_attention_layernorm.weight&quot;]
+        m[f&quot;{p}.ffn.gate_proj.weight&quot;] = hf_state[f&quot;{q}.mlp.gate_proj.weight&quot;]
+        m[f&quot;{p}.ffn.up_proj.weight&quot;] = hf_state[f&quot;{q}.mlp.up_proj.weight&quot;]
+        m[f&quot;{p}.ffn.down_proj.weight&quot;] = hf_state[f&quot;{q}.mlp.down_proj.weight&quot;]
+
+    missing, unexpected = model.load_state_dict(m, strict=False)
+    assert not [k for k in missing if &quot;cache&quot; not in k], f&quot;漏载: {missing}&quot;
+    assert not unexpected, f&quot;多余: {unexpected}&quot;
+    return model
+</code></pre>
+<p><strong>最后那两个 assert 是重点。</strong> 11.1 第九节讲过，「漏载权重」是最阴险的错误——某个矩阵保持随机初始化，模型照样输出通顺的句子，只是内容不对。用 <code>strict=False</code> 加手工检查，比直接 <code>strict=True</code> 更灵活（能放过 RoPE cache 这类 buffer），但<strong>必须自己把差集打出来看</strong>。</p>
+<p>推荐用 <strong>TinyLlama-1.1B</strong> 做验证：小到能在任何卡上跑，结构是标准的 LLaMA（RMSNorm + RoPE + GQA + SwiGLU），和这篇的实现完全对得上。</p>
+<hr />
+<h2 id="_5">十二、你现在应该能回答这些<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<p>写完并跑通之后，下面这些应该都是脱口而出的：</p>
+<p><strong>结构类</strong></p>
+<ol>
+<li>一个 Decoder Block 里，参数和 FLOP 怎么分配？为什么说 FFN 才是大头？</li>
+<li>Pre-Norm 和 Post-Norm 差在哪？为什么现代 LLM 全用 Pre-Norm？</li>
+<li>为什么最后还要一个 <code>final_norm</code>？</li>
+</ol>
+<p><strong>算子类</strong></p>
+<ol>
+<li>RMSNorm 比 LayerNorm 省了什么？为什么归约必须升到 FP32？</li>
+<li>RoPE 为什么能保证注意力只依赖相对位置？（写出 <span class="arithmatex">\(R_m^{\top}R_n=R_{n-m}\)</span>）</li>
+<li>为什么 RoPE 只作用于 Q 和 K，不作用于 V？</li>
+<li>SwiGLU 的 <span class="arithmatex">\(d_{ff}\)</span> 为什么是 <span class="arithmatex">\(\frac{8}{3}d\)</span>？（推一遍参数量守恒）</li>
+<li>SiLU 和 GELU 差在哪？为什么 LLM 选 SiLU？</li>
+<li>哪些矩阵可以融合，判断依据是什么？</li>
+</ol>
+<p><strong>推理类</strong></p>
+<ol>
+<li>KV Cache 成立的前提是什么？为什么 encoder 不能用？</li>
+<li>Decode 时为什么不需要 causal mask？</li>
+<li>有 Prefix Cache 时，mask 的 <code>diagonal</code> 为什么要偏移？</li>
+<li>GQA 的 <code>repeat_kv</code> 在 PyTorch 里会真的多占显存吗？CUDA Kernel 里呢？</li>
+<li>top-p 在 GPU 上的性能瓶颈是什么？怎么绕过？</li>
+</ol>
+<p><strong>动手标准</strong></p>
+<ul>
+<li>第十节第 2 层那个「带 cache 逐步走 == 不带 cache 一次走完」的测试能通过；</li>
+<li>加载 TinyLlama 权重后，和 HuggingFace 在 Greedy 采样下<strong>生成完全相同的 token 序列</strong>。</li>
+</ul>
+<hr />
+<h2 id="_6">下一步往哪走<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
+<p>这台机器现在能跑，但离「能扛流量」还差得远。缺的正是前面几篇讲的东西：</p>
+<pre><code class="language-text">本篇：能生成文本
+  ↓ KV Cache 按 max_len 预留太浪费、多请求没法共享
+[11.3] 分页 KV + Continuous Batching
+  ↓ 相同前缀被反复计算
+[11.1 §5] 块级 Prefix Cache  →  [11.8] token 级 Radix Cache
+  ↓ PyTorch 的 Attention 太慢
+[11.2] 手写 Attention Kernel
+  ↓ 不知道慢在哪
+[11.4] Nsight 性能分析
+  ↓ 要上线
+[11.5] Runtime 与部署
+</code></pre>
+<p>也可以反过来用这台机器：<strong>它是一个绝佳的实验平台</strong>。想验证「GQA 到底省多少显存」「Norm 用 FP16 会烂到什么程度」「mask 偏移写错会怎样」，改两行跑一下就知道了 —— 这比在 vLLM 里改代码快一百倍。</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../11.6-paged_attention_dx12_tensorrt_backend/" class="btn btn-neutral float-left" title="11.6 进阶: 把分页契约搬到 DX12 与 TensorRT 后端"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../11.8-radix_cache_prefix_tree/" class="btn btn-neutral float-right" title="11.8 Radix Cache: 从块级前缀复用到 token 级前缀树">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../11.6-paged_attention_dx12_tensorrt_backend/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../11.8-radix_cache_prefix_tree/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../javascripts/docs-config.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

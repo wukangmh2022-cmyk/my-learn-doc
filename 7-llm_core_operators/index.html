@@ -205,7 +205,9 @@
     </li>
         </ul>
     </li>
-    <li class="toctree-l2"><a class="reference internal" href="#_13">本章面试自检</a>
+    <li class="toctree-l2"><a class="reference internal" href="#_13">下一步：把这些零件焊成一台机器</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_14">本章面试自检</a>
     </li>
     </ul>
                 </li>
@@ -247,6 +249,10 @@
                   <li class="toctree-l1"><a class="reference internal" href="../11.5-inference_runtime_deployment/">11.5 Runtime、动态批处理与部署验证</a>
                   </li>
                   <li class="toctree-l1"><a class="reference internal" href="../11.6-paged_attention_dx12_tensorrt_backend/">11.6 进阶: 把分页契约搬到 DX12 与 TensorRT 后端</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.7-mini_decoder_only_transformer/">11.7 手搓 mini decode-only Transformer: 把零件焊成一台机器</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../11.8-radix_cache_prefix_tree/">11.8 Radix Cache: 从块级前缀复用到 token 级前缀树</a>
                   </li>
               </ul>
               <p class="caption"><span class="caption-text">附录 A. 学习与职业实践</span></p>
@@ -725,7 +731,11 @@ out[col*N + row] = in[row*N + col];
 </tbody>
 </table>
 <hr />
-<h2 id="_13">本章面试自检<a class="headerlink" href="#_13" title="Permanent link">&para;</a></h2>
+<h2 id="_13">下一步：把这些零件焊成一台机器<a class="headerlink" href="#_13" title="Permanent link">&para;</a></h2>
+<p>本章拆的是<strong>单个算子</strong>：Attention 的公式、RMSNorm 的一次规约、RoPE 的旋转矩阵、GEMM/GEMV 的访存模式。但零件摆一桌不等于会造机器 —— 你还需要知道它们<strong>按什么顺序串起来</strong>、KV Cache 挂在哪一步、FFN（本章没展开，它其实占了一个 Block 三分之二的参数）长什么样、最后 logits 怎么变成 token。</p>
+<p>这条组装线在 <a href="../11.7-mini_decoder_only_transformer/">11.7 手搓 mini decode-only Transformer</a>：约 300 行 PyTorch，把 RMSNorm + RoPE + GQA Attention + KV Cache + SwiGLU FFN + Sampling 焊成一个能跑 <code>generate()</code> 的完整模型，并和 HuggingFace 逐层对拍。<strong>建议读完本章立刻去写一遍</strong> —— 公式记不牢，往往是因为没亲手接过线。</p>
+<hr />
+<h2 id="_14">本章面试自检<a class="headerlink" href="#_14" title="Permanent link">&para;</a></h2>
 <ol>
 <li>口述 Attention 公式 + 一句话说清"为什么需要 Online Softmax"。</li>
 <li>画 MHA / MQA / GQA 的 K/V 头形状，并说清 GQA 省的是什么（访存带宽）。</li>
